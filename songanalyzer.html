@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <meta charset="UTF-8">
+ <!-- <link rel="stylesheet" href="../dredwerkz.css" type="text/css"> -->
+ <title>Song Analyzer</title>
+</head>
+<body>
+<div id="content">
+<h2>Song Analyzer</h2>
+<div>
+ <p>Enter space-separated song chords: <input type="text" id="chords">&nbsp;<span onclick="analyze();">Analyze</span></p>
+ <p>Valid input: C Db D Eb E F Gb G Ab A Bb B</p>
+</div>
+<table id="aoutput" border="1">
+<tr>
+ <th>Chord / Tone</th><th># in C scale</th><th>Intervals</th></tr>
+</table>
+<div>
+ <p>Enter the root note of a 
+ <select onchange="setScale(this, scale);" id="dropdown">
+  <option id="major">major</option>
+  <option id="minor">minor</option>
+  <option id="pentatonic">pentatonic</option>
+  <option id="diminished">diminished</option>
+ </select> scale: <input type="text" id="root">&nbsp;<span onclick="getScale();">Generate</span></p>
+ <p id="soutput"></p>
+</div>
+<script>
+ var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+
+ function analyze() {
+  var progression = document.getElementById('chords').value.split(" "); 
+  var output = document.getElementById('aoutput');
+  var row, cell;
+  var tmp = notes.indexOf(progression[0]);
+   
+  for (var i = 0; i < progression.length; i++) {
+   row = output.insertRow(i + 1);
+   cell = row.insertCell(0);
+   cell.innerHTML = progression[i];
+   cell = row.insertCell(1);
+   cell.innerHTML = notes.indexOf(progression[i]);
+   cell = row.insertCell(2);
+   cell.innerHTML = Math.abs(tmp - notes.indexOf(progression[i]));
+   tmp = notes.indexOf(progression[i]);
+  }
+
+  return false; //prevents overwriting the original markup and indefinite loading after click
+ }
+ 
+ var select = document.getElementById('dropdown');
+ var scale = select.options[select.selectedIndex].id;
+ //console.log(scale);
+ 
+ function setScale(select) {
+  scale = select.options[select.selectedIndex].id;
+  //console.log("scale setScale() "+ scale);
+ }
+ 
+ function getScale() {
+  if("major" === scale) {
+   //console.log("major getScale() "+ scale);
+   getMajorScale();
+  } else if ("minor" === scale) {
+   //console.log("minor getScale() "+ scale);
+   getMinorScale();
+  } else if ("pentatonic" === scale) {
+   //console.log("pentatonic getScale() "+ scale);
+   getPentatonicScale();
+  } else if ("diminished" === scale) {
+   //console.log("diminished getScale() "+ scale);
+   getDiminishedScale();
+  }
+ }
+
+ var soutput = document.getElementById('soutput');
+ var major = [0, 2, 2, 1, 2, 2, 2, 1];
+ 
+ function getMajorScale() {
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+ 
+  for (var i = 1; i < major.length; i++) {
+   if (note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += major[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+
+ var minor = [0, 2, 1, 2, 2, 1, 2, 2];
+
+ function getMinorScale() {
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+
+  for (var i = 1; i < minor.length; i++) {   
+   if (note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += minor[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
+ var pentatonic = [0, 3, 2, 2, 2, 3];
+ // "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"
+ function getPentatonicScale() {
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  console.log(pentatonic.length);
+  
+  for(var i = 1; i <= pentatonic.length; i++) {
+    if (note > 11) note -= 12;
+    scale.push(notes[note]);
+    note += pentatonic[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
+ var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
+
+ function getDiminishedScale() {
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+
+  for(var i = 1; i < diminished.length; i++) {
+   if(note > 11) note = 0;
+
+   scale.push(notes[note]);
+   note += diminished[i];
+  }
+
+  soutput.innerHTML = scale;
+ }
+
+ function getIntervals() {
+ }
+</script>
+</div>
+</body>
+</html>
