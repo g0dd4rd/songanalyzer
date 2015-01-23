@@ -1,0 +1,10 @@
+{
+  "name": "Song Analyzer",
+  "description": "Analyzes interval patterns in chord progressions and generates various scales, so far :)",
+  "launch_path": "/",
+  "developer": {
+    "name": "Jiri Prajzner, @dredwerkz",
+    "url": "http://www.dredwerkz.cz"
+  },
+  "default_locale": "en"
+}
