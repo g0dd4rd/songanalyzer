@@ -23,7 +23,12 @@
   <option id="minor">minor</option>
   <option id="pentatonic">pentatonic</option>
   <option id="diminished">diminished</option>
- </select> scale: <input type="text" id="root">&nbsp;<span onclick="getScale();">Generate</span></p>
+ </select>
+ <select onchange="setShape(this, shape);" id="dropdown">
+  <option id="scale">scale</option>
+  <option id="arpeggio">arpeggio</option>
+ </select>
+ <input type="text" id="root">&nbsp;<span onclick="getScale();">Generate</span></p>
  <p id="soutput"></p>
 </div>
 <script>
@@ -128,8 +133,7 @@
   var note = notes.indexOf(document.getElementById('root').value);
 
   for(var i = 1; i < diminished.length; i++) {
-   if(note > 11) note = 0;
-
+   if(note > 11) note -= 12;
    scale.push(notes[note]);
    note += diminished[i];
   }
@@ -137,6 +141,20 @@
   soutput.innerHTML = scale;
  }
 
+ var majorArp = [0, 3, 3];
+ 
+ function getArpeggio() {
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  
+  for(var = 1; i < majorArp.length; i++) {
+   if(note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += majorArp[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
  function getIntervals() {
  }
 </script>
