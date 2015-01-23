@@ -18,25 +18,27 @@
 </table>
 <div>
  <p>Enter the root note of a 
- <select onchange="setScale(this, scale);" id="dropdown">
+ <select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
   <option id="major">major</option>
   <option id="minor">minor</option>
   <option id="pentatonic">pentatonic</option>
+  <option id="maj7th">maj7th</option>
+  <option id="min7th">min7th</option>
   <option id="diminished">diminished</option>
  </select>
- <select onchange="setShape(this, shape);" id="dropdown">
+ <select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
   <option id="scale">scale</option>
   <option id="arpeggio">arpeggio</option>
  </select>
- <input type="text" id="root">&nbsp;<span onclick="getScale();">Generate</span></p>
+ <input type="text" id="root">&nbsp;<span onclick="getForm()">Generate</span></p>
  <p id="soutput"></p>
 </div>
 <script>
  var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
  function analyze() {
-  var progression = document.getElementById('chords').value.split(" "); 
-  var output = document.getElementById('aoutput');
+  var progression = document.getElementById("chords").value.split(" "); 
+  var output = document.getElementById("aoutput");
   var row, cell;
   var tmp = notes.indexOf(progression[0]);
    
@@ -54,35 +56,73 @@
   return false; //prevents overwriting the original markup and indefinite loading after click
  }
  
- var select = document.getElementById('dropdown');
- var scale = select.options[select.selectedIndex].id;
+ var scaleSelect = document.getElementById("scaleDropdown");
+ var scale = scaleSelect.options[scaleSelect.selectedIndex].id;
  //console.log(scale);
+ var shapeSelect = document.getElementById("shapeDropdown");
+ var shape = shapeSelect.options[shapeSelect.selectedIndex].id;
  
- function setScale(select) {
-  scale = select.options[select.selectedIndex].id;
+ function setScale(scaleSelect) {
+  scale = scaleSelect.options[scaleSelect.selectedIndex].id;
   //console.log("scale setScale() "+ scale);
  }
  
- function getScale() {
-  if("major" === scale) {
-   //console.log("major getScale() "+ scale);
-   getMajorScale();
-  } else if ("minor" === scale) {
-   //console.log("minor getScale() "+ scale);
-   getMinorScale();
-  } else if ("pentatonic" === scale) {
-   //console.log("pentatonic getScale() "+ scale);
-   getPentatonicScale();
-  } else if ("diminished" === scale) {
-   //console.log("diminished getScale() "+ scale);
-   getDiminishedScale();
-  }
+ function setShape(shapeSelect) {
+  shape = shapeSelect.options[shapeSelect.selectedIndex].id;
+ }
+ 
+ function getForm() {
+   if(scale === "major") {
+    if(shape === "scale") {
+     //console.log("major getScale() "+ scale);
+     getMajorScale();
+	} else {
+	 getMajorArpeggio();
+	}
+   } else if (scale === "minor") {
+    if(shape === "scale") {
+     //console.log("minor getScale() "+ scale);
+     getMinorScale();
+	} else {
+	 getMinorArpeggio();
+	}
+   } else if (scale === "pentatonic") {
+    if(shape === "scale") {
+     //console.log("pentatonic getScale() "+ scale);
+     getPentatonicScale();
+	} else {
+	 error(shape);
+	}
+   } else if(scale === "maj7th") {
+    if(shape === "arpeggio") {
+	 getMajor7thArpeggio();
+	} else {
+	 error(shape);
+	}
+   } else if(scale === "min7th") {
+    if(shape === "arpeggio") {
+	 getMinor7thArpeggio();
+	} else {
+	 error(shape);
+	}
+   } else if (scale === "diminished") {
+    if(shape === "scale") {
+     //console.log("diminished getScale() "+ scale);
+     getDiminishedScale();
+	} else {
+	 error(shape);
+	}
+   }
  }
 
  var soutput = document.getElementById('soutput');
- var major = [0, 2, 2, 1, 2, 2, 2, 1];
+ 
+ function error(param) {
+  soutput.innerHTML = "Sorry, there's no such "+ param;
+ }
  
  function getMajorScale() {
+  var major = [0, 2, 2, 1, 2, 2, 2, 1];
   var scale = [];
   var note = notes.indexOf(document.getElementById('root').value);
  
@@ -95,9 +135,8 @@
   soutput.innerHTML = scale;
  }
 
- var minor = [0, 2, 1, 2, 2, 1, 2, 2];
-
  function getMinorScale() {
+  var minor = [0, 2, 1, 2, 2, 1, 2, 2];
   var scale = [];
   var note = notes.indexOf(document.getElementById('root').value);
 
@@ -110,12 +149,10 @@
   soutput.innerHTML = scale;
  }
  
- var pentatonic = [0, 3, 2, 2, 3];
- 
  function getPentatonicScale() {
+  var pentatonic = [0, 3, 2, 2, 3];
   var scale = [];
   var note = notes.indexOf(document.getElementById('root').value);
-  console.log(pentatonic.length);
   
   for(var i = 1; i <= pentatonic.length; i++) {
     if (note > 11) note -= 12;
@@ -126,9 +163,8 @@
   soutput.innerHTML = scale;
  }
  
- var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
-
  function getDiminishedScale() {
+  var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
   var scale = [];
   var note = notes.indexOf(document.getElementById('root').value);
 
@@ -141,13 +177,12 @@
   soutput.innerHTML = scale;
  }
 
- var majorArp = [0, 3, 3];
- 
- function getArpeggio() {
+ function getMajorArpeggio() {
+  var majorArp = [0, 4, 3, 3];
   var scale = [];
   var note = notes.indexOf(document.getElementById('root').value);
   
-  for(var = 1; i < majorArp.length; i++) {
+  for(var i = 1; i < majorArp.length; i++) {
    if(note > 11) note -= 12;
    scale.push(notes[note]);
    note += majorArp[i];
@@ -155,6 +190,63 @@
   
   soutput.innerHTML = scale;
  }
+ 
+ function getMinorArpeggio() {
+  var minorArp = [0, 3, 4, 3];
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  
+  for(var i = 1; i < minorArp.length; i++) {
+   if(note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += minorArp[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
+ function getMajor7thArpeggio() {
+  var major7thArp = [0, 4, 3, 3, 2];
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  
+  for(var i = 1; i < major7thArp.length; i++) {
+   if(note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += major7thArp[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
+ function getMinor7thArpeggio() {
+  var minor7thArp = [0, 3, 4, 3, 2];
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  
+  for(var i = 1; i < minor7thArp.length; i++) {
+   if(note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += minor7thArp[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
+ function getDiminishedArpeggio() {
+  var diminishedArp = [0, 3, 4, 3, 2];
+  var scale = [];
+  var note = notes.indexOf(document.getElementById('root').value);
+  
+  for(var i = 1; i < diminishedArp.length; i++) {
+   if(note > 11) note -= 12;
+   scale.push(notes[note]);
+   note += diminishedArp[i];
+  }
+  
+  soutput.innerHTML = scale;
+ }
+ 
  function getIntervals() {
  }
 </script>
