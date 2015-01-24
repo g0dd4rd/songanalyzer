@@ -9,7 +9,7 @@
 <div id="content">
 <h2>Song Analyzer</h2>
 <div>
- <p>Enter space-separated song chords: <input type="text" id="chords">&nbsp;<span onclick="analyze();">Analyze</span></p>
+ <p>Enter space-separated song chords: <input type="text" id="chords">&nbsp;<input type="button" value="Analyze" onclick="analyze();"></p>
  <p>Valid input: C Db D Eb E F Gb G Ab A Bb B</p>
 </div>
 <table id="aoutput" border="1">
@@ -30,7 +30,7 @@
   <option id="scale">scale</option>
   <option id="arpeggio">arpeggio</option>
  </select>
- <input type="text" id="root">&nbsp;<span onclick="getForm()">Generate</span></p>
+ <input type="text" id="root">&nbsp;<input type="button" value="Generate" onclick="getForm()"></p>
  <p id="soutput"></p>
 </div>
 <script>
