@@ -1,0 +1,188 @@
+body {
+	margin: 20px;
+	font-family: Tahoma, Lucida, Verdana, Arial, sans-serif;
+	font-size: .75em;
+	line-height: 1.2em;
+	font-style: normal;
+	color: #aaaaaa;
+	background-color: #333333;
+}
+
+h1 {
+	margin: -10px -10px -15px -10px;
+	padding: 0px 10px 5px 10px;
+	font: 900 2em/1.6em Tahoma, Arial, sans-serif;
+	color: #ffffff;
+	background-color: #000000;
+	border-bottom: #ffffff 1px solid;
+	letter-spacing: 7px;
+}
+
+h2 {
+	margin: 0px 0px 5px 0px;
+	padding: 0px 0px 0px 0px;
+	font: bold 1.5em Tahoma, Arial, sans-serif;
+	color: #dddddd;
+	background-color: #333333;
+}
+
+img {
+        /*align: center;*/
+}
+
+p {
+	margin: 0px 0px 0px 0px;
+	font-family: Tahoma, Arial, sans-serif;
+	text-align: justify;
+	text-indent: 3%;
+}
+
+pre {
+	background-color: white;
+	color: black;
+	font-size: 1.2em;
+	margin-left: 3%;
+	padding: 4px;
+	width: 94%;
+}
+
+table, td, th {
+		text-align: center;
+        border: 1px solid grey;
+        border-collapse: collapse;
+        font-size: small;
+}
+
+.cmnt {
+	background-color: #ffffff;
+	color: #008800;
+	font-family: "Courier New", Courier, sans-serif;
+	font-size: .8em;
+}
+
+.font {
+	font-family: "Courier New", Courier, sans-serif;
+}
+
+.kwrd {
+	background-color: #ffffff;
+	color: #0000ff;
+	font-family: "Courier New", Courier, sans-serif;
+	font-size: .9em;
+}
+
+.rfce {
+       background-color: #996600;
+}
+
+.left {
+	text-align: left;
+}
+
+.right {
+	text-align: right;
+}
+
+.center {
+	margin: 5px 0px;
+	text-align: center;
+}
+
+a:link {
+	color: #ffffff;
+	background-color: #333333;
+	text-decoration: none;
+}
+
+a:visited {
+	color: #aaaaaa;
+	background-color: #333333;
+	text-decoration: none;
+}
+
+a:active {
+	color: #ff8800;
+	background-color: #333333;
+	text-transform: uppercase;
+}
+
+#content a:hover {
+	background-color: #333333;
+	color: #ffffff;
+}
+
+#content a:link {
+	color: #ff8800;
+	background-color: #333333;
+	text-decoration: none;
+}
+
+#links a:hover {
+	background-color: #333333;
+	color: #ff8800;
+}
+
+#navigation a:hover {
+	color: #000000;
+	background-color: #ff8800;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+#navigation {
+	margin: 0px;
+	padding: 0px;
+}
+
+#navigation li {
+	/*background-color: black;*/
+	float: left;
+	list-style: none;
+	/*padding-left: 50px;*/
+	/*padding-right: 50px;*/
+	width: 115px;
+}
+
+div#links {
+	/*background-color: black;*/
+	border-left: 1px solid white;
+	float: right;
+	margin-right: 1%;
+	margin-top: 3.5%;
+	padding: 0px;
+	width: 25%;
+}
+
+#links img {
+
+border: none;	padding-right: 65%;
+}
+
+#links li {
+	/*background-color: black;*/
+	border-bottom: 1px dotted white;
+	margin-left: -38px;
+	margin-right: 15px;
+	list-style: none;
+	padding: 4px;
+	text-align: left;
+	/*width: 115px;*/
+}
+
+#links a {
+	font-size: 1em;
+	margin: 0px;
+	padding-bottom: 2px;
+}
+
+div#content {
+	float: left;
+	margin: 1%;
+	width: 70%;
+}
+
+#main {
+	margin: 10px;
+	padding: 0px;
+}
+
