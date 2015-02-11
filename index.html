@@ -85,45 +85,55 @@
  function setShape(shapeSelect) {
   shape = shapeSelect.options[shapeSelect.selectedIndex].id;
  }
- 
+
+ var major = [0, 2, 2, 1, 2, 2, 2, 1];
+ var minor = [0, 2, 1, 2, 2, 1, 2, 2];
+ var pentatonic = [0, 3, 2, 2, 3];
+ var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
+ var majorArp = [0, 4, 3, 3];
+ var minorArp = [0, 3, 4, 3];
+ var major7thArp = [0, 4, 3, 3, 2];
+ var minor7thArp = [0, 3, 4, 3, 2];
+ var diminishedArp = [0, 3, 4, 3, 2]; 
+
  function getForm() {
    if(scale === "major") {
     if(shape === "scale") {
      //console.log("major getScale() "+ scale);
-     getMajorScale();
+     getScale(major);
 	} else {
-	 getMajorArpeggio();
+	 getScale(majorArp);
 	}
    } else if (scale === "minor") {
     if(shape === "scale") {
      //console.log("minor getScale() "+ scale);
-     getMinorScale();
+     getScale(minor);
 	} else {
-	 getMinorArpeggio();
+	 getScale(minorArp);
 	}
    } else if (scale === "pentatonic") {
     if(shape === "scale") {
      //console.log("pentatonic getScale() "+ scale);
-     getPentatonicScale();
+     getScale(pentatonic);
 	} else {
 	 error(shape);
 	}
    } else if(scale === "maj7th") {
     if(shape === "arpeggio") {
-	 getMajor7thArpeggio();
+	 getScale(major7thArp);
 	} else {
 	 error(shape);
 	}
    } else if(scale === "min7th") {
     if(shape === "arpeggio") {
-	 getMinor7thArpeggio();
+	 getScale(minor7thArp);
 	} else {
 	 error(shape);
 	}
    } else if (scale === "diminished") {
     if(shape === "scale") {
      //console.log("diminished getScale() "+ scale);
-     getDiminishedScale();
+     getScale(diminished);
 	} else {
 	 error(shape);
 	}
@@ -149,134 +159,6 @@
   soutput.innerHTML = s;
  }
  
- function getMajorScale() {
-  var major = [0, 2, 2, 1, 2, 2, 2, 1];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
- 
-  for (var i = 1; i < major.length; i++) {
-   if (note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += major[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
-
- function getMinorScale() {
-  var minor = [0, 2, 1, 2, 2, 1, 2, 2];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-
-  for (var i = 1; i < minor.length; i++) {   
-   if (note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += minor[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getPentatonicScale() {
-  var pentatonic = [0, 3, 2, 2, 3];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i <= pentatonic.length; i++) {
-    if (note > 11) note -= 12;
-    scale.push(notes[note]);
-    note += pentatonic[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getDiminishedScale() {
-  var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-
-  for(var i = 1; i < diminished.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += diminished[i];
-  }
-
-  soutput.innerHTML = scale;
- }
-
- function getMajorArpeggio() {
-  var majorArp = [0, 4, 3, 3];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i < majorArp.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += majorArp[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getMinorArpeggio() {
-  var minorArp = [0, 3, 4, 3];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i < minorArp.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += minorArp[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getMajor7thArpeggio() {
-  var major7thArp = [0, 4, 3, 3, 2];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i < major7thArp.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += major7thArp[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getMinor7thArpeggio() {
-  var minor7thArp = [0, 3, 4, 3, 2];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i < minor7thArp.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += minor7thArp[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getDiminishedArpeggio() {
-  var diminishedArp = [0, 3, 4, 3, 2];
-  var scale = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  
-  for(var i = 1; i < diminishedArp.length; i++) {
-   if(note > 11) note -= 12;
-   scale.push(notes[note]);
-   note += diminishedArp[i];
-  }
-  
-  soutput.innerHTML = scale;
- }
- 
- function getIntervals() {
- }
 </script>
 </div>
 </body>
