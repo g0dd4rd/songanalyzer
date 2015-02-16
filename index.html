@@ -55,17 +55,22 @@
   var progression = document.getElementById("chords").value.split(" "); 
   var output = document.getElementById("aoutput");
   var row, cell;
-  var tmp = notes.indexOf(progression[0]);
-   
-  for (var i = 0; i < progression.length; i++) {
-   row = output.insertRow(i + 1);
-   cell = row.insertCell(0);
-   cell.innerHTML = progression[i];
-   cell = row.insertCell(1);
-   cell.innerHTML = notes.indexOf(progression[i]);
-   cell = row.insertCell(2);
-   cell.innerHTML = Math.abs(tmp - notes.indexOf(progression[i]));
-   tmp = notes.indexOf(progression[i]);
+  //console.log(progression.length);
+  if(progression[0] === "") {
+   error("progression");
+   //console.log("variable progression not inited");
+  } else {
+   var tmp = notes.indexOf(progression[0]);
+   for (var i = 0; i < progression.length; i++) {
+    row = output.insertRow(i + 1);
+    cell = row.insertCell(0);
+    cell.innerHTML = progression[i];
+    cell = row.insertCell(1);
+    cell.innerHTML = notes.indexOf(progression[i]);
+    cell = row.insertCell(2);
+    cell.innerHTML = Math.abs(tmp - notes.indexOf(progression[i]));
+    tmp = notes.indexOf(progression[i]);
+   }
   }
 
   return false; //prevents overwriting the original markup and indefinite loading after click
@@ -149,14 +154,18 @@
  function getScale(scale) {
   var s = [];
   var note = notes.indexOf(document.getElementById('root').value);
-
-  for(var i = 1; i < scale.length; i++) {
-   if(note > 11) note -= 12;
-    s.push(notes[note]);
-    note += scale[i];
+  //console.log(note);
+  if(note === -1) {
+   //console.log("variable note not inited");
+   error("scale");
+  } else {
+   for(var i = 1; i < scale.length; i++) {
+    if(note > 11) note -= 12;
+     s.push(notes[note]);
+     note += scale[i];
+   }
+   soutput.innerHTML = s;
   }
-
-  soutput.innerHTML = s;
  }
  
 </script>
