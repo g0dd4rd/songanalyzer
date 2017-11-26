@@ -168,6 +168,28 @@
  }
  
 </script>
+<input type="button" value="Generate random intervals" onclick="generateRandomIntervals();"/>
+<p id='result'></p>
+<script>
+function generateRandomIntervals() {
+var natcmaj = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+var quality = ['min', 'maj', 'dim', 'aug'];
+var intervals = ['root', '2nd', '3rd', '4th', '5th', '6th', '7th'];
+// 1, 4, 5, 8 - perfect
+// 2, 3, 6, 7 - minor / major
+var qResult = quality[Math.floor(Math.random() * quality.length)];
+var minmaj = ['2nd', '3rd', '6th', '7th'];
+var iResult = '';
+if(qResult === 'min' || qResult == 'maj') {
+  iResult = minmaj[Math.floor(Math.random() * minmaj.length)];
+} else {
+  iResult = intervals[Math.floor(Math.random() * intervals.length)];
+}
+
+var resultId = document.getElementById('result');
+resultId.innerHTML = qResult + ' '+ iResult +' in '+ natcmaj[Math.floor(Math.random() * natcmaj.length)] +' major';
+}
+</script>
 <input type="button" value="Generate rhythm" onclick="writeRhythm();">
 <table id="rhythmoutput" border="1">
 </table>
