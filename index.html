@@ -17,37 +17,33 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>. -->
- <link rel="stylesheet" href="dredwerkz.css" type="text/css">
+ <!-- link rel="stylesheet" href="dredwerkz.css" type="text/css" -->
  <title>Song Analyzer</title>
 </head>
 <body>
-<div id="content">
 <h2>Song Analyzer</h2>
-<div>
- <p>Enter space-separated song chords: <input type="text" id="chords">&nbsp;<input type="button" value="Analyze" onclick="analyze();"></p>
- <p>Valid input: C Db D Eb E F Gb G Ab A Bb B</p>
-</div>
+<p>Enter space-separated song chords (Valid input: C Db D Eb E F Gb G Ab A Bb B): 
+<input type="text" id="chords">&nbsp;<input type="button" value="Analyze" onclick="analyze();"></p>
 <table id="aoutput" border="1">
 <tr>
  <th>Chord / Tone</th><th># in C scale</th><th>Intervals</th></tr>
 </table>
-<div>
- <p>Enter the root note of a 
- <select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
-  <option id="major">major</option>
-  <option id="minor">minor</option>
-  <option id="pentatonic">pentatonic</option>
-  <option id="maj7th">maj7th</option>
-  <option id="min7th">min7th</option>
-  <option id="diminished">diminished</option>
- </select>
- <select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
-  <option id="scale">scale</option>
-  <option id="arpeggio">arpeggio</option>
- </select>
- <input type="text" id="root">&nbsp;<input type="button" value="Generate" onclick="getForm()"></p>
- <p id="soutput"></p>
-</div>
+<p>Enter the root note of</p> 
+<select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
+ <option id="major">major</option>
+ <option id="minor">minor</option>
+ <option id="pentatonic">pentatonic</option>
+ <option id="maj7th">maj7th</option>
+ <option id="min7th">min7th</option>
+ <option id="diminished">diminished</option>
+</select>
+<select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
+ <option id="scale">scale</option>
+ <option id="arpeggio">arpeggio</option>
+ <option id='circle'>circle</option>
+</select>
+<input type="text" id="root">&nbsp;<input type="button" value="Show notes" onclick="getForm()">
+<p id="soutput"></p>
 <script>
  var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
@@ -99,16 +95,19 @@
  var minorArp = [0, 3, 4, 3];
  var major7thArp = [0, 4, 3, 3, 2];
  var minor7thArp = [0, 3, 4, 3, 2];
- var diminishedArp = [0, 3, 4, 3, 2]; 
+ var diminishedArp = [0, 3, 4, 3, 2];
+ var majorCircOf4ths = [0, 5, 6, 4, 5, 5, 5]; //not finished!!!
 
  function getForm() {
-   if(scale === "major") {
-    if(shape === "scale") {
+   if(scale === 'major') {
+    if(shape === 'scale') {
      //console.log("major getScale() "+ scale);
      getScale(major);
-	} else {
-	 getScale(majorArp);
-	}
+    } else if(shape === 'arpeggio') {
+     getScale(majorArp);
+    } else {
+      getScale(majorCircOf4ths);
+    }
    } else if (scale === "minor") {
     if(shape === "scale") {
      //console.log("minor getScale() "+ scale);
@@ -168,6 +167,66 @@
   }
  }
  
+</script>
+<input type="button" value="Generate rhythm" onclick="writeRhythm();">
+<table id="rhythmoutput" border="1">
+</table>
+<h4>Note values</h4>
+<ul>
+ <li>&#x2669; - quarter note</li>
+ <li>&#x1D13D - quarter rest</li>
+ <li>&#x266A; - eighth note</li>
+ <li>&#x266B; - two eighth notes</li>
+ <li>&#x1D161; - sixteenth note</li>
+ <li>&#x266C; - two sixteenth notes</li>
+ <li>&#x1D162; - thirtysecond note</li>
+</ul>
+<script>
+function generateRhythm(numberOfBeats) {
+  var quarterNote = {unicode: "&#x2669;", value: 32};
+  var quarterRest = {unicode: "&#x1D13D", value: 32};
+  var eighthNote = {unicode: "&#x266A;", value: 16};
+  var twoEighthNotes = {unicode: "&#x266B;", value: 32};
+  var sixteenthNote = {unicode: "&#x1D161;", value: 8};
+  var twoSixteenthNotes = {unicode: "&#x266C;", value: 16};
+  var thirtySecondNote = {unicode: "&#x1D162;", value: 1};
+  notes = [quarterNote, eighthNote, twoEighthNotes, sixteenthNote, twoSixteenthNotes, thirtySecondNote];
+  var i = 0;
+  var bar = [];
+  while(i <= (numberOfBeats * quarterNote.value)) {
+    var note = notes[Math.floor(Math.random() * notes.length)];
+    console.log("note: "+ note.unicode +" note value: "+ note.value);
+    i += note.value;
+    bar.push(note.unicode);
+    console.log(bar.length);
+  }
+
+  return bar;
+}
+
+function writeRhythm() {
+  var output = document.getElementById("rhythmoutput");
+  output.innerHTML = ""; // clean the table first
+  var row = output.insertRow(0);
+  var bar = generateRhythm(4);
+  bar.forEach(function(beat, index) {
+    var cell = row.insertCell(bar[index]);
+    cell.innerHTML = beat;
+  });
+}
+</script>
+<audio id="audioPlayer" preload="metadata" controls loop>
+  <source src="audio/D1.wav">
+</audio>
+<p>BPM: <input type="range" min="0.5" max="4" step="0.25" id="bpm" value="BPM"/><p>
+<script>
+var bpmSlider = document.getElementById("bpm");
+console.log(bpmSlider);
+
+var audioPlayer = document.getElementById("audioPlayer");
+audioPlayer.onplaying = function() {audioPlayer.playbackRate = bpmSlider.valueAsNumber;} // min = 0.5, max = 4
+console.log(audioPlayer);
+window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
 </script>
 </div>
 </body>
