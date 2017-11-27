@@ -28,27 +28,11 @@
 <tr>
  <th>Chord / Tone</th><th># in C scale</th><th>Intervals</th></tr>
 </table>
-<p>Enter the root note of</p> 
-<select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
- <option id="major">major</option>
- <option id="minor">minor</option>
- <option id="pentatonic">pentatonic</option>
- <option id="maj7th">maj7th</option>
- <option id="min7th">min7th</option>
- <option id="diminished">diminished</option>
-</select>
-<select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
- <option id="scale">scale</option>
- <option id="arpeggio">arpeggio</option>
- <option id='circle'>circle</option>
-</select>
-<input type="text" id="root">&nbsp;<input type="button" value="Show notes" onclick="getForm()">
-<p id="soutput"></p>
 <script>
  var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
  function analyze() {
-  var progression = document.getElementById("chords").value.split(" "); 
+  var progression = document.getElementById("chords").value.split(" ");
   var output = document.getElementById("aoutput");
   var row, cell;
   //console.log(progression.length);
@@ -71,7 +55,24 @@
 
   return false; //prevents overwriting the original markup and indefinite loading after click
  }
- 
+</script>
+<p>Enter the root note of</p> 
+<select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
+ <option id="major">major</option>
+ <option id="minor">minor</option>
+ <option id="pentatonic">pentatonic</option>
+ <option id="maj7th">maj7th</option>
+ <option id="min7th">min7th</option>
+ <option id="diminished">diminished</option>
+</select>
+<select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
+ <option id="scale">scale</option>
+ <option id="arpeggio">arpeggio</option>
+ <option id='circle'>circle</option>
+</select>
+<input type="text" id="root">&nbsp;<input type="button" value="Show notes" onclick="getForm()">
+<p id="soutput"></p>
+<script>
  var scaleSelect = document.getElementById("scaleDropdown");
  var scale = scaleSelect.options[scaleSelect.selectedIndex].id;
  //console.log(scale);
