@@ -250,7 +250,7 @@ function writeRhythm() {
 <audio id="audioPlayer" preload="metadata" controls loop>
   <source src="audio/D1.wav">
 </audio>
-<p>BPM: <input type="range" min="0.5" max="4" step="0.1" id="bpm" value="BPM"/>
+<p>BPM: <input type="range" min="0.5" max="4" step="0.01" id="bpm" value="BPM"/>
 <span id="bpmDisplayValue"></span>
 </p>
 <script>
@@ -272,7 +272,7 @@ var audioPlayer = document.getElementById("audioPlayer");
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
   //console.log("playbackRate * 60: "+ audioPlayer.playbackRate * 60);
-  bpmDisplayValue.innerHTML = audioPlayer.playbackRate * 60;
+  bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * 60);
   //console.log("duration / playbackRate: "+ audioPlayer.duration / audioPlayer.playbackRate);
 }
 
