@@ -250,10 +250,13 @@ function writeRhythm() {
 <audio id="audioPlayer" preload="metadata" controls loop>
   <source src="audio/D1.wav">
 </audio>
-<p>BPM: <input type="range" min="0.5" max="4" step="0.25" id="bpm" value="BPM"/><p>
+<p>BPM: <input type="range" min="0.5" max="4" step="0.1" id="bpm" value="BPM"/>
+<span id="bpmDisplayValue"></span>
+</p>
 <script>
 var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
+var bpmDisplayValue = document.getElementById("bpmDisplayValue");
 
 function playClick() {
   var metronomeCtx =  new (window.AudioContext || window.webkitAudioContext)();
@@ -266,19 +269,19 @@ function playClick() {
 }
 
 var audioPlayer = document.getElementById("audioPlayer");
-var onplayFired = 0;
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
-  onplayFired++;
+  //console.log("playbackRate * 60: "+ audioPlayer.playbackRate * 60);
+  bpmDisplayValue.innerHTML = audioPlayer.playbackRate * 60;
+  //console.log("duration / playbackRate: "+ audioPlayer.duration / audioPlayer.playbackRate);
 }
 
-console.log('onplayFired: '+ onplayFired);
-if(onplayFired == 1) {
-  audioPlayer.onplay = setInterval(playClick, 1000);
-}
-// audioPlayer.onplay = setInterval(playClick, 1000);
+var onplayFired = 0;
+audioPlayer.onplay = function() {console.log("onplayFired: "+ onplayFired++);};
+
 console.log(audioPlayer);
 window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
+  
 
 </script>
 <script>
