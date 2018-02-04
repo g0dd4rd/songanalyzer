@@ -247,24 +247,30 @@ function writeRhythm() {
   });
 }
 </script>
+<h4>Metronome</h4>
 <audio id="audioPlayer" preload="metadata" controls loop>
   <source src="audio/D1.wav">
 </audio>
 <p>BPM: <input type="range" min="0.5" max="4" step="0.01" id="bpm" value="BPM"/>
-<span id="bpmDisplayValue"></span></p>
+  <label for="bpm" id="bpmDisplayValue"></label>
+  <input type="checkbox" id="click" checked/>
+  <label for="click" id="clickLabel">Click?</label></p>
 <script>
 var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
-
 var audioPlayer = document.getElementById("audioPlayer");
+var click = document.getElementById("click");
+
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
   //console.log("playbackRate * 60: "+ audioPlayer.playbackRate * 60);
   bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * 60);
   //console.log((60 / (new Date() / 1000))); 
 // audioPlayer.playbackRate) * 60);
-  tones.play('c');
+  if(click.checked) {
+    tones.play('c');
+  }
 }
 
 console.log(audioPlayer);
