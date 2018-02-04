@@ -206,7 +206,7 @@ resultId.innerHTML = qResult + ' '+ iResult +' in '+ natcmaj[Math.floor(Math.ran
 <h4>Note values</h4>
 <ul>
  <li>&#x2669; - quarter note</li>
- <li>&#x1D13D - quarter rest</li>
+ <li>&#x1D13D; - quarter rest</li>
  <li>&#x266A; - eighth note</li>
  <li>&#x266B; - two eighth notes</li>
  <li>&#x1D161; - sixteenth note</li>
@@ -257,22 +257,14 @@ var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
 
-function playClick() {
-  var metronomeCtx =  new (window.AudioContext || window.webkitAudioContext)();
-  var oscillator = metronomeCtx.createOscillator();
-  oscillator.connect(metronomeCtx.destination);
-  oscillator.type = 'sawtooth';
-  oscillator.start(metronomeCtx.currentTime);
-  oscillator.stop(metronomeCtx.currentTime + 0.1);
-  console.log("metronomeCtx: "+ metronomeCtx);
-}
-
 var audioPlayer = document.getElementById("audioPlayer");
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
   //console.log("playbackRate * 60: "+ audioPlayer.playbackRate * 60);
   bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * 60);
-  //console.log("duration / playbackRate: "+ audioPlayer.duration / audioPlayer.playbackRate);
+  //console.log((60 / (new Date() / 1000))); 
+// audioPlayer.playbackRate) * 60);
+  tones.play('c');
 }
 
 console.log(audioPlayer);
