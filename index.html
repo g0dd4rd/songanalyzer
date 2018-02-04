@@ -266,10 +266,9 @@ var click = document.getElementById("click");
 
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
-  //console.log("playbackRate * 60: "+ audioPlayer.playbackRate * 60);
-  bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * 60);
+  //console.log("bpm: "+ Math.round(audioPlayer.playbackRate * (1 / audioPlayer.duration) * 60));
+  bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * (1 / audioPlayer.duration) * 60);
   //console.log((60 / (new Date() / 1000))); 
-// audioPlayer.playbackRate) * 60);
   if(click.checked) {
     tones.play('c');
   }
