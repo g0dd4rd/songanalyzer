@@ -256,10 +256,12 @@ function writeRhythm() {
   <input type="checkbox" id="click" checked/>
   <label for="click" id="clickLabel">Click?</label></p>
 <script>
+var audioPlayer = document.getElementById("audioPlayer");
+console.log(audioPlayer);
+window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
 var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
-var audioPlayer = document.getElementById("audioPlayer");
 var click = document.getElementById("click");
 
 audioPlayer.onplaying = function() {
@@ -272,11 +274,6 @@ audioPlayer.onplaying = function() {
     tones.play('c');
   }
 }
-
-console.log(audioPlayer);
-window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
-  
-
 </script>
 <script>
 // ============ Tones ============
