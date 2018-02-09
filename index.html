@@ -264,15 +264,22 @@ console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
 var click = document.getElementById("click");
 
+var startTime = 0;
+var endTime = 0;
 audioPlayer.onplaying = function() {
+  startTime = Date.now();
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
-  //console.log("bpm: "+ Math.round(audioPlayer.playbackRate * (1 / audioPlayer.duration) * 60));
-  bpmDisplayValue.innerHTML = Math.round(audioPlayer.playbackRate * (1 / audioPlayer.duration) * 60);
+  //console.log("bpm: "+ 60 / (audioPlayer.duration / audioPlayer.playbackRate) +', rate: '+ audioPlayer.playbackRate);
+  bpmDisplayValue.innerHTML = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
   //console.log((60 / (new Date() / 1000))); 
   if(click.checked) {
     tones.play('c');
   }
 }
+
+//audioPlayer.ontimeupdate = function() {
+  //console.log('time update: '+ Date.now())
+//}
 </script>
 <script>
 // ============ Tones ============
