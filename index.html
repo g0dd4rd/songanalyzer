@@ -34,6 +34,10 @@
  function analyze() {
   var progression = document.getElementById("chords").value.split(" ");
   var output = document.getElementById("aoutput");
+  console.log('output table length: '+ output.rows.length);
+  if(output.rows.length > 1) {
+    while(output.rows.length > 1) output.deleteRow(1);
+  }
   var row, cell;
   //console.log(progression.length);
   if(progression[0] === "") {
