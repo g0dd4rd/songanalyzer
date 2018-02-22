@@ -96,7 +96,7 @@
  var minorArp = [0, 3, 4, 3];
  var major7thArp = [0, 4, 3, 4, 1];
  var minor7thArp = [0, 3, 4, 3, 2];
- var diminishedArp = [0, 3, 4, 3, 2];
+ var diminishedArp = [0, 3, 3, 3, 2];
  var majorCircOf4ths = [0, 5, 6, 4, 5, 5, 5]; //not finished!!!
 
  function getForm() {
@@ -136,9 +136,9 @@
 	 error(shape);
 	}
    } else if (scale === "diminished") {
-    if(shape === "scale") {
+    if(shape === "arpeggio") {
      //console.log("diminished getScale() "+ scale);
-     getScale(diminished);
+     getScale(diminishedArp);
 	} else {
 	 error(shape);
 	}
