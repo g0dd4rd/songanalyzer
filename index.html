@@ -26,15 +26,15 @@
 <input type="text" id="chords">&nbsp;<input type="button" value="Analyze" onclick="analyze();"></p>
 <table id="aoutput" border="1">
 <tr>
- <th>Chord / Tone</th><th># in C scale</th><th>Intervals</th></tr>
+ <th>Chord / Note</th><th>Semitone #</th><th>Interval in C scale</th></tr>
 </table>
 <script>
  var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-
+ var intervals = ["root", "minor second", "second", "minor third", "third", "fourth", "diminished fifth", "fifth", "minor sixth", "sixth", "minor seventh", "seventh"];
  function analyze() {
   var progression = document.getElementById("chords").value.split(" ");
   var output = document.getElementById("aoutput");
-  console.log('output table length: '+ output.rows.length);
+  //console.log('output table length: '+ output.rows.length);
   if(output.rows.length > 1) {
     while(output.rows.length > 1) output.deleteRow(1);
   }
@@ -52,7 +52,7 @@
     cell = row.insertCell(1);
     cell.innerHTML = notes.indexOf(progression[i]);
     cell = row.insertCell(2);
-    cell.innerHTML = Math.abs(tmp - notes.indexOf(progression[i]));
+    cell.innerHTML = intervals[notes.indexOf(progression[i])];
     tmp = notes.indexOf(progression[i]);
    }
   }
@@ -108,9 +108,9 @@
 
  function getForm() {
    if(scale === 'major') {
-    if(shape === 'scale') {
+     if(shape === 'scale') {
      //console.log("major getScale() "+ scale);
-     getScale(major);
+       getScale(major);
     } else if(shape === 'arpeggio') {
      getScale(majorArp);
     } else {
