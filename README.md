@@ -1,5 +1,11 @@
 # songanalyzer
-Tool that analyzes intervals between chords in a progression, also can tell you the notes in a particular scale and will provide much more in the future!
+Tool that:
+- analyzes intervals between chords in a progression
+- tells you the notes in a particular scale and plays the scale for you
+- generates random intervals
+- generates random rhythms
+- offers metronome
+. . .and will provide much more in the future!
 
 License: GPL v3
 
