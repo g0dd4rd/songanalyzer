@@ -90,7 +90,7 @@
 
  var major = [0, 2, 2, 1, 2, 2, 2, 1];
  var minor = [0, 2, 1, 2, 2, 1, 2, 2];
- var pentatonic = [0, 3, 2, 2, 3];
+ var pentatonic = [0, 3, 2, 2, 3, 2];
  var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
  var majorArp = [0, 4, 3, 3];
  var minorArp = [0, 3, 4, 3];
@@ -161,8 +161,8 @@
   } else {
    for(var i = 1; i < scale.length; i++) {
     if(note > 11) note -= 12;
-     s.push(notes[note]);
-     note += scale[i];
+    s.push(notes[note]);
+    note += scale[i];
    }
    soutput.innerHTML = s;
    playScale(s);
@@ -250,6 +250,7 @@ function writeRhythm() {
 <h4>Metronome</h4>
 <audio id="audioPlayer" preload="metadata" controls loop>
   <source src="audio/D1.wav">
+  <source src="audio/B1.wav">
 </audio>
 <p>BPM: <input type="range" min="0.5" max="4" step="0.01" id="bpm" value="BPM"/>
   <label for="bpm" id="bpmDisplayValue"></label>
@@ -263,15 +264,29 @@ var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
 var click = document.getElementById("click");
+console.log('outside of onplaying: '+ audioPlayer.src);
 
+var bpm = 0;
 audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
   //console.log("bpm: "+ 60 / (audioPlayer.duration / audioPlayer.playbackRate) +', rate: '+ audioPlayer.playbackRate);
-  bpmDisplayValue.innerHTML = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
-  //console.log((60 / (new Date() / 1000))); 
+  bpm = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
+  bpmDisplayValue.innerHTML = bpm;
+  if(bppm <= 60) {
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
+    audioPlayer.src = "audio/D1.wav";
+  }
+ 
   if(click.checked) {
     tones.play('c');
   }
+}
+
+function loadSource() {
+  audioPlayer.currentTime = 0;
+  audioPlayer.src = "audio/B1.wav";
+  audioPlayer.play();
 }
 </script>
 <script>
