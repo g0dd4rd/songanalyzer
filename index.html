@@ -64,6 +64,7 @@
  <option id="maj7th">maj7th</option>
  <option id="min7th">min7th</option>
  <option id="diminished">diminished</option>
+ <option id="circleOf4ths">circle of 4ths</option>
 </select>
 <select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
  <option id="scale">scale</option>
@@ -97,7 +98,7 @@
  var major7thArp = [0, 4, 3, 4, 1];
  var minor7thArp = [0, 3, 4, 3, 2];
  var diminishedArp = [0, 3, 3, 3, 2];
- var majorCircOf4ths = [0, 5, 6, 4, 5, 5, 5]; //not finished!!!
+ var circleOf4ths = [0, 5, 6, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5];
 
  function getForm() {
    if(scale === 'major') {
@@ -142,6 +143,12 @@
 	} else {
 	 error(shape);
 	}
+   } else if (scale === "circleOf4ths") {
+       if(shape === "scale") {
+         getScale(circleOf4ths);
+       } else {
+	 error(shape);
+       }
    }
  }
 
