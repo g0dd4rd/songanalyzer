@@ -71,6 +71,7 @@
  <option id="diminished">diminished</option>
  <option id="augmented">augmented</option>
  <option id="sus2">sus2</option>
+ <option id="sus4">sus4</option>
  <option id="circleOf4ths">circle of 4ths</option>
 </select>
 <select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
@@ -108,6 +109,7 @@
  var diminishedArp = [0, 3, 3, 3, 2];
  var augmentedArp = [0, 4, 4, 4, 1];
  var sus2Arp = [0, 2, 5, 4, 1];
+ var sus4Arp = [0, 5, 2, 3, 1];
  var circleOf4ths = [0, 5, 6, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5];
 
  function getForm() {
@@ -169,6 +171,12 @@
    } else if (scale === "sus2") {
        if(shape === "arpeggio") {
          getScale(sus2Arp);
+       } else {
+	 error(shape);
+       }
+   } else if (scale === "sus4") {
+       if(shape === "arpeggio") {
+         getScale(sus4Arp);
        } else {
 	 error(shape);
        }
