@@ -337,7 +337,17 @@ audioPlayer.onplaying = function() {
   audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
   //console.log("bpm: "+ 60 / (audioPlayer.duration / audioPlayer.playbackRate) +', rate: '+ audioPlayer.playbackRate);
   bpm = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
-  bpmDisplayValue.innerHTML = bpm;
+  if(bpm >= 30 && bpm < 40) {
+    bpmDisplayValue.innerHTML = bpm + ' Grave';
+  } else if(bpm >= 40 && bpm < 59) {
+    bpmDisplayValue.innerHTML = bpm + ' Largo';
+  } else if(bpm >= 60 && bpm < 66) {
+    bpmDisplayValue.innerHTML = bpm + ' Larghetto';
+  } else if(bpm >= 66 && bpm < 76) {
+    bpmDisplayValue.innerHTML = bpm + ' Adagio';
+  } else if(bpm >= 76 && bpm < 90) {
+    bpmDisplayValue.innerHTML = bpm + ' Andante';
+  }
   console.log('audioPlayer.playbackRate: '+ audioPlayer.playbackRate);
 
   if(graveLargoBtn.checked) {
