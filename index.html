@@ -296,6 +296,10 @@ function writeRhythm() {
   <source src="audio/D1.wav">
   <source src="audio/B1.wav">
 </audio>
+<p><input type="radio" id="graveLargo" name="same"/>
+  <label for="graveLargo" id="graveLargoLabel">30 - 59</label>
+  <input type="radio" id="larghettoAdagioAndante" name="same">
+  <label for="larghettoAdagioAndante" id=larghettoAdagioAndanteLabel">60 - 89</label></p>
 <p>BPM: <input type="range" min="0.5" max="4" step="0.01" id="bpm" value="BPM"/>
   <label for="bpm" id="bpmDisplayValue"></label>
   <input type="checkbox" id="click" checked/>
@@ -304,11 +308,29 @@ function writeRhythm() {
 var audioPlayer = document.getElementById("audioPlayer");
 console.log(audioPlayer);
 window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
+var graveLargoBtn = document.getElementById("graveLargo");
+var larghettoAdagioAndanteBtn = document.getElementById("larghettoAdagioAndante");
 var bpmSlider = document.getElementById("bpm");
 console.log(bpmSlider);
 var bpmDisplayValue = document.getElementById("bpmDisplayValue");
 var click = document.getElementById("click");
 console.log('outside of onplaying: '+ audioPlayer.src);
+
+if(graveLargoBtn.checked) {
+  audioPlayer.src = "audio/D1.wav";
+
+  // 30bpm = 1.45 pbrate, 59bpm = 2.84 pbrate
+  audioPlayer.playbackRate = 1.45; 
+  bpmSlider.min = 1.45; bpmSlider.max = 2.84;
+}
+
+if(larghettoAdagioAndanteBtn.checked) {
+  audioPlayer.src = "audio/B1.wav";
+
+  // 60bpm = 2.86 pbrate, 84bpm = 4 pbrate, 89bpm = 4.27 pbrate
+  audioPlayer.playbackRate = 2.86; 
+  bpmSlider.min = 2.86; bpmSlider.max = 4.27;
+}
 
 var bpm = 0;
 audioPlayer.onplaying = function() {
@@ -316,21 +338,27 @@ audioPlayer.onplaying = function() {
   //console.log("bpm: "+ 60 / (audioPlayer.duration / audioPlayer.playbackRate) +', rate: '+ audioPlayer.playbackRate);
   bpm = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
   bpmDisplayValue.innerHTML = bpm;
-  if(bppm <= 60) {
-    audioPlayer.pause();
-    audioPlayer.currentTime = 0;
-    audioPlayer.src = "audio/D1.wav";
+  console.log('audioPlayer.playbackRate: '+ audioPlayer.playbackRate);
+
+  if(graveLargoBtn.checked) {
+    if(!audioPlayer.src === "audio/D1.wav") {
+      audioPlayer.src = "audio/D1.wav";
+    }
+
+    bpmSlider.min = 1.45; bpmSlider.max = 2.84;
   }
- 
+
+  if(larghettoAdagioAndanteBtn.checked) {
+    if(!audioPlayer.src === "audio/B1.wav") {
+      audioPlayer.src = "audio/B1.wav";
+    }
+
+    bpmSlider.min = 2.86; bpmSlider.max = 4.27;
+  }
+
   if(click.checked) {
     tones.play('c');
   }
-}
-
-function loadSource() {
-  audioPlayer.currentTime = 0;
-  audioPlayer.src = "audio/B1.wav";
-  audioPlayer.play();
 }
 </script>
 <script>
