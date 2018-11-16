@@ -244,42 +244,59 @@ var resultId = document.getElementById('result');
 resultId.innerHTML = qResult + ' '+ iResult +' in '+ natcmaj[Math.floor(Math.random() * natcmaj.length)] +' major';
 }
 </script>
-<input type="button" value="Generate rhythm" onclick="writeRhythm();">
-<input type="checkbox" name="restsCheckbox">
+<input type="button" value="Generate rhythm" onclick="generateRhythm(4);">
+<input type="checkbox" id="restsCheckbox">
  <label for="restsCheckbox" id="restsCheckboxLabel">Include rests</label>
 <table id="rhythmoutput" border="1">
 </table>
+<p id="wordRhythmOut">
 <h4>Note values</h4>
 <ul>
  <li>&#x2669; - quarter note</li>
  <li>&#x1D13D; - quarter rest</li>
  <li>&#x266A; - eighth note</li>
+ <li>&#x1D13E;&nbsp; eighth rest</li>
  <li>&#x266B; - two eighth notes</li>
  <li>&#x1D161; - sixteenth note</li>
  <li>&#x266C; - two sixteenth notes</li>
+ <li>&#x1D13F;&nbsp; sixteenth rest</li>
  <li>&#x1D162; - thirtysecond note</li>
+ <li>&#x1D140;&nbsp; thirtysecond rest</li>
 </ul>
 <script>
 function generateRhythm(numberOfBeats) {
-  var quarterNote = {unicode: "&#x2669;", value: 32};
-  var quarterRest = {unicode: "&#x1D13D", value: 32};
-  var eighthNote = {unicode: "&#x266A;", value: 16};
-  var twoEighthNotes = {unicode: "&#x266B;", value: 32};
-  var sixteenthNote = {unicode: "&#x1D161;", value: 8};
-  var twoSixteenthNotes = {unicode: "&#x266C;", value: 16};
-  var thirtySecondNote = {unicode: "&#x1D162;", value: 1};
-  notes = [quarterNote, eighthNote, twoEighthNotes, sixteenthNote, twoSixteenthNotes, thirtySecondNote];
+  var quarterNote = {unicode: "&#x2669;", name: "quarter note", value: 32};
+  var quarterRest = {unicode: "&#x1D13D;", name: "quarter rest", value: 32};
+  var eighthNote = {unicode: "&#x266A;", name: "eighth note", value: 16};
+  var eighthRest = {unicode: "&#x1D13E;", name: "eighth rest", value: 16};
+  var twoEighthNotes = {unicode: "&#x266B;", name: "two eighth notes", value: 32};
+  var sixteenthNote = {unicode: "&#x1D161;", name: "sixteenth note", value: 8};
+  var sixteenthRest = {unicode: "&#x1D13F;", name: "sixteenth rest", value: 8};
+  var twoSixteenthNotes = {unicode: "&#x266C;", name: "two sixteenth notes", value: 16};
+  var thirtySecondNote = {unicode: "&#x1D162;", name: "thirtysecond note", value: 1};
+  var thirtySecondRest = {unicode: "&#x1D140;", name: "thirtysecond rest", value: 1};
+  var notes = [quarterNote, eighthNote, twoEighthNotes, sixteenthNote, twoSixteenthNotes, thirtySecondNote];
+  var notesAndRests = [quarterNote, quarterRest, eighthNote, eighthRest, twoEighthNotes, sixteenthNote, sixteenthRest, twoSixteenthNotes, thirtySecondNote, thirtySecondRest];
+  var restsCheckbox = document.getElementById('restsCheckbox');
+  var wordRhythmOut = document.getElementById('wordRhythmOut');
   var i = 0;
   var bar = [];
   while(i <= (numberOfBeats * quarterNote.value)) {
-    var note = notes[Math.floor(Math.random() * notes.length)];
-    console.log("note: "+ note.unicode +" note value: "+ note.value);
+    var note;
+    if(restsCheckbox.checked) {
+      note = notesAndRests[Math.floor(Math.random() * notesAndRests.length)];
+    } else {
+      note = notes[Math.floor(Math.random() * notes.length)];
+    }
+
+    console.log("note: "+ note.unicode +" note name: "+ note.name);
     i += note.value;
     bar.push(note.unicode);
     console.log(bar.length);
   }
 
-  return bar;
+  wordRhythmOut.innerHTML = bar.join().replace(',', ' ');
+//  return bar;
 }
 
 function writeRhythm() {
