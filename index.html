@@ -295,8 +295,9 @@ function generateRhythm(numberOfBeats) {
     console.log(bar.length);
   }
 
-  wordRhythmOut.innerHTML = bar.join().replace(',', ' ');
-//  return bar;
+  for(var i = 0; i < bar.length; i++) {
+    wordRhythmOut.innerHTML += bar[i] + ' ';
+  }
 }
 
 function writeRhythm() {
