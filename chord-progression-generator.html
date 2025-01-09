@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <title>Chord progression generator</title>
+</head>
+<body>
+<h2>Chord progression generator</h2>
+<input type="button" value="Generate random chord progression" onclick="generateRandomChordProgression();"/>
+<p id='result'></p>
+<script>
+function generateRandomChordProgression() {
+  var chords = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'E#', 'Fb', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B', 'B#', 'Cb'];
+  var quality = ['', 'min', 'min7', 'maj7', 'minmaj7', 'dom7', 'hdim7', 'dim', 'aug', 'sus2', 'sus4'];
+  var chResult = chords[Math.floor(Math.random() * chords.length)];
+  var qResult = quality[Math.floor(Math.random() * quality.length)];
+  var chProgression = [];
+
+  for(var i = 0; i < 4; i++) {
+    chResult = chords[Math.floor(Math.random() * chords.length)];
+    qResult = quality[Math.floor(Math.random() * quality.length)];
+    chProgression.push(' '+ chResult +''+ qResult);
+  }
+
+  var resultId = document.getElementById('result');
+  resultId.innerHTML = chProgression;
+}
+</script>
+</body>
+</html>
+
