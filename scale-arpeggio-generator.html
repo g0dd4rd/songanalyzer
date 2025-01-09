@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <title>Scale and arpeggio generator</title>
+</head>
+<body>
+<h2>Scale and arpeggio generator</h2>
+<p>Enter the scale root note and mode, e.g. C ionian:</p>
+<input type="text" id="root">&nbsp;<input type="button" value="Show notes" onclick="generateScale()">
+<p id="soutput"></p>
+<script>
+var rootVal = document.getElementById("root").value;
+var cycle = 0;
+var degree = 0;
+var accidental = null;
+var origin = null;
+var input = rootVal.toLowerCase();
+var splitInput = input.split(" ");
+var key = splitInput[0]; 
+var mode = splitInput[1];
+
+//console.log("DBG: key.substring(1, key.length).includes('b'): ", key.substring(1, key.length).includes("b"));
+if(key.substring(1, key.length).includes("b") || key == "f" || key == "c") {
+  cycle = 3;
+  degree = 3;
+  accidental = "b";
+  origin = "flat";
+} else {
+  cycle = 4;
+  degree = 6;
+  accidental = "#";
+  origin = "sharp";
+}
+
+var soutputVal = document.getElementById("soutput");
+    
+function createIonian(key, mode, cycle, accidental, degree) {
+  var notes = ["c", "d", "e", "f", "g", "a", "b"];
+  var result = new Array(notes.length);
+
+  //console.log("DBG: key.substring(0, 1): ", key.substring(0, 1));
+  if(!notes.includes(key.substring(0, 1))) {
+    soutput.innerHTML = "No match found";
+  }
+
+  var storedIndex = 0;
+  for(var i = 0, j = 0, resultIndex = 0; j < notes.length * 15; i++, j++, resultIndex++) {
+    if(i >= notes.length) {
+      i = 0;
+    }
+
+    if(resultIndex >= notes.length) {
+      resultIndex = 0;
+
+      if(result[0] == key)
+        break;
+    }
+
+    if(j % notes.length == cycle) {
+      storedIndex = i;
+    }
+
+    if(j % notes.length == 0) {
+      i = storedIndex;
+    }
+
+    if(j > notes.length && j % notes.length == degree) {
+      notes[i] = notes[i].concat(accidental);
+    }
+
+    result[resultIndex] = notes[i];
+  }
+
+  return result;
+}
+
+function createOther(mode, origin, accidental, result, indices) {
+  if(mode == "dorian" && origin == "sharp" && result[0] == "g") {
+    result[2] = result[2].concat("b");
+    result[6] = result[6].substring(0, 1);
+    printResult(result);
+    return;
+  }
+
+  if(mode == "lydian") {
+    if(origin == "flat" && !result[0] == "c") {
+      result[3] = result[3].substring(0, result[3].length - 1);
+    } else if(result[0] == "c") {
+      result[3] = result[3].concat("#");
+    } else {
+      result[3] = result[3].concat(accidental);
+    }
+
+    printResult(result);
+    return;
+  }
+
+  if(mode == "aeolian" && origin == "sharp" && (result[0] == "d" || result[0] == "g")) {
+    if(result[0] == "d") {
+      result[2] = result[2].substring(0, result[2].length - 1);
+      result[5] = result[5].concat("b");
+      result[6] = result[6].substring(0, result[6].length - 1);
+    } else if(result[0] == "g") {
+      result[2] = result[2].concat("b");
+      result[5] = result[5].concat("b");
+      result[6] = result[6].substring(0, result[6].length - 1);
+    }
+
+    printResult(result);
+    return;
+  }
+
+  if(mode == "locrian" && origin == "sharp" &&
+    (result[0] == "d" | result[0] == "e" | result[0] == "g" | result[0] == "a")) {
+    if(result[0] == "d") {
+      result[1] = result[1].concat("b");
+      result[2] = result[2].substring(0, result[2].length - 1);
+      result[4] = result[4].concat("b");
+      result[5] = result[5].concat("b");
+      result[6] = result[6].substring(0, result[6].length - 1);
+    } else if(result[0] == "e") {
+      result[1] = result[1].substring(0, result[1].length - 1);
+      result[2] = result[2].substring(0, result[2].length - 1);
+      result[4] = result[4].concat("b");
+      result[5] = result[5].substring(0, result[5].length - 1);
+      result[6] = result[6].substring(0, result[6].length - 1);
+    } else if(result[0] == "g") {
+      result[1] = result[1].concat("b");
+      result[2] = result[2].concat("b");
+      result[4] = result[4].concat("b");
+      result[5] = result[5].concat("b");
+      result[6] = result[6].substring(0, result[6].length - 1);
+    } else if(result[0] == "a") {
+      result[1] = result[1].concat("b");
+      result[2] = result[2].substring(0, result[2].length - 1);
+      result[4] = result[4].concat("b");
+      result[5] = result[5].substring(0, result[5].length - 1);
+      result[6] = result[6].substring(0, result[6].length - 1);
+    }
+
+    printResult(result);
+    return;
+  }
+
+  for(var i = 0; i < indices.length; i++) {
+    for(var j = 0; j < result.length; j++) {
+      if(origin == "flat") {
+        if(j == indices[i]) {
+          result[j] = result[j].concat(accidental);
+        }  
+      } else {
+        result[j] = result[j].substring(0, result[j].length - 1);
+      }
+    }
+  }
+
+  printResult(result);
+}
+
+function printResult(result) {
+  var formattedResult = [];
+  for(var s = 0; s < result.length; s++)
+    formattedResult[s]= " "+ result[s].substring(0, 1).toUpperCase() + result[s].substring(1);
+  
+  soutputVal.innerHTML = formattedResult.toString();
+  //soutputVal.innerHTML = result;
+}
+
+function generateScale() {
+  var result = createIonian(key, mode, cycle, accidental, degree);
+  switch(mode) {
+    case "ionian"     : printResult(result);
+                        break;
+    case "dorian"     : createOther(mode, origin, accidental, result, [2, 6]);
+                        break;
+    case "phrygian"   : createOther(mode, origin, accidental, result, [1, 2, 5, 6]);
+                        break;
+    case "lydian"     : createOther(mode, origin, accidental, result, [3]);
+                        break;
+    case "mixolydian" : createOther(mode, origin, accidental, result, [6]);
+                        break;
+    case "aeolian"    : createOther(mode, origin, accidental, result, [2, 5, 6]);
+                        break;
+    case "locrian"    : createOther(mode, origin, accidental, result, [1, 2, 4, 5, 6]);
+                        break;
+  }
+}
+</script>
+</body>
+</html>
