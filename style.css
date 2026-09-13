@@ -1,0 +1,827 @@
+/* Song Analyzer - Modern Musician UI Stylesheet
+   Pure CSS3, Responsive Desktop & Mobile, 100% Offline */
+
+:root {
+  --bg-main: #0b0f19;
+  --bg-card: #151d30;
+  --bg-card-hover: #1c2740;
+  --bg-input: #0e1424;
+  --border-color: #24304f;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  
+  --accent-gold: #f59e0b;
+  --accent-cyan: #06b6d4;
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-stack);
+  line-height: 1.5;
+  padding-bottom: 60px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Master Header Toolbar */
+.master-header {
+  background-color: #0d1322;
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  font-size: 1.6rem;
+  color: var(--accent-gold);
+}
+
+.logo-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.logo-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.control-item input[type="range"] {
+  accent-color: var(--accent-blue);
+  cursor: pointer;
+}
+
+.control-item input[type="number"] {
+  background: var(--bg-input);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+/* Primary Layout Grid */
+.main-layout {
+  max-width: 1400px;
+  margin: 24px auto;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+}
+
+@media (max-width: 960px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    margin: 16px auto;
+    padding: 0 12px;
+    gap: 16px;
+  }
+}
+
+.panel-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Cards & Sections */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-title-icon {
+  color: var(--accent-gold);
+}
+
+/* Inputs & Form Elements */
+input[type="text"], select {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+input[type="text"]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.input-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.input-flex {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Buttons */
+button, .btn {
+  background-color: #24304f;
+  color: #fff;
+  border: 1px solid #33436b;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+button:hover, .btn:hover {
+  background-color: #33436b;
+  border-color: #475a8f;
+}
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  border-color: #2563eb;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.btn-success {
+  background-color: #059669;
+  border-color: #047857;
+}
+
+.btn-success:hover {
+  background-color: #047857;
+}
+
+.btn-danger {
+  background-color: var(--accent-red);
+  border-color: #dc2626;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.btn.active {
+  background-color: var(--accent-green);
+  border-color: #059669;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+/* Key Analysis Banner */
+.key-banner {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-warning {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.roman-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.roman-badge.diatonic {
+  background-color: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.roman-badge.non-diatonic {
+  background-color: rgba(236, 72, 153, 0.15);
+  color: #f472b6;
+  border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.chord-pill {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* Harmonic Table */
+.table-responsive {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-top: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+th {
+  background-color: #12192a;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1a233a;
+  vertical-align: middle;
+}
+
+tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.table-row-active td {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+
+.chord-tones {
+  font-family: var(--font-mono);
+  color: #cbd5e1;
+}
+
+.text-diatonic {
+  color: #38bdf8;
+}
+
+.text-altered {
+  color: #f472b6;
+}
+
+/* Visualizer Controls & Canvas */
+.viz-switcher {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.canvas-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #0a0f1d;
+  border: 1px solid var(--border-color);
+}
+
+#visualizerCanvas {
+  display: block;
+  width: 100%;
+}
+
+.fretboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+/* Modal Interchange Tier Cards */
+.modal-tier-card {
+  background-color: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.modal-tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.92rem;
+}
+
+.modal-tier-chords {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--accent-gold);
+  font-weight: 600;
+}
+
+/* Musician's Jam Deck Cards */
+.jam-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.jam-card {
+  background: linear-gradient(145deg, #1e293b, #151d30);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px 10px;
+  text-align: center;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+}
+
+.jam-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-gold);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+}
+
+.jam-card.playing {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+}
+
+.jam-card.locked {
+  border-color: var(--accent-cyan);
+}
+
+.jam-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.card-num {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.btn-lock {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.jam-card-symbol {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--accent-gold);
+  margin: 4px 0;
+}
+
+.jam-card-quality {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.jam-card-formula {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.jam-card-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.jam-card-actions button {
+  padding: 3px 6px;
+  font-size: 0.75rem;
+}
+
+.jam-challenge-box {
+  background-color: rgba(168, 85, 247, 0.1);
+  border: 1px dashed rgba(168, 85, 247, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 0.88rem;
+  color: #e9d5ff;
+}
+
+/* Metronome & Rhythm Studio */
+.metro-display-area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+.metro-dots-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+}
+
+.metro-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.05s ease;
+  user-select: none;
+}
+
+.metro-dot.active {
+  background-color: var(--accent-blue);
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 0 10px var(--accent-blue);
+  transform: scale(1.12);
+}
+
+.metro-dot.downbeat {
+  background-color: var(--accent-gold);
+  border-color: #fbbf24;
+  color: #0f172a;
+  box-shadow: 0 0 14px var(--accent-gold);
+  transform: scale(1.22);
+}
+
+.tempo-marking-badge {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+/* Practice Session Timer Widget */
+.practice-timer-container {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+
+.timer-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.timer-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.timer-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timer-badge.idle {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+}
+
+.timer-badge.running {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--accent-green);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.timer-badge.paused {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent-gold);
+}
+
+.timer-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.timer-cards-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 480px) {
+  .timer-cards-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.timer-card {
+  background: rgba(21, 29, 48, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.timer-card-delta {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.06);
+}
+
+.timer-card-title {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.timer-card-value {
+  font-size: 2.1rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+  line-height: 1.1;
+  letter-spacing: 1px;
+}
+
+.timer-card-delta .timer-card-value {
+  color: var(--accent-cyan);
+}
+
+.timer-card.goal-reached {
+  border-color: var(--accent-gold);
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+  animation: pulseGoal 1s ease infinite alternate;
+}
+
+@keyframes pulseGoal {
+  from { transform: scale(1); }
+  to { transform: scale(1.02); }
+}
+
+.timer-card-meta {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.timer-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.timer-log-drawer {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 25, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.timer-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.timer-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timer-log-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  border-left: 3px solid var(--accent-cyan);
+}
+
+.timer-log-empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 6px 0;
+  font-style: italic;
+}
+
+.rhythm-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 2.2rem;
+  padding: 16px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  min-height: 60px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.rhythm-glyph {
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: all 0.1s;
+}
+
+.rhythm-glyph.active {
+  background-color: rgba(245, 158, 11, 0.25);
+  color: var(--accent-gold);
+  transform: scale(1.15);
+}
+
+/* Practice Hub & Drills */
+.quiz-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.drill-feedback {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  background-color: #1a233a;
+}
+
+.drill-feedback.success {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.drill-feedback.error {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.exercise-prompt-card {
+  background-color: #1a233a;
+  border-left: 4px solid var(--accent-cyan);
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.exercise-prompt-card h4 {
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.exercise-prompt-card p {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+}

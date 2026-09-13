@@ -1,694 +1,425 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
- <meta charset="UTF-8">
- <link href="https://fonts.googleapis.com/css2?family=Noto+Music&display=swap" rel="stylesheet">
- <style>
- .music-note {
-    font-family: 'Noto Music', sans-serif;
- }
- </style>
- <!-- link rel="stylesheet" href="dredwerkz.css" type="text/css" -->
- <title>Song Analyzer</title>
-
- <!--
-  Copyright (C) 2015 Jiri Prajzner
-  
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>. -->
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Song Analyzer - Musical Progression & Harmony Studio</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Local Scripts: 100% Offline and compatible with file:// protocol without web server -->
+  <script src="lib/Tone.js"></script>
+  <script src="js/theory.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/app.js"></script>
 </head>
 <body>
-<h2>Song Analyzer</h2>
-<p>Enter space-separated song chords (Valid input: C Db D Eb E F Gb G Ab A Bb B):</p> 
-<input type="text" id="chords">&nbsp;<input type="button" value="Analyze" onclick="analyze();">
-<table id="aoutput" border="1">
-<tr>
- <th>Chord / Note</th><th>Semitone #</th><th>Interval in C scale</th></tr>
-</table>
-<script>
- var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
- var intervals = ["root", "minor second", "second", "minor third", "third", "fourth", "diminished fifth", "fifth", "minor sixth", "sixth", "minor seventh", "seventh"];
- function analyze() {
-  var progression = document.getElementById("chords").value.split(" ");
-  var output = document.getElementById("aoutput");
-  //console.log('output table length: '+ output.rows.length);
-  if(output.rows.length > 1) {
-    while(output.rows.length > 1) output.deleteRow(1);
-  }
-  var row, cell;
-  //console.log(progression.length);
-  if(progression[0] === "") {
-   error("Please enter your chord progression");
-   //console.log("variable progression not inited");
-  } else {
-   var tmp = notes.indexOf(progression[0]);
-   for (var i = 0; i < progression.length; i++) {
-    row = output.insertRow(i + 1);
-    cell = row.insertCell(0);
-    cell.innerHTML = progression[i];
-    cell = row.insertCell(1);
-    cell.innerHTML = notes.indexOf(progression[i]);
-    cell = row.insertCell(2);
-    cell.innerHTML = intervals[notes.indexOf(progression[i])];
-    tmp = notes.indexOf(progression[i]);
-   }
-  }
 
-  return false; //prevents overwriting the original markup and indefinite loading after click
- }
-</script>
-<p>Enter the root note of</p> 
-<select onchange="setScale(this, scaleSelect);" id="scaleDropdown">
- <option id="major">major</option>
- <option id="minor">minor</option>
- <option id="pentatonic">pentatonic</option>
- <option id="maj7th">major 7th</option>
- <option id="min7th">minor 7th</option>
- <option id="Hdiminished">half diminished</option>
- <option id="diminished">diminished</option>
- <option id="augmented">augmented</option>
- <option id="sus2">sus2</option>
- <option id="sus4">sus4</option>
- <option id="circleOf4ths">circle of 4ths</option>
-</select>
-<select onchange="setShape(this, shapeSelect);" id="shapeDropdown">
- <option id="scale">scale</option>
- <option id="arpeggio">arpeggio</option>
- <option id='circle'>circle</option>
-</select>
-<input type="text" id="root">&nbsp;<input type="button" value="Show notes" onclick="getForm()">
-<p id="soutput"></p>
-<script>
- var scaleSelect = document.getElementById("scaleDropdown");
- var scale = scaleSelect.options[scaleSelect.selectedIndex].id;
- //console.log(scale);
- var shapeSelect = document.getElementById("shapeDropdown");
- var shape = shapeSelect.options[shapeSelect.selectedIndex].id;
- 
- function setScale(scaleSelect) {
-  scale = scaleSelect.options[scaleSelect.selectedIndex].id;
-  //console.log("scale setScale() "+ scale);
- }
- 
- function setShape(shapeSelect) {
-  shape = shapeSelect.options[shapeSelect.selectedIndex].id;
- }
+  <!-- Master Header Toolbar -->
+  <header class="master-header">
+    <div class="header-container">
+      <div class="logo-area">
+        <span class="logo-icon">𝄞</span>
+        <div>
+          <h1 class="logo-title">Song Analyzer</h1>
+          <div class="logo-subtitle">Base-12 Harmonic Progression Studio</div>
+        </div>
+      </div>
 
- var major = [0, 2, 2, 1, 2, 2, 2, 1];
- var minor = [0, 2, 1, 2, 2, 1, 2, 2];
- var pentatonic = [0, 3, 2, 2, 3, 2];
- var diminished = [0, 2, 1, 2, 1, 2, 1, 2, 1];
- var majorArp = [0, 4, 3, 3];
- var minorArp = [0, 3, 4, 3];
- var major7thArp = [0, 4, 3, 4, 1];
- var minor7thArp = [0, 3, 4, 3, 2];
- var hdim7thArp = [0, 3, 3, 4, 2];
- var diminishedArp = [0, 3, 3, 3, 2];
- var augmentedArp = [0, 4, 4, 4, 1];
- var sus2Arp = [0, 2, 5, 4, 1];
- var sus4Arp = [0, 5, 2, 3, 1];
- var circleOf4ths = [0, 5, 6, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5];
+      <div class="header-controls">
+        <button id="btnStartAudio" class="btn btn-primary" title="Unlock Web Audio engine">
+          🔊 Start Audio
+        </button>
 
- function getForm() {
-   if(scale === 'major') {
-     if(shape === 'scale') {
-     //console.log("major getScale() "+ scale);
-       getScale(major);
-    } else if(shape === 'arpeggio') {
-     getScale(majorArp);
-    } else {
-      getScale(majorCircOf4ths);
-    }
-   } else if (scale === "minor") {
-    if(shape === "scale") {
-     //console.log("minor getScale() "+ scale);
-     getScale(minor);
-	} else {
-	 getScale(minorArp);
-	}
-   } else if (scale === "pentatonic") {
-    if(shape === "scale") {
-     //console.log("pentatonic getScale() "+ scale);
-     getScale(pentatonic);
-	} else {
-	 error(shape);
-	}
-   } else if(scale === "maj7th") {
-    if(shape === "arpeggio") {
-	 getScale(major7thArp);
-	} else {
-	 error(shape);
-	}
-   } else if(scale === "min7th") {
-    if(shape === "arpeggio") {
-	 getScale(minor7thArp);
-	} else {
-	 error(shape);
-	}
-   } else if (scale === "Hdiminished") {
-     if(shape === "arpeggio") {
-       getScale(hdim7thArp);
-     } else {
-       error(shape);
-     }
-     
-   } else if (scale === "diminished") {
-    if(shape === "arpeggio") {
-     //console.log("diminished getScale() "+ scale);
-     getScale(diminishedArp);
-	} else {
-	 error(shape);
-	}
-   } else if (scale === "augmented") {
-       if(shape === "arpeggio") {
-         getScale(augmentedArp);
-       } else {
-	 error(shape);
-       }
-   } else if (scale === "sus2") {
-       if(shape === "arpeggio") {
-         getScale(sus2Arp);
-       } else {
-	 error(shape);
-       }
-   } else if (scale === "sus4") {
-       if(shape === "arpeggio") {
-         getScale(sus4Arp);
-       } else {
-	 error(shape);
-       }
-   } else if (scale === "circleOf4ths") {
-       if(shape === "circle") {
-         getScale(circleOf4ths);
-       } else {
-	 error(shape);
-       }
-   } 
- }
+        <div class="control-item">
+          <label for="masterBpm">Tempo:</label>
+          <input type="range" id="masterBpm" min="15" max="240" value="110" step="1">
+          <div style="display: inline-flex; align-items: center; gap: 4px;">
+            <input type="number" id="masterBpmInput" min="15" max="240" value="110" step="1"
+                   style="width: 58px; padding: 2px 4px; font-size: 0.88rem; font-weight: 700; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-color);"
+                   title="Tempo (15 to 240 BPM)">
+            <span id="bpmDisplay" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">BPM</span>
+          </div>
+        </div>
 
- var soutput = document.getElementById('soutput');
+        <div class="control-item">
+          <label for="masterVolume">Vol:</label>
+          <input type="range" id="masterVolume" min="-30" max="4" value="-6" step="1">
+        </div>
+      </div>
+    </div>
+  </header>
 
- function error(param) {
-  soutput.innerHTML = "Sorry, there's no such "+ param;
- }
+  <!-- Main Content Layout -->
+  <main class="main-layout">
 
- function getScale(scale) {
-  var s = [];
-  var note = notes.indexOf(document.getElementById('root').value);
-  //console.log(note);
-  if(note === -1) {
-   //console.log("variable note not inited");
-   error("scale");
-  } else {
-   for(var i = 1; i < scale.length; i++) {
-    if(note > 11) note -= 12;
-    s.push(notes[note]);
-    note += scale[i];
-   }
-   soutput.innerHTML = s;
-   playScale(s);
-  }
- }
+    <!-- Left Column: Harmony, Key Analysis & Practice -->
+    <div class="panel-column">
 
-var i = 0;
-function playScale(s) { 
-  setTimeout(function() {
-    tones.play(s[i]);
-    i++;
-    if(i < s.length) playScale(s);
-  }, 1000);
-}
-</script>
-<input type="button" value="Generate random interval" onclick="generateRandomInterval();"/>
-<p id='result'></p>
-<script>
-function generateRandomInterval() {
-var natcmaj = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-var quality = ['min', 'maj', 'dim', 'aug'];
-var intervals = ['root', '2nd', '3rd', '4th', '5th', '6th', '7th'];
-// 1, 4, 5, 8 - perfect
-// 2, 3, 6, 7 - minor / major
-var qResult = quality[Math.floor(Math.random() * quality.length)];
-var minmaj = ['2nd', '3rd', '6th', '7th'];
-var iResult = '';
-if(qResult === 'min' || qResult == 'maj') {
-  iResult = minmaj[Math.floor(Math.random() * minmaj.length)];
-} else {
-  iResult = intervals[Math.floor(Math.random() * intervals.length)];
-}
+      <!-- Module 1: Progression & Key Analyzer -->
+      <section class="card" id="analyzerSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">🎼</span> Harmonic Progression & Key Analyzer</span>
+        </div>
 
-var resultId = document.getElementById('result');
-resultId.innerHTML = qResult + ' '+ iResult +' in '+ natcmaj[Math.floor(Math.random() * natcmaj.length)] +' major';
-}
-</script>
-<input type="button" value="Generate rhythm" onclick="generateRhythm(4);">
-<input type="checkbox" id="restsCheckbox">
- <label for="restsCheckbox" id="restsCheckboxLabel">Include rests</label>
-<p id="wordRhythmOut" class="music-note">
-<h4>Note values</h4>
-<ul class="music-note">
- <li>&#x2669; - quarter note</li>
- <li>&#x1D13D; - quarter rest</li>
- <li>&#x266A; - eighth note</li>
- <li>&#x1D13E;&nbsp; eighth rest</li>
- <li>&#x266B; - two eighth notes</li>
- <li>&#x1D161; - sixteenth note</li>
- <li>&#x266C; - two sixteenth notes</li>
- <li>&#x1D13F;&nbsp; sixteenth rest</li>
- <li>&#x1D162; - thirtysecond note</li>
- <li>&#x1D140;&nbsp; thirtysecond rest</li>
-</ul>
-<script>
-function generateRhythm(numberOfBeats) {
-  var quarterNote = {unicode: "&#x2669;", name: "quarter note", value: 32};
-  var quarterRest = {unicode: "&#x1D13D;", name: "quarter rest", value: 32};
-  var eighthNote = {unicode: "&#x266A;", name: "eighth note", value: 16};
-  var eighthRest = {unicode: "&#x1D13E;", name: "eighth rest", value: 16};
-  var twoEighthNotes = {unicode: "&#x266B;", name: "two eighth notes", value: 32};
-  var sixteenthNote = {unicode: "&#x1D161;", name: "sixteenth note", value: 8};
-  var sixteenthRest = {unicode: "&#x1D13F;", name: "sixteenth rest", value: 8};
-  var twoSixteenthNotes = {unicode: "&#x266C;", name: "two sixteenth notes", value: 16};
-  var thirtySecondNote = {unicode: "&#x1D162;", name: "thirtysecond note", value: 1};
-  var thirtySecondRest = {unicode: "&#x1D140;", name: "thirtysecond rest", value: 1};
-  var notes = [quarterNote, eighthNote, twoEighthNotes, sixteenthNote, twoSixteenthNotes, thirtySecondNote];
-  var notesAndRests = [quarterNote, quarterRest, eighthNote, eighthRest, twoEighthNotes, sixteenthNote, sixteenthRest, twoSixteenthNotes, thirtySecondNote, thirtySecondRest];
-  var restsCheckbox = document.getElementById('restsCheckbox');
-  var wordRhythmOut = document.getElementById('wordRhythmOut');
-  var i = 0;
-  var bar = [];
-  while(i <= (numberOfBeats * quarterNote.value)) {
-    var note;
-    if(restsCheckbox.checked) {
-      note = notesAndRests[Math.floor(Math.random() * notesAndRests.length)];
-    } else {
-      note = notes[Math.floor(Math.random() * notes.length)];
-    }
+        <div class="input-row">
+          <select id="progressionPresets" style="max-width: 220px;" title="Load standard preset progressions">
+            <option value="">-- Select Preset --</option>
+            <option value="Dm7 G7 Cmaj7">Jazz ii - V - I (C Major)</option>
+            <option value="C G Am F">Pop I - V - vi - IV</option>
+            <option value="Am G F E7">Andalusian Cadence (A Minor)</option>
+            <option value="Dm7b5 G7b9 Cm7">Minor iiø - V7 - i (C Minor)</option>
+            <option value="Cmaj7 Fm6 Cmaj7">Modal Interchange (Minor iv)</option>
+            <option value="Cmaj7 Eb7 Abmaj7 B7 Emaj7 G7 Cmaj7">Coltrane Changes</option>
+            <option value="C7 F7 C7 C7 F7 F7 C7 C7 G7 F7 C7 G7">12-Bar Blues in C</option>
+          </select>
 
-    console.log("note: "+ note.unicode +" note name: "+ note.name);
-    i += note.value;
-    bar.push(note.unicode);
-    console.log(bar.length);
-  }
+          <input type="text" id="progressionInput" class="input-flex" 
+                 value="Dm7 G7 Cmaj7 A7b9" 
+                 placeholder="Enter chords separated by spaces (e.g. Dm7 G7 Cmaj7)">
 
-  for(var i = 0; i < bar.length; i++) {
-    wordRhythmOut.innerHTML += bar[i] + ' ';
-  }
-}
-</script>
-<h4>Metronome</h4>
-<audio id="audioPlayer" preload="metadata" controls loop>
-  <source src="audio/D1.wav">
-  <source src="audio/B1.wav">
-</audio>
-<p><input type="radio" id="graveLargo" name="same"/>
-  <label for="graveLargo" id="graveLargoLabel">30 - 59</label>
-  <input type="radio" id="larghettoAdagioAndante" name="same">
-  <label for="larghettoAdagioAndante" id=larghettoAdagioAndanteLabel">60 - 89</label></p>
-<p>BPM: <input type="range" min="0.5" max="4" step="0.01" id="bpm" value="BPM"/>
-  <label for="bpm" id="bpmDisplayValue"></label>
-  <input type="checkbox" id="click" checked/>
-  <label for="click" id="clickLabel">Click?</label></p>
-<script>
-var audioPlayer = document.getElementById("audioPlayer");
-console.log(audioPlayer);
-window.onload = function() {console.log("audio duration: "+ audioPlayer.duration);};
-var graveLargoBtn = document.getElementById("graveLargo");
-var larghettoAdagioAndanteBtn = document.getElementById("larghettoAdagioAndante");
-var bpmSlider = document.getElementById("bpm");
-console.log(bpmSlider);
-var bpmDisplayValue = document.getElementById("bpmDisplayValue");
-var click = document.getElementById("click");
-console.log('outside of onplaying: '+ audioPlayer.src);
+          <button id="btnAnalyze" class="btn btn-primary">Analyze</button>
+        </div>
 
-if(graveLargoBtn.checked) {
-  audioPlayer.src = "audio/D1.wav";
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+          <button id="btnPlayProgression" class="btn btn-success">▶ Play Progression</button>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer;">
+            <input type="checkbox" id="loopProgression"> Loop
+          </label>
 
-  // 30bpm = 1.45 pbrate, 59bpm = 2.84 pbrate
-  audioPlayer.playbackRate = 1.45; 
-  bpmSlider.min = 1.45; bpmSlider.max = 2.84;
-}
+          <div style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px;">
+            <label for="keySelectDropdown" style="font-size: 0.85rem; color: var(--text-muted);">Key Center:</label>
+            <select id="keySelectDropdown" style="padding: 6px 10px; font-size: 0.85rem;"></select>
+          </div>
+        </div>
 
-if(larghettoAdagioAndanteBtn.checked) {
-  audioPlayer.src = "audio/B1.wav";
+        <div id="keyAnalysisBanner" class="key-banner">
+          Detecting tonal centers...
+        </div>
 
-  // 60bpm = 2.86 pbrate, 84bpm = 4 pbrate, 89bpm = 4.27 pbrate
-  audioPlayer.playbackRate = 2.86; 
-  bpmSlider.min = 2.86; bpmSlider.max = 4.27;
-}
+        <div class="table-responsive">
+          <table id="harmonicTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Chord</th>
+                <th>Root</th>
+                <th>Quality</th>
+                <th>Formula</th>
+                <th>Chord Tones</th>
+                <th>Degree</th>
+                <th>Roman</th>
+                <th>Harmonic Function</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Dynamic Rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-var bpm = 0;
-audioPlayer.onplaying = function() {
-  audioPlayer.playbackRate = bpmSlider.valueAsNumber; // min = 0.5, max = 4
-  //console.log("bpm: "+ 60 / (audioPlayer.duration / audioPlayer.playbackRate) +', rate: '+ audioPlayer.playbackRate);
-  bpm = Math.round(60 / (audioPlayer.duration / audioPlayer.playbackRate));
-  if(bpm >= 30 && bpm < 40) {
-    bpmDisplayValue.innerHTML = bpm + ' Grave';
-  } else if(bpm >= 40 && bpm < 59) {
-    bpmDisplayValue.innerHTML = bpm + ' Largo';
-  } else if(bpm >= 60 && bpm < 66) {
-    bpmDisplayValue.innerHTML = bpm + ' Larghetto';
-  } else if(bpm >= 66 && bpm < 76) {
-    bpmDisplayValue.innerHTML = bpm + ' Adagio';
-  } else if(bpm >= 76 && bpm < 90) {
-    bpmDisplayValue.innerHTML = bpm + ' Andante';
-  }
-  console.log('audioPlayer.playbackRate: '+ audioPlayer.playbackRate);
+      <!-- Module 2: Base-12 Modal Interchange & Mood Engine -->
+      <section class="card" id="modalSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">🪐</span> Base-12 Modal Interchange & Mood Engine</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Map any scale-degree progression mathematically across all 7 parallel diatonic modes (from darkest Locrian to brightest Lydian).
+        </p>
 
-  if(graveLargoBtn.checked) {
-    if(!audioPlayer.src === "audio/D1.wav") {
-      audioPlayer.src = "audio/D1.wav";
-    }
+        <div class="input-row">
+          <input type="text" id="modalTonicInput" value="C" style="max-width: 90px;" placeholder="Tonic (e.g. C)">
+          <input type="text" id="modalDegreesInput" class="input-flex" value="1, 6, 4, 5" placeholder="Degrees (e.g. 1, 6, 4, 5)">
+          <button id="btnTransformModal" class="btn">Transform Across Modes</button>
+        </div>
 
-    bpmSlider.min = 1.45; bpmSlider.max = 2.84;
-  }
+        <div id="modalResultsContainer">
+          <!-- Transformed Modes Render Here -->
+        </div>
+      </section>
 
-  if(larghettoAdagioAndanteBtn.checked) {
-    if(!audioPlayer.src === "audio/B1.wav") {
-      audioPlayer.src = "audio/B1.wav";
-    }
+      <!-- Module 3: Practice Hub & Drills -->
+      <section class="card" id="drillsSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">🎯</span> Musician's Practice Hub & Ear Training</span>
+        </div>
 
-    bpmSlider.min = 2.86; bpmSlider.max = 4.27;
-  }
+        <div style="margin-bottom: 16px;">
+          <strong style="font-size: 0.92rem;">Interactive Interval Ear Trainer:</strong>
+          <div style="margin: 8px 0;">
+            <button id="btnPlayIntervalDrill" class="btn btn-sm btn-primary">🎧 Play Mystery Interval</button>
+          </div>
 
-  if(click.checked) {
-    tones.play('c');
-  }
-}
-</script>
+          <div class="quiz-options-grid">
+            <button class="btn btn-sm quiz-option-btn" data-interval="0">Unison</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="1">Minor 2nd</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="2">Major 2nd</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="3">Minor 3rd</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="4">Major 3rd</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="5">Perfect 4th</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="6">Tritone</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="7">Perfect 5th</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="8">Minor 6th</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="9">Major 6th</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="10">Minor 7th</button>
+            <button class="btn btn-sm quiz-option-btn" data-interval="11">Major 7th</button>
+          </div>
+          <div id="intervalFeedback" class="drill-feedback">Click "Play Mystery Interval" to test your ear.</div>
+        </div>
 
-<!-- ============ Select random exercise ============ -->
-<input type="button" value="Select random exercise" onclick="selectRandomExercise();" valign="top"/>
-<iframe id="randomExerciseFrame" width="100%" height="100%" align="center" frameborder="0"></iframe>
-<script>
-function selectRandomExercise() {
-  // create a list of urls
-  var urls = ['https://www.dredwerkz.cz/prirozena-durova-stupnice-ionsky-mod-v-terciich.html',
-    'https://www.dredwerkz.cz/prirozena-mollova-stupnice-Fis-akordy.html',
-    'https://www.dredwerkz.cz/prirozena-mollova-stupnice-Fis-rozklady-kvintakordu-triady-1-3-5.html',
-    'https://www.dredwerkz.cz/prirozena-mollova-stupnice-Fis-rozklady-septakordu-1-3-5-7.html',
-    'https://www.dredwerkz.cz/prirozena-mollova-stupnice-Fis-v-terciich.html',
-    'https://www.dredwerkz.cz/prirozena-mollova-stupnice-Fis.html',
-    'https://www.dredwerkz.cz/harmonicka-mollova-stupnice-D.html',
-    'https://www.dredwerkz.cz/harmonicka-mollova-stupnice-D-akordy.html',
-    'https://www.dredwerkz.cz/harmonicka-mollova-stupnice-D-v-terciich.html'];
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
 
-  // select random index from the list
-  var randomUrl = Math.floor(Math.random() * (urls.length - 0) + 0);
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <strong style="font-size: 0.92rem;">Daily Study Challenge:</strong>
+            <select id="exerciseCategorySelect" class="form-select" style="width: auto; max-width: 190px; padding: 3px 8px; font-size: 0.8rem; background: var(--bg-card); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px;">
+              <option value="all">All Categories (44)</option>
+              <option value="Technique">Technique (14)</option>
+              <option value="Scales & Modes">Scales & Modes (8)</option>
+              <option value="Bassguitar">Bassguitar (6)</option>
+              <option value="Arpeggios & Triads">Arpeggios & Triads (5)</option>
+              <option value="Concepts & Harmony">Concepts & Harmony (5)</option>
+              <option value="Genres & Blues">Genres & Blues (3)</option>
+              <option value="Chords">Chords (1)</option>
+              <option value="Rhythm">Rhythm (1)</option>
+              <option value="Fretboard Theory">Fretboard Theory (1)</option>
+            </select>
+          </div>
+          <div>
+            <button id="btnRandomWebExercise" class="btn btn-sm">🎲 Draw Practice Exercise</button>
+          </div>
+          <div id="exerciseCardDisplay"></div>
+        </div>
+      </section>
 
-  // get the iframe reference
-  var iframe = document.getElementById("randomExerciseFrame");
+    </div>
 
-  // display that url in the iframe
-  iframe.src = urls[randomUrl];
-}
-</script>
+    <!-- Right Column: Visualizers, Jam Deck & Metronome -->
+    <div class="panel-column">
 
-<!-- ============ Tones ============ -->
-<script>
-(function(window) {
-    var tones = {
-        context: new (window.AudioContext || window.webkitAudioContext)(),
-        attack: 1,
-        release: 100,
-        volume: 1,
-        type: "sine",
+      <!-- Module 4: Canvas Visualizer -->
+      <section class="card" id="visualizerSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">👁</span> HTML5 Canvas Visualizer</span>
+        </div>
 
+        <div class="viz-switcher">
+          <button class="btn btn-sm viz-btn active" data-mode="clock">Clock (Z12 Wheel)</button>
+          <button class="btn btn-sm viz-btn" data-mode="piano">Piano Keyboard</button>
+          <button class="btn btn-sm viz-btn" data-mode="fretboard">Fretboard</button>
+        </div>
 
-        playFrequency: function(freq) {
-            this.attack = this.attack || 1;
-            this.release = this.release || 1;
-            var envelope = this.context.createGain();
-            envelope.gain.setValueAtTime(this.volume, this.context.currentTime);
-            envelope.connect(this.context.destination);
+        <div id="fretboardControls" class="fretboard-toolbar" style="display: none;">
+          <label for="fretboardInstrumentSelect" style="color: var(--text-muted);">Instrument:</label>
+          <select id="fretboardInstrumentSelect" style="padding: 4px 8px; font-size: 0.8rem;">
+            <option value="guitar">6-String Guitar (E A D G B E)</option>
+            <option value="bass">4-String Bass (E A D G)</option>
+          </select>
+        </div>
 
-            envelope.gain.setValueAtTime(0, this.context.currentTime);
-            envelope.gain.setTargetAtTime(this.volume, this.context.currentTime, this.attack / 1000);
-            if(this.release) {
-                envelope.gain.setTargetAtTime(0, this.context.currentTime + this.attack / 1000, this.release / 1000);
-                setTimeout(function() {
-                    osc.stop();
-                    osc.disconnect(envelope);
-                    envelope.gain.cancelScheduledValues(tones.context.currentTime);
-                    envelope.disconnect(tones.context.destination);
+        <div class="canvas-wrapper" style="margin-top: 8px;">
+          <canvas id="visualizerCanvas"></canvas>
+        </div>
+      </section>
 
-                }, this.attack * 10 + this.release * 10);
-            }
+      <!-- Module 5: Musician's Jam Deck (Chord Cards Game) -->
+      <section class="card" id="jamSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">🃏</span> Musician's Jam Deck (Card Game)</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Draw random chord cards, drag/reorder them into the most musical progression, and jam on your instrument!
+        </p>
 
-            var osc = this.context.createOscillator();
-            osc.frequency.setValueAtTime(freq, this.context.currentTime);
-            osc.type = this.type;
-            osc.connect(envelope);
-            osc.start();
-        },
+        <div class="input-row" style="margin-top: 10px;">
+          <select id="jamCardCount" style="max-width: 120px;">
+            <option value="3">3 Cards</option>
+            <option value="4" selected>4 Cards</option>
+            <option value="5">5 Cards</option>
+            <option value="6">6 Cards</option>
+          </select>
 
-        /** 
-         * Usage: 
-         * notes.play(440);     // plays 440 hz tone
-         * notes.play("c");     // plays note c in default 4th octave
-         * notes.play("c#");    // plays note c sharp in default 4th octave
-         * notes.play("eb");    // plays note e flat in default 4th octave
-         * notes.play("c", 2);  // plays note c in 2nd octave
-         */
-        play: function(freqOrNote, octave) {
-            if(typeof freqOrNote === "number") {
-                this.playFrequency(freqOrNote);
-            }
-            else if(typeof freqOrNote === "string") {
-                if(octave == null) {
-                    octave = 4;
-                }
-                this.playFrequency(this.map[octave][freqOrNote.toLowerCase()]);
-            }
-        },
+          <select id="jamCardPool" style="max-width: 160px;">
+            <option value="wildcard" selected>Pure Wildcards</option>
+            <option value="diatonic_spice">Diatonic + Spice</option>
+          </select>
 
-        getTimeMS: function() {
-            return this.context.currentTime * 1000;
-        },
+          <button id="btnDealCards" class="btn">🃏 Deal Cards</button>
+          <button id="btnPlayCards" class="btn btn-success">▶ Play</button>
+        </div>
 
-        map: [{
-            // octave 0
-            "c": 16.351,
-            "c#": 17.324,
-            "db": 17.324,
-            "d": 18.354,
-            "d#": 19.445,
-            "eb": 19.445,
-            "e": 20.601,
-            "f": 21.827,
-            "f#": 23.124,
-            "gb": 23.124,
-            "g": 24.499,
-            "g#": 25.956,
-            "ab": 25.956,
-            "a": 27.5,
-            "a#": 29.135,
-            "bb": 29.135,
-            "b": 30.868
-        },
-        {
-            // octave 1
-            "c": 32.703,
-            "c#": 34.648,
-            "db": 34.648,
-            "d": 36.708,
-            "d#": 38.891,
-            "eb": 38.891,
-            "e": 41.203,
-            "f": 43.654,
-            "f#": 46.249,
-            "gb": 46.249,
-            "g": 48.999,
-            "g#": 51.913,
-            "ab": 51.913,
-            "a": 55,
-            "a#": 58.27,
-            "bb": 58.27,
-            "b": 61.735
-        },
-        {                    
-            // octave 2
-            "c": 65.406,
-            "c#": 69.296,
-            "db": 69.296,
-            "d": 73.416,
-            "d#": 77.782,
-            "eb": 77.782,
-            "e": 82.407,
-            "f": 87.307,
-            "f#": 92.499,
-            "gb": 92.499,
-            "g": 97.999,
-            "g#": 103.826,
-            "ab": 103.826,
-            "a": 110,
-            "a#": 116.541,
-            "bb": 116.541,
-            "b": 123.471
-        },
-        {                    
-            // octave 3
-            "c": 130.813,
-            "c#": 138.591,
-            "db": 138.591,
-            "d": 146.832,
-            "d#": 155.563,
-            "eb": 155.563,
-            "e": 164.814,
-            "f": 174.614,
-            "f#": 184.997,
-            "gb": 184.997,
-            "g": 195.998,
-            "g#": 207.652,
-            "ab": 207.652,
-            "a": 220,
-            "a#": 233.082,
-            "bb": 233.082,
-            "b": 246.942
-        },
-        {                    
-            // octave 4
-            "c": 261.626,
-            "c#": 277.183,
-            "db": 277.183,
-            "d": 293.665,
-            "d#": 311.127,
-            "eb": 311.127,
-            "e": 329.628,
-            "f": 349.228,
-            "f#": 369.994,
-            "gb": 369.994,
-            "g": 391.995,
-            "g#": 415.305,
-            "ab": 415.305,
-            "a": 440,
-            "a#": 466.164,
-            "bb": 466.164,
-            "b": 493.883
-        },
-        {                    
-            // octave 5
-            "c": 523.251,
-            "c#": 554.365,
-            "db": 554.365,
-            "d": 587.33,
-            "d#": 622.254,
-            "eb": 622.254,
-            "e": 659.255,
-            "f": 698.456,
-            "f#": 739.989,
-            "gb": 739.989,
-            "g": 783.991,
-            "g#": 830.609,
-            "ab": 830.609,
-            "a": 880,
-            "a#": 932.328,
-            "bb": 932.328,
-            "b": 987.767
-        },
-        {                    
-            // octave 6
-            "c": 1046.502,
-            "c#": 1108.731,
-            "db": 1108.731,
-            "d": 1174.659,
-            "d#": 1244.508,
-            "eb": 1244.508,
-            "e": 1318.51,
-            "f": 1396.913,
-            "f#": 1479.978,
-            "gb": 1479.978,
-            "g": 1567.982,
-            "g#": 1661.219,
-            "ab": 1661.219,
-            "a": 1760,
-            "a#": 1864.655,
-            "bb": 1864.655,
-            "b": 1975.533
-        },
-        {                    
-            // octave 7
-            "c": 2093.005,
-            "c#": 2217.461,
-            "db": 2217.461,
-            "d": 2349.318,
-            "d#": 2489.016,
-            "eb": 2489.016,
-            "e": 2637.021,
-            "f": 2793.826,
-            "f#": 2959.955,
-            "gb": 2959.955,
-            "g": 3135.964,
-            "g#": 3322.438,
-            "ab": 3322.438,
-            "a": 3520,
-            "a#": 3729.31,
-            "bb": 3729.31,
-            "b": 3951.066
-        },
-        {                    
-            // octave 8
-            "c": 4186.009,
-            "c#": 4434.922,
-            "db": 4434.922,
-            "d": 4698.636,
-            "d#": 4978.032,
-            "eb": 4978.032,
-            "e": 5274.042,
-            "f": 5587.652,
-            "f#": 5919.91,
-            "gb": 5919.91,
-            "g": 6271.928,
-            "g#": 6644.876,
-            "ab": 6644.876,
-            "a": 7040,
-            "a#": 7458.62,
-            "bb": 7458.62,
-            "b": 7902.132
-        },
-        {                    
-            // octave 9
-            "c": 8372.018,
-            "c#": 8869.844,
-            "db": 8869.844,
-            "d": 9397.272,
-            "d#": 9956.064,
-            "eb": 9956.064,
-            "e": 10548.084,
-            "f": 11175.304,
-            "f#": 11839.82,
-            "gb": 11839.82,
-            "g": 12543.856,
-            "g#": 13289.752,
-            "ab": 13289.752,
-            "a": 14080,
-            "a#": 14917.24,
-            "bb": 14917.24,
-            "b": 15804.264
-        }]
-    };
+        <div id="jamCardsContainer" class="jam-cards-grid">
+          <!-- Dynamic Jam Cards Render Here -->
+        </div>
 
-    // need to create a node in order to kick off the timer in Chrome.
-    tones.context.createGain();
+        <div>
+          <button id="btnNewChallenge" class="btn btn-sm">🎲 New Jam Prompt</button>
+          <div id="jamChallengePrompt" class="jam-challenge-box">
+            🎯 Practice Prompt: Reorder cards so at least one guide tone (3rd or 7th) moves by half-step.
+          </div>
+        </div>
+      </section>
 
-    if (typeof define === "function" && define.amd) {
-        define(tones);
-    } else {
-       window.tones = tones;
-    }
+      <!-- Module 6: Metronome & Rhythm Studio -->
+      <section class="card" id="metroSection">
+        <div class="card-title">
+          <span><span class="card-title-icon">⏱</span> Metronome & Rhythm Studio</span>
+        </div>
 
-}(window));
-</script>
-</div>
+        <div class="input-row" style="align-items: center;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label for="metroTimeSigInput" style="font-size: 0.85rem; color: var(--text-muted);">Meter:</label>
+            <input type="text" id="metroTimeSigInput" value="4/4" style="width: 85px; text-align: center; font-weight: 700; font-size: 1.05rem;" placeholder="X/Y" title="Enter any time signature X/Y (e.g. 7/8, 16/15, 4/4, 9/8, 5/4)">
+          </div>
+
+          <select id="metroSubdivision" style="max-width: 130px;" title="Subdivisions per beat">
+            <option value="1" selected>No Subdiv (1)</option>
+            <option value="2">8ths (2 per beat)</option>
+            <option value="3">Triplets (3 per beat)</option>
+            <option value="4">16ths (4 per beat)</option>
+            <option value="5">Quintuplets (5)</option>
+          </select>
+
+          <select id="metroSound" style="max-width: 110px;">
+            <option value="woodblock" selected>Woodblock</option>
+            <option value="synth">Digital Click</option>
+            <option value="spoken">Spoken Count</option>
+          </select>
+
+          <button id="btnToggleMetronome" class="btn btn-primary" style="flex: 1; min-width: 140px;">▶ Start Metronome</button>
+        </div>
+
+        <div class="input-row" style="align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <label style="font-size: 0.85rem; color: var(--text-muted); margin-right: 4px;">Tempo:</label>
+            <button id="btnBpmMinus5" class="btn btn-sm" title="Decrease 5 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-5</button>
+            <button id="btnBpmMinus1" class="btn btn-sm" title="Decrease 1 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-1</button>
+            <input type="number" id="metroBpmInput" min="15" max="240" value="110" step="1"
+                   style="width: 60px; padding: 3px 4px; font-size: 0.92rem; font-weight: 700; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-color);"
+                   title="Metronome Tempo (15 to 240 BPM)">
+            <button id="btnBpmPlus1" class="btn btn-sm" title="Increase 1 BPM" style="padding: 2px 7px; font-size: 0.82rem;">+1</button>
+            <button id="btnBpmPlus5" class="btn btn-sm" title="Increase 5 BPM" style="padding: 2px 7px; font-size: 0.82rem;">+5</button>
+          </div>
+          <input type="range" id="metroBpmSlider" min="15" max="240" value="110" step="1" style="flex: 1; min-width: 140px;">
+        </div>
+
+        <div class="metro-display-area">
+          <div id="metroDotsContainer" class="metro-dots-container">
+            <!-- Dynamic Beat Dots 1..X -->
+          </div>
+          <span id="tempoMarkingText" class="tempo-marking-badge">4/4 • 110 BPM • Moderato</span>
+        </div>
+
+        <!-- Practice Session Timer -->
+        <div class="practice-timer-container">
+          <div class="timer-top-bar">
+            <div class="timer-heading">
+              <span>⏳ Practice Session Timer</span>
+              <span id="timerStatusBadge" class="timer-badge idle">Stopped</span>
+            </div>
+            <div class="timer-btn-group">
+              <button id="btnNextExercise" class="btn btn-sm btn-primary" title="Complete current exercise delta and start next exercise">
+                ⏭ Next Exercise
+              </button>
+              <button id="btnResetTimer" class="btn btn-sm" title="Reset total session time and exercise count">
+                🔄 Reset Session
+              </button>
+            </div>
+          </div>
+
+          <div class="timer-cards-row">
+            <!-- Total Practice Time -->
+            <div class="timer-card">
+              <span class="timer-card-title">Total Practice Time</span>
+              <div id="timerTotalDisplay" class="timer-card-value">00:00</div>
+              <span id="timerTotalSubtext" class="timer-card-meta">0 exercises completed</span>
+            </div>
+
+            <!-- Current Delta Time -->
+            <div id="timerDeltaCard" class="timer-card timer-card-delta">
+              <span class="timer-card-title">Delta Time (Current Exercise)</span>
+              <div id="timerDeltaDisplay" class="timer-card-value">00:00</div>
+              <span id="timerDeltaSubtext" class="timer-card-meta">Exercise #1</span>
+            </div>
+          </div>
+
+          <!-- Timer Options & Controls -->
+          <div class="timer-settings-row">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <label for="timerTargetDuration" style="font-size: 0.82rem; color: var(--text-muted);">Target per exercise:</label>
+              <select id="timerTargetDuration" class="form-control" style="width: auto; padding: 2px 6px; font-size: 0.82rem;">
+                <option value="0" selected>None (Free count)</option>
+                <option value="60">1 minute</option>
+                <option value="120">2 minutes</option>
+                <option value="180">3 minutes</option>
+                <option value="300">5 minutes</option>
+                <option value="600">10 minutes</option>
+                <option value="900">15 minutes</option>
+              </select>
+            </div>
+
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; cursor: pointer; color: var(--text-muted);">
+              <input type="checkbox" id="timerAutoSplitOnRestart" checked>
+              Auto-next exercise on metronome restart
+            </label>
+
+            <button id="btnToggleTimerLog" class="btn btn-sm" style="font-size: 0.78rem; padding: 2px 8px;">
+              📋 History Log (<span id="timerLogCount">0</span>)
+            </button>
+          </div>
+
+          <!-- Collapsible Exercise History Log -->
+          <div id="timerLogDrawer" class="timer-log-drawer" style="display: none;">
+            <div class="timer-log-header">
+              <span>Exercise History Breakdown</span>
+              <button id="btnClearTimerLog" class="btn btn-sm" style="font-size: 0.72rem; padding: 1px 6px;">Clear Log</button>
+            </div>
+            <div id="timerLogEntries" class="timer-log-entries">
+              <div class="timer-log-empty">No exercises logged yet. Start metronome to practice!</div>
+            </div>
+          </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
+
+        <div class="card-title" style="font-size: 0.95rem; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+          <span>Unicode Rhythm Generator</span>
+          <span id="rhythmLoopStatus" class="tempo-marking-badge" style="display: none; font-size: 0.8rem;"></span>
+        </div>
+
+        <div class="input-row" style="align-items: center; flex-wrap: wrap; gap: 8px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; white-space: nowrap; margin-right: 4px;">
+            <input type="checkbox" id="rhythmIncludeRests" checked> Include Rests
+          </label>
+          <button id="btnGenerateRhythm" class="btn btn-sm">🎲 New Rhythm</button>
+
+          <div style="display: inline-flex; align-items: center; gap: 6px;">
+            <label for="rhythmLoopMode" style="font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Loop:</label>
+            <select id="rhythmLoopMode" class="form-control" style="width: auto; padding: 4px 8px; font-size: 0.85rem;">
+              <option value="1">Once (1x)</option>
+              <option value="2">2 times</option>
+              <option value="4" selected>4 times</option>
+              <option value="8">8 times</option>
+              <option value="custom">Custom...</option>
+              <option value="infinite">Indefinitely (∞)</option>
+            </select>
+            <input type="number" id="rhythmCustomCount" class="form-control" min="1" max="999" value="6" 
+                   style="width: 68px; padding: 4px 6px; font-size: 0.85rem; display: none;" 
+                   title="Number of loops (1-999)" placeholder="# loops">
+          </div>
+
+          <button id="btnPlayRhythm" class="btn btn-sm btn-success" style="min-width: 110px;">▶ Play Clave</button>
+        </div>
+
+        <div id="rhythmGlyphDisplay" class="rhythm-display">
+          <!-- Dynamic Unicode Notation -->
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
 </body>
 </html>
