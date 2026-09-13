@@ -350,15 +350,12 @@
     if (!parsedChords || parsedChords.length === 0) return [];
 
     const pcSet = new Set();
-    const rootOccurrences = {};
-
-    parsedChords.forEach((c, index) => {
+    parsedChords.forEach(c => {
       c.pitchClasses.forEach(pc => pcSet.add(pc));
-      const weight = (index === 0 || index === parsedChords.length - 1) ? 2 : 1;
-      rootOccurrences[c.rootPC] = (rootOccurrences[c.rootPC] || 0) + weight;
     });
 
     const totalNotes = pcSet.size;
+    const totalChords = parsedChords.length;
     if (totalNotes === 0) return [];
 
     const candidates = [];
@@ -371,10 +368,56 @@
         if (majorScalePCs.includes(pc)) matchedPCs++;
       });
 
-      let score = (matchedPCs / totalNotes) * 80;
-      if (rootOccurrences[rootPC]) {
-        score += Math.min(rootOccurrences[rootPC] * 5, 20);
+      let diatonicChords = 0;
+      let hasTonic = false;
+      let hasTonicMaj7 = false;
+      let hasDominant = false;
+
+      parsedChords.forEach(c => {
+        const isDiatonic = c.pitchClasses.every(pc => majorScalePCs.includes(pc));
+        if (isDiatonic) diatonicChords++;
+        if (c.rootPC === rootPC && ['maj', 'maj7', 'maj9', 'add9', '6', '69'].includes(c.qualityId)) {
+          hasTonic = true;
+          if (['maj7', 'maj9'].includes(c.qualityId)) hasTonicMaj7 = true;
+        }
+        if (c.rootPC === (rootPC + 7) % 12 && ['7', '9', '11', '13', 'maj', 'sus4', '7b9', '7#9', 'alt'].includes(c.qualityId)) {
+          hasDominant = true;
+        }
+      });
+
+      const diatonicFit = Math.round((matchedPCs / totalNotes) * 100);
+
+      // Key Confidence Heuristic:
+      // Base from diatonic note coverage (60%) and diatonic chord coverage (15%)
+      let confidence = Math.round((matchedPCs / totalNotes) * 60) + Math.round((diatonicChords / totalChords) * 15);
+
+      if (hasTonic) confidence += 8;
+      if (hasTonicMaj7) confidence += 6; // Tonic Major 7th strongly anchors major tonality (e.g. Cmaj7)
+      if (hasDominant) confidence += 6; // Presence of primary dominant (e.g. G7)
+
+      // Cadential motion: V -> I (offset 7) or IV -> I (offset 5)
+      for (let i = 0; i < parsedChords.length; i++) {
+        const prev = parsedChords[(i - 1 + parsedChords.length) % parsedChords.length];
+        const curr = parsedChords[i];
+        if (curr.rootPC === rootPC) {
+          if ((prev.rootPC - rootPC + 12) % 12 === 7) confidence += 10; // Strong V -> I cadence
+          else if ((prev.rootPC - rootPC + 12) % 12 === 5) confidence += 4; // IV -> I
+        }
       }
+
+      // Secondary dominant resolution within this key (e.g. A7 -> Dm in C Major where Dm is ii)
+      parsedChords.forEach((c, idx) => {
+        const next = parsedChords[(idx + 1) % parsedChords.length];
+        const targetOffset = (next.rootPC - rootPC + 12) % 12;
+        if (['7', '9', '13', '7b9', '7#9', 'alt'].includes(c.qualityId) && (c.rootPC - next.rootPC + 12) % 12 === 7) {
+          if ([2, 4, 5, 7, 9].includes(targetOffset)) {
+            confidence += 6; // Valid secondary dominant reinforcing the primary key tonality
+          }
+        }
+      });
+
+      if (!hasTonic) confidence -= 15;
+      confidence = Math.max(10, Math.min(100, confidence));
 
       const preferFlats = [5, 10, 3, 8, 1].includes(rootPC);
       const keyName = `${pitchClassToNote(rootPC, preferFlats)} Major`;
@@ -386,7 +429,11 @@
         keyName,
         matchedPCs,
         totalNotes,
-        score: Math.min(Math.round(score), 100),
+        diatonicChords,
+        totalChords,
+        diatonicFit,
+        confidence,
+        score: diatonicFit,
         scalePCs: majorScalePCs
       });
     }
@@ -395,17 +442,50 @@
     for (let rootPC = 0; rootPC < 12; rootPC++) {
       const naturalMinorPCs = SCALE_DEFINITIONS.aeolian.intervals.map(i => (rootPC + i) % 12);
       const leadingTone = (rootPC + 11) % 12;
-      const raised6 = (rootPC + 9) % 12;
+      const harmonicMinorPCs = [...naturalMinorPCs.slice(0, 6), leadingTone];
 
-      let matchedPCs = 0;
+      // Measure against true 7-note scale (Natural or Harmonic Minor)
+      let matchNat = 0, matchHarm = 0;
       pcSet.forEach(pc => {
-        if (naturalMinorPCs.includes(pc) || pc === leadingTone || pc === raised6) matchedPCs++;
+        if (naturalMinorPCs.includes(pc)) matchNat++;
+        if (harmonicMinorPCs.includes(pc)) matchHarm++;
+      });
+      const matchedPCs = Math.max(matchNat, matchHarm);
+
+      let diatonicChords = 0;
+      let hasTonic = false;
+      let hasDominant = false;
+
+      parsedChords.forEach(c => {
+        const isNat = c.pitchClasses.every(pc => naturalMinorPCs.includes(pc));
+        const isHarm = c.pitchClasses.every(pc => harmonicMinorPCs.includes(pc));
+        if (isNat || isHarm) diatonicChords++;
+        if (c.rootPC === rootPC && ['min', 'm7', 'm9', 'm11', 'm13', 'mMaj7', 'm6', 'm69'].includes(c.qualityId)) {
+          hasTonic = true;
+        }
+        if (c.rootPC === (rootPC + 7) % 12 && c.pitchClasses.includes(leadingTone)) {
+          hasDominant = true;
+        }
       });
 
-      let score = (matchedPCs / totalNotes) * 80;
-      if (rootOccurrences[rootPC]) {
-        score += Math.min(rootOccurrences[rootPC] * 6, 20);
+      const diatonicFit = Math.round((matchedPCs / totalNotes) * 100);
+
+      let confidence = Math.round((matchedPCs / totalNotes) * 60) + Math.round((diatonicChords / totalChords) * 15);
+
+      if (hasTonic) confidence += 8;
+      if (hasDominant) confidence += 6;
+
+      for (let i = 0; i < parsedChords.length; i++) {
+        const prev = parsedChords[(i - 1 + parsedChords.length) % parsedChords.length];
+        const curr = parsedChords[i];
+        if (curr.rootPC === rootPC) {
+          if ((prev.rootPC - rootPC + 12) % 12 === 7) confidence += 10;
+          else if ((prev.rootPC - rootPC + 12) % 12 === 5) confidence += 4;
+        }
       }
+
+      if (!hasTonic) confidence -= 15;
+      confidence = Math.max(10, Math.min(100, confidence));
 
       const preferFlats = [5, 10, 3, 8, 1, 0, 2].includes(rootPC);
       const keyName = `${pitchClassToNote(rootPC, preferFlats)} Minor`;
@@ -417,12 +497,20 @@
         keyName,
         matchedPCs,
         totalNotes,
-        score: Math.min(Math.round(score), 100),
+        diatonicChords,
+        totalChords,
+        diatonicFit,
+        confidence,
+        score: diatonicFit,
         scalePCs: [...naturalMinorPCs, leadingTone]
       });
     }
 
-    candidates.sort((a, b) => b.score - a.score);
+    // Rank primarily by confidence, then by diatonicFit
+    candidates.sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      return b.diatonicFit - a.diatonicFit;
+    });
     return candidates;
   }
 

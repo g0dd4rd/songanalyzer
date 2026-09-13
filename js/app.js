@@ -233,6 +233,7 @@
           const idx = parseInt(e.target.value, 10);
           if (this.detectedKeys[idx]) {
             this.selectedKey = this.detectedKeys[idx];
+            this.updateKeyBanner();
             this.renderHarmonicTable();
           }
         });
@@ -584,24 +585,46 @@
       }
     }
 
+    updateKeyBanner() {
+      const banner = document.getElementById('keyAnalysisBanner');
+      if (!this.selectedKey || !banner) return;
+
+      const fit = this.selectedKey.diatonicFit;
+      const conf = this.selectedKey.confidence;
+      const fitBadgeClass = fit === 100 ? 'badge-success' : (fit >= 80 ? 'badge-info' : 'badge-warning');
+      const confBadgeClass = conf >= 85 ? 'badge-success' : (conf >= 60 ? 'badge-info' : 'badge-warning');
+
+      banner.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%;">
+          <span><strong>Key Center:</strong> <span style="font-size: 1.02rem; font-weight: 700; color: #fff;">${this.selectedKey.keyName}</span></span>
+          <span class="badge ${fitBadgeClass}" title="Diatonic Note Fit: ${this.selectedKey.matchedPCs} of ${this.selectedKey.totalNotes} progression notes belong to the ${this.selectedKey.keyName} scale">
+            ${fit}% Diatonic Fit
+          </span>
+          <span class="badge ${confBadgeClass}" title="Key Confidence: Likelihood this key is the primary tonal center based on root emphasis, cadences, and harmonic roles">
+            ${conf}% Confidence
+          </span>
+          <span class="text-muted" style="margin-left: auto; font-size: 0.82rem;">
+            ${this.selectedKey.matchedPCs} of ${this.selectedKey.totalNotes} notes &amp; ${this.selectedKey.diatonicChords} of ${this.selectedKey.totalChords} chords in key
+          </span>
+        </div>
+      `;
+    }
+
     renderKeyDropdown() {
       const dropdown = document.getElementById('keySelectDropdown');
       if (!dropdown) return;
       dropdown.innerHTML = '';
 
-      this.detectedKeys.slice(0, 5).forEach((cand, idx) => {
+      this.detectedKeys.slice(0, 6).forEach((cand, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;
-        opt.textContent = `${cand.keyName} (${cand.score}% fit)`;
+        const tag = idx === 0 ? 'Primary' : (cand.diatonicFit === 100 ? 'Alternative' : '');
+        const tagStr = tag ? ` · ${tag}` : '';
+        opt.textContent = `${cand.keyName} (${cand.diatonicFit}% fit · ${cand.confidence}% conf${tagStr})`;
         dropdown.appendChild(opt);
       });
 
-      const banner = document.getElementById('keyAnalysisBanner');
-      if (this.selectedKey && banner) {
-        banner.innerHTML = `<strong>Primary Key Center:</strong> ${this.selectedKey.keyName} 
-          <span class="badge ${this.selectedKey.score > 80 ? 'badge-success' : 'badge-warning'}">${this.selectedKey.score}% fit</span>
-          <span class="text-muted" style="margin-left: 10px;">${this.selectedKey.matchedPCs} of ${this.selectedKey.totalNotes} progression notes fit diatonically</span>`;
-      }
+      this.updateKeyBanner();
     }
 
     renderHarmonicTable() {
