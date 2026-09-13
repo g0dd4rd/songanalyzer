@@ -205,6 +205,56 @@
           }
         });
       }
+      // Mobile Quick-Nav Tab View Switching
+      const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
+      const allCards = document.querySelectorAll('.main-layout .card');
+      const navScroll = document.querySelector('.mobile-nav-scroll');
+
+      this.setMobileTab = (targetId) => {
+        mobileNavBtns.forEach(btn => {
+          if (btn.dataset.target === targetId) {
+            btn.classList.add('active');
+            if (navScroll) {
+              const btnLeft = btn.offsetLeft - navScroll.offsetLeft;
+              const btnWidth = btn.offsetWidth;
+              const scrollWidth = navScroll.clientWidth;
+              navScroll.scrollTo({
+                left: btnLeft - (scrollWidth / 2) + (btnWidth / 2),
+                behavior: 'smooth'
+              });
+            }
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+
+        if (targetId === 'all') {
+          document.body.classList.remove('mobile-tab-view');
+          allCards.forEach(card => card.classList.remove('mobile-active-card'));
+        } else {
+          document.body.classList.add('mobile-tab-view');
+          allCards.forEach(card => {
+            if (card.id === targetId) {
+              card.classList.add('mobile-active-card');
+            } else {
+              card.classList.remove('mobile-active-card');
+            }
+          });
+
+          if (targetId === 'visualizerSection' && this.visualizer) {
+            setTimeout(() => this.visualizer.handleResize(), 50);
+          }
+        }
+
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      };
+
+      mobileNavBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.setMobileTab(btn.dataset.target);
+        });
+      });
 
       // Visualizer Mode Switchers
       document.querySelectorAll('.viz-btn').forEach(btn => {
@@ -539,14 +589,14 @@
           <td>
             <span class="chord-pill">${chord.displayName}</span>
           </td>
-          <td>${chord.root}</td>
-          <td>${chord.qualityName}</td>
-          <td><code>${chord.formula}</code></td>
+          <td class="col-root">${chord.root}</td>
+          <td class="col-quality">${chord.qualityName}</td>
+          <td class="col-formula"><code>${chord.formula}</code></td>
           <td class="chord-tones">${chord.notes.join(' - ')}</td>
-          <td><strong>${analysis.degreeName}</strong></td>
+          <td class="col-degree"><strong>${analysis.degreeName}</strong></td>
           <td><span class="roman-badge ${analysis.isDiatonic ? 'diatonic' : 'non-diatonic'}">${analysis.romanNumeral}</span></td>
           <td><small class="${analysis.isDiatonic ? 'text-diatonic' : 'text-altered'}">${analysis.harmonicFunction}</small></td>
-          <td>
+          <td class="col-actions">
             <button class="btn-sm btn-play-chord" title="Play Chord">▶</button>
             <button class="btn-sm btn-arp-chord" title="Play Arpeggio">〰</button>
             <button class="btn-sm btn-show-chord" title="View on Canvas">👁</button>
@@ -574,6 +624,9 @@
         row.querySelector('.btn-show-chord').addEventListener('click', () => {
           if (this.visualizer) this.visualizer.setActiveChord(chord);
           this.highlightTableRow(idx);
+          if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
+            this.setMobileTab('visualizerSection');
+          }
         });
 
         tbody.appendChild(row);

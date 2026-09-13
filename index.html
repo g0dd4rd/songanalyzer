@@ -49,6 +49,19 @@
     </div>
   </header>
 
+  <!-- Mobile Quick-Nav Tab Bar (Sticky on screens < 960px) -->
+  <nav class="mobile-nav-bar" id="mobileNavBar" aria-label="Mobile Module Navigation">
+    <div class="mobile-nav-scroll">
+      <button class="mobile-nav-btn active" data-target="all">🌟 All</button>
+      <button class="mobile-nav-btn" data-target="analyzerSection">🎼 Chords</button>
+      <button class="mobile-nav-btn" data-target="visualizerSection">👁 Visualizer</button>
+      <button class="mobile-nav-btn" data-target="metroSection">⏱ Metronome</button>
+      <button class="mobile-nav-btn" data-target="jamSection">🃏 Jam Deck</button>
+      <button class="mobile-nav-btn" data-target="drillsSection">🎯 Drills</button>
+      <button class="mobile-nav-btn" data-target="modalSection">🪐 Modes</button>
+    </div>
+  </nav>
+
   <!-- Main Content Layout -->
   <main class="main-layout">
 
@@ -102,13 +115,13 @@
               <tr>
                 <th>#</th>
                 <th>Chord</th>
-                <th>Root</th>
-                <th>Quality</th>
-                <th>Formula</th>
+                <th class="col-root">Root</th>
+                <th class="col-quality">Quality</th>
+                <th class="col-formula">Formula</th>
                 <th>Chord Tones</th>
-                <th>Degree</th>
+                <th class="col-degree">Degree</th>
                 <th>Roman</th>
-                <th>Harmonic Function</th>
+                <th>Function</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -267,9 +280,9 @@
           <span><span class="card-title-icon">⏱</span> Metronome & Rhythm Studio</span>
         </div>
 
-        <div class="input-row" style="align-items: center;">
+        <div class="input-row metro-top-controls" style="align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <label for="metroTimeSigInput" style="font-size: 0.85rem; color: var(--text-muted);">Meter:</label>
+            <label for="metroTimeSigInput" style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">Meter:</label>
             <input type="text" id="metroTimeSigInput" value="4/4" style="width: 85px; text-align: center; font-weight: 700; font-size: 1.05rem;" placeholder="X/Y" title="Enter any time signature X/Y (e.g. 7/8, 16/15, 4/4, 9/8, 5/4)">
           </div>
 
@@ -290,8 +303,8 @@
           <button id="btnToggleMetronome" class="btn btn-primary" style="flex: 1; min-width: 140px;">▶ Start Metronome</button>
         </div>
 
-        <div class="input-row" style="align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 4px;">
+        <div class="input-row metro-tempo-row" style="align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+          <div class="metro-bpm-buttons-bar" style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.85rem; color: var(--text-muted); margin-right: 4px;">Tempo:</label>
             <button id="btnBpmMinus5" class="btn btn-sm" title="Decrease 5 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-5</button>
             <button id="btnBpmMinus1" class="btn btn-sm" title="Decrease 1 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-1</button>
@@ -388,7 +401,7 @@
           <span id="rhythmLoopStatus" class="tempo-marking-badge" style="display: none; font-size: 0.8rem;"></span>
         </div>
 
-        <div class="input-row" style="align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div class="input-row rhythm-controls-row" style="align-items: center; flex-wrap: wrap; gap: 8px;">
           <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; white-space: nowrap; margin-right: 4px;">
             <input type="checkbox" id="rhythmIncludeRests" checked> Include Rests
           </label>

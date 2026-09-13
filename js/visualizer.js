@@ -64,7 +64,14 @@
       const rect = this.canvas.parentElement.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const width = rect.width;
-      const height = Math.min(Math.max(width * 0.55, 340), 480);
+      let height;
+      if (this.mode === 'clock') {
+        height = Math.min(Math.max(width * 0.85, 260), 440);
+      } else if (this.mode === 'piano') {
+        height = Math.min(Math.max(width * 0.45, 175), 320);
+      } else {
+        height = Math.min(Math.max(width * 0.45, 185), 340);
+      }
 
       this.canvas.width = width * dpr;
       this.canvas.height = height * dpr;

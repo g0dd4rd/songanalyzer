@@ -27,6 +27,12 @@
   padding: 0;
 }
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
 body {
   background-color: var(--bg-main);
   color: var(--text-main);
@@ -108,23 +114,83 @@ body {
   border-radius: 4px;
 }
 
+/* Mobile Quick-Nav Tab Bar (Sticky on < 960px) */
+.mobile-nav-bar {
+  display: none;
+  background-color: #0c1220;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 95;
+  padding: 6px 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 960px) {
+  .mobile-nav-bar {
+    display: block;
+  }
+  .mobile-nav-scroll {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 2px;
+  }
+  .mobile-nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .mobile-nav-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 20px;
+    background: #182238;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .mobile-nav-btn.active {
+    background: var(--accent-blue);
+    border-color: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  }
+}
+
 /* Primary Layout Grid */
 .main-layout {
   max-width: 1400px;
+  width: 100%;
   margin: 24px auto;
   padding: 0 20px;
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: 24px;
+  min-width: 0;
 }
 
 @media (max-width: 960px) {
   .main-layout {
     grid-template-columns: 1fr;
-    margin: 16px auto;
-    padding: 0 12px;
+    margin: 12px auto;
+    padding: 0 10px;
     gap: 16px;
   }
+}
+
+.main-layout > *,
+.panel-column,
+.card,
+.input-row,
+.table-responsive,
+.canvas-wrapper {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .panel-column {
@@ -824,4 +890,371 @@ tr:hover td {
 .exercise-prompt-card p {
   font-size: 0.88rem;
   color: #cbd5e1;
+}
+
+/* ==========================================================================
+   Comprehensive Mobile & Tablet Responsive Media Queries
+   ========================================================================== */
+
+@media (max-width: 960px) {
+  header.master-header {
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+  .mobile-nav-bar {
+    top: 0;
+  }
+  .main-layout {
+    grid-template-columns: 1fr;
+    margin: 8px auto;
+    padding: 0 8px;
+    gap: 12px;
+  }
+  .panel-column {
+    gap: 12px;
+  }
+
+  /* Mobile Tab Mode: show only the active card when a specific tab is selected */
+  .mobile-tab-view .main-layout {
+    display: block !important;
+  }
+  .mobile-tab-view .main-layout .panel-column {
+    display: contents !important;
+  }
+  .mobile-tab-view .card {
+    display: none !important;
+  }
+  .mobile-tab-view .card.mobile-active-card {
+    display: block !important;
+  }
+}
+
+/* Tablet & Smaller (< 768px): Hide secondary harmonic table columns */
+@media (max-width: 768px) {
+  .col-root,
+  .col-quality {
+    display: none !important;
+  }
+  th, td {
+    padding: 8px 6px;
+    font-size: 0.83rem;
+  }
+  .chord-pill {
+    padding: 2px 6px;
+    font-size: 0.88rem;
+  }
+  .header-controls {
+    gap: 10px;
+  }
+}
+
+/* Mobile Screens (<= 640px): Full Touch-First Adaptive Layout */
+@media (max-width: 640px) {
+  /* Header: 2-Tier Stack */
+  header.master-header {
+    padding: 8px 10px;
+  }
+  .header-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .logo-area {
+    justify-content: flex-start;
+  }
+  .logo-title {
+    font-size: 1.15rem;
+  }
+  .header-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  #btnStartAudio {
+    flex: 1 1 100%;
+    min-height: 38px;
+    font-size: 0.88rem;
+  }
+  .header-controls .control-item {
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+  .header-controls input[type="range"] {
+    width: 75px;
+  }
+
+  /* Cards & Forms */
+  .card {
+    padding: 12px 10px;
+    border-radius: 8px;
+  }
+  .card-title {
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+  }
+  .input-row {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .input-flex {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  #progressionPresets {
+    max-width: 100% !important;
+    width: 100%;
+  }
+  #btnAnalyze {
+    width: 100%;
+    margin-top: 2px;
+  }
+  #modalTonicInput {
+    max-width: 65px !important;
+    width: 65px;
+  }
+  #btnTransformModal {
+    width: 100%;
+  }
+  #jamCardCount, #jamCardPool {
+    flex: 1 1 calc(50% - 6px);
+    max-width: none !important;
+  }
+  #btnDealCards, #btnPlayCards {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  /* Harmonic Table: Extreme Compact Fit */
+  .col-formula,
+  .col-degree {
+    display: none !important;
+  }
+  th, td {
+    padding: 6px 4px;
+    font-size: 0.78rem;
+  }
+  .roman-badge {
+    padding: 2px 4px;
+    font-size: 0.76rem;
+  }
+  .table-responsive {
+    margin-top: 6px;
+  }
+  .table-responsive td button.btn-sm {
+    padding: 2px 4px;
+    font-size: 0.72rem;
+  }
+
+  /* Metronome: Touch-Friendly 2-Tier & 2x2 Grid */
+  .metro-top-controls {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metro-top-controls > div:first-child {
+    grid-column: 1 / 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .metro-top-controls > div:first-child input {
+    width: 65px !important;
+  }
+  #metroSubdivision {
+    grid-column: 2 / 3;
+    max-width: 100% !important;
+    width: 100%;
+  }
+  #metroSound {
+    grid-column: 1 / 2;
+    max-width: 100% !important;
+    width: 100%;
+  }
+  #btnToggleMetronome {
+    grid-column: 2 / 3;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px;
+  }
+
+  /* Metronome Tempo Slider & Steppers */
+  .metro-tempo-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px;
+  }
+  .metro-bpm-buttons-bar {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100%;
+  }
+  #metroBpmSlider {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-top: 4px;
+  }
+  .metro-display-area {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .metro-dots-container {
+    justify-content: center;
+  }
+  .tempo-marking-badge {
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Practice Session Timer */
+  .practice-timer-container {
+    padding: 10px;
+    margin: 10px 0;
+  }
+  .timer-top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .timer-heading {
+    justify-content: space-between;
+  }
+  .timer-btn-group {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+  .timer-btn-group > button {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+  .timer-card {
+    padding: 6px;
+  }
+  .timer-card-value {
+    font-size: 1.6rem;
+  }
+  .timer-card-meta {
+    font-size: 0.7rem;
+  }
+  .timer-settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  /* Rhythm Studio */
+  .rhythm-controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .rhythm-controls-row > * {
+    flex: 1 1 calc(50% - 6px);
+  }
+  #btnPlayRhythm {
+    flex: 1 1 100%;
+    min-height: 36px;
+  }
+  .rhythm-display {
+    font-size: 1.6rem;
+    padding: 10px;
+    min-height: 48px;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  /* Visualizer Switcher */
+  .viz-switcher {
+    display: flex;
+    gap: 4px;
+  }
+  .viz-btn {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+  .fretboard-toolbar {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  /* Musician's Jam Deck */
+  .jam-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .jam-card {
+    min-height: 120px;
+    padding: 8px 6px;
+  }
+  .jam-card-symbol {
+    font-size: 1.2rem;
+  }
+  .jam-card-quality {
+    font-size: 0.74rem;
+  }
+  .jam-card-formula {
+    font-size: 0.68rem;
+  }
+  .jam-card-actions button {
+    padding: 2px 4px;
+    font-size: 0.7rem;
+  }
+
+  /* Practice Hub / Drills */
+  .quiz-options-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+  }
+  .quiz-option-btn {
+    padding: 6px 2px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Modal Interchange */
+  .modal-tier-card {
+    padding: 8px 10px;
+  }
+  .modal-tier-header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .modal-tier-chords {
+    font-size: 0.85rem;
+    word-break: break-word;
+  }
+}
+
+/* Extra Small Phones (<= 380px) */
+@media (max-width: 380px) {
+  .quiz-options-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .timer-cards-row {
+    grid-template-columns: 1fr;
+  }
+  .metro-top-controls {
+    grid-template-columns: 1fr;
+  }
+  .metro-top-controls > * {
+    grid-column: 1 / -1 !important;
+  }
+  .header-controls .control-item {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .header-controls input[type="range"] {
+    flex: 1;
+  }
 }
