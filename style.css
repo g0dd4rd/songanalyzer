@@ -312,6 +312,116 @@ button:hover, .btn:hover {
   border-radius: 6px;
 }
 
+/* Chord Notation Guide Drawer */
+.chord-guide-drawer {
+  background: #12192c;
+  border: 1px solid #28375c;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: none;
+}
+
+.chord-guide-drawer.open {
+  display: block;
+}
+
+.chord-guide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chord-guide-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chord-guide-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  padding: 0 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chord-guide-close:hover {
+  color: #fff;
+}
+
+.chord-guide-help {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+
+.chord-guide-help code {
+  background: #1a233b;
+  color: #93c5fd;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.chord-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.chord-guide-card {
+  background: rgba(14, 20, 36, 0.7);
+  border: 1px solid #1f2c4a;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.chord-guide-cat-title {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-cyan);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.chord-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chord-chip {
+  background: #1c2742;
+  color: #93c5fd;
+  border: 1px solid #3b82f644;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chord-chip:hover {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+}
+
 /* Key Analysis Banner */
 .key-banner {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));

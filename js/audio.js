@@ -146,9 +146,10 @@
 
       const notes = [];
       const rootPC = chord.rootPC;
+      const bassPC = (chord.bassPC !== undefined && chord.bassPC !== null) ? chord.bassPC : rootPC;
 
       const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const bassNote = `${sharpNames[rootPC]}3`;
+      const bassNote = `${sharpNames[bassPC]}3`;
       notes.push(bassNote);
 
       chord.intervals.forEach((interval) => {

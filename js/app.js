@@ -167,6 +167,38 @@
         });
       }
 
+      // Chord Notation Guide Drawer & Interactive Chips
+      const btnToggleChordGuide = document.getElementById('btnToggleChordGuide');
+      const chordGuideDrawer = document.getElementById('chordGuideDrawer');
+      const btnCloseChordGuide = document.getElementById('btnCloseChordGuide');
+
+      if (btnToggleChordGuide && chordGuideDrawer) {
+        btnToggleChordGuide.addEventListener('click', () => {
+          chordGuideDrawer.classList.toggle('open');
+        });
+      }
+
+      if (btnCloseChordGuide && chordGuideDrawer) {
+        btnCloseChordGuide.addEventListener('click', () => {
+          chordGuideDrawer.classList.remove('open');
+        });
+      }
+
+      document.querySelectorAll('.chord-chip').forEach((chip) => {
+        chip.addEventListener('click', (e) => {
+          const chord = chip.getAttribute('data-chord') || chip.textContent.trim();
+          if (inputField) {
+            if (e.shiftKey) {
+              inputField.value = chord;
+            } else {
+              const currentVal = inputField.value.trim();
+              inputField.value = currentVal ? `${currentVal} ${chord}` : chord;
+            }
+            this.analyzeProgression();
+          }
+        });
+      });
+
       // Play Progression button
       const btnPlayProg = document.getElementById('btnPlayProgression');
       if (btnPlayProg) {

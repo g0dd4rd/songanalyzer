@@ -82,6 +82,7 @@
             <option value="Am G F E7">Andalusian Cadence (A Minor)</option>
             <option value="Dm7b5 G7b9 Cm7">Minor iiø - V7 - i (C Minor)</option>
             <option value="Cmaj7 Fm6 Cmaj7">Modal Interchange (Minor iv)</option>
+            <option value="Dm7 Dbadd9 C#m7add13 Cm9">Chromatic Step-Down (Dm7 Dbadd9 C#m7add13 Cm9)</option>
             <option value="Cmaj7 Eb7 Abmaj7 B7 Emaj7 G7 Cmaj7">Coltrane Changes</option>
             <option value="C7 F7 C7 C7 F7 F7 C7 C7 G7 F7 C7 G7">12-Bar Blues in C</option>
           </select>
@@ -98,10 +99,78 @@
           <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer;">
             <input type="checkbox" id="loopProgression"> Loop
           </label>
+          <button type="button" id="btnToggleChordGuide" class="btn btn-sm" title="Toggle Chord Syntax &amp; Examples Guide" style="display: inline-flex; align-items: center; gap: 5px;">📖 Chord Notation Guide</button>
 
           <div style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px;">
             <label for="keySelectDropdown" style="font-size: 0.85rem; color: var(--text-muted);">Key Center:</label>
             <select id="keySelectDropdown" style="padding: 6px 10px; font-size: 0.85rem;"></select>
+          </div>
+        </div>
+
+        <!-- Chord Notation & Syntax Guide Drawer -->
+        <div id="chordGuideDrawer" class="chord-guide-drawer">
+          <div class="chord-guide-header">
+            <span class="chord-guide-title">📖 Chord Notation Guide &amp; Clickable Examples</span>
+            <button type="button" id="btnCloseChordGuide" class="chord-guide-close" title="Close Guide">&times;</button>
+          </div>
+          <div class="chord-guide-help">
+            Enter chords separated by spaces. Supports arbitrary combinations of roots, qualities, extensions (<code>9</code>, <code>11</code>, <code>13</code>), additions (<code>add9</code>, <code>add11</code>, <code>add13</code>), alterations (<code>b9</code>, <code>#9</code>, <code>b11</code>, <code>#11</code>, <code>b5</code>, <code>#5</code>, <code>alt</code>), omissions (<code>no3</code>, <code>no5</code>), and slash bass (<code>C/E</code>). <strong>Click any chord below to append it to your progression:</strong>
+          </div>
+          <div class="chord-guide-grid">
+            <div class="chord-guide-card">
+              <div class="chord-guide-cat-title">Triads &amp; Suspended</div>
+              <div class="chord-chip-group">
+                <button type="button" class="chord-chip" data-chord="C" title="C Major">C</button>
+                <button type="button" class="chord-chip" data-chord="Cm" title="C Minor (or Cmin, C-)">Cm</button>
+                <button type="button" class="chord-chip" data-chord="Cdim" title="C Diminished (or C°)">Cdim</button>
+                <button type="button" class="chord-chip" data-chord="Caug" title="C Augmented (or C+)">Caug</button>
+                <button type="button" class="chord-chip" data-chord="Csus4" title="C Suspended 4th">Csus4</button>
+                <button type="button" class="chord-chip" data-chord="Csus2" title="C Suspended 2nd">Csus2</button>
+                <button type="button" class="chord-chip" data-chord="C5" title="Power Chord (Root + 5th)">C5</button>
+              </div>
+            </div>
+
+            <div class="chord-guide-card">
+              <div class="chord-guide-cat-title">7ths &amp; 6ths</div>
+              <div class="chord-chip-group">
+                <button type="button" class="chord-chip" data-chord="Cmaj7" title="C Major 7th (or CΔ7, Cma7)">Cmaj7</button>
+                <button type="button" class="chord-chip" data-chord="Cm7" title="C Minor 7th (or Cmin7, C-7)">Cm7</button>
+                <button type="button" class="chord-chip" data-chord="C7" title="C Dominant 7th">C7</button>
+                <button type="button" class="chord-chip" data-chord="Cm7b5" title="C Half-Diminished (or Cø)">Cm7b5</button>
+                <button type="button" class="chord-chip" data-chord="Cdim7" title="C Diminished 7th">Cdim7</button>
+                <button type="button" class="chord-chip" data-chord="C6" title="C Major 6th">C6</button>
+                <button type="button" class="chord-chip" data-chord="Cm6" title="C Minor 6th">Cm6</button>
+                <button type="button" class="chord-chip" data-chord="C7sus4" title="C 7th Suspended 4th">C7sus4</button>
+              </div>
+            </div>
+
+            <div class="chord-guide-card">
+              <div class="chord-guide-cat-title">Extensions (9, 11, 13)</div>
+              <div class="chord-chip-group">
+                <button type="button" class="chord-chip" data-chord="C9" title="C Dominant 9th (1-3-5-b7-9)">C9</button>
+                <button type="button" class="chord-chip" data-chord="Cm9" title="C Minor 9th (1-b3-5-b7-9)">Cm9</button>
+                <button type="button" class="chord-chip" data-chord="Cmaj9" title="C Major 9th (1-3-5-7-9)">Cmaj9</button>
+                <button type="button" class="chord-chip" data-chord="D11" title="D Dominant 11th (1-3-5-b7-9-11)">D11</button>
+                <button type="button" class="chord-chip" data-chord="Dm11" title="D Minor 11th (1-b3-5-b7-9-11)">Dm11</button>
+                <button type="button" class="chord-chip" data-chord="C13" title="C Dominant 13th (1-3-5-b7-9-13)">C13</button>
+                <button type="button" class="chord-chip" data-chord="A13" title="A Dominant 13th">A13</button>
+              </div>
+            </div>
+
+            <div class="chord-guide-card">
+              <div class="chord-guide-cat-title">Additions &amp; Alterations</div>
+              <div class="chord-chip-group">
+                <button type="button" class="chord-chip" data-chord="Dbadd9" title="Db Major Add 9 (1-3-5-9)">Dbadd9</button>
+                <button type="button" class="chord-chip" data-chord="C#m7add13" title="C# Minor 7 Add 13 (1-b3-5-b7-13)">C#m7add13</button>
+                <button type="button" class="chord-chip" data-chord="Ddimb11" title="D Diminished with Flat 11th">Ddimb11</button>
+                <button type="button" class="chord-chip" data-chord="A13add11" title="A13 Add 11 (explicit 11th in 13th chord)">A13add11</button>
+                <button type="button" class="chord-chip" data-chord="Cmaj7#11" title="Lydian Major 7 Sharp 11">Cmaj7#11</button>
+                <button type="button" class="chord-chip" data-chord="G7b9" title="Dominant 7 Flat 9">G7b9</button>
+                <button type="button" class="chord-chip" data-chord="C7#9" title="Hendrix Sharp 9 Chord">C7#9</button>
+                <button type="button" class="chord-chip" data-chord="C7alt" title="Altered Dominant (b9, #9, b5, #5)">C7alt</button>
+                <button type="button" class="chord-chip" data-chord="C/E" title="Slash Chord (C Major with E in Bass)">C/E</button>
+              </div>
+            </div>
           </div>
         </div>
 

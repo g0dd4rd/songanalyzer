@@ -71,6 +71,7 @@
   }
 
   // Full Chord Definitions & Formulas
+  // Full Chord Definitions & Formulas
   const CHORD_QUALITIES = [
     // Triads
     { id: 'maj', name: 'Major', formula: '1 - 3 - 5', intervals: [0, 4, 7], degrees: [1, 3, 5], aliases: ['', 'maj', 'M'] },
@@ -79,50 +80,57 @@
     { id: 'aug', name: 'Augmented', formula: '1 - 3 - #5', intervals: [0, 4, 8], degrees: [1, 3, 5], aliases: ['aug', '+'] },
     { id: 'sus2', name: 'Suspended 2nd', formula: '1 - 2 - 5', intervals: [0, 2, 7], degrees: [1, 2, 5], aliases: ['sus2'] },
     { id: 'sus4', name: 'Suspended 4th', formula: '1 - 4 - 5', intervals: [0, 5, 7], degrees: [1, 4, 5], aliases: ['sus4', 'sus'] },
+    { id: '5', name: 'Power Chord', formula: '1 - 5', intervals: [0, 7], degrees: [1, 5], aliases: ['5'] },
 
     // 7th Chords
     { id: '7', name: 'Dominant 7th', formula: '1 - 3 - 5 - b7', intervals: [0, 4, 7, 10], degrees: [1, 3, 5, 7], aliases: ['7', 'dom7'] },
     { id: 'maj7', name: 'Major 7th', formula: '1 - 3 - 5 - 7', intervals: [0, 4, 7, 11], degrees: [1, 3, 5, 7], aliases: ['maj7', 'M7', 'Δ7', 'Δ'] },
     { id: 'm7', name: 'Minor 7th', formula: '1 - b3 - 5 - b7', intervals: [0, 3, 7, 10], degrees: [1, 3, 5, 7], aliases: ['m7', 'min7', '-7'] },
-    { id: 'mMaj7', name: 'Minor-Major 7th', formula: '1 - b3 - 5 - 7', intervals: [0, 3, 7, 11], degrees: [1, 3, 5, 7], aliases: ['mMaj7', 'mM7', 'minmaj7', '-Δ7'] },
-    { id: 'm7b5', name: 'Half-Diminished 7th', formula: '1 - b3 - b5 - b7', intervals: [0, 3, 6, 10], degrees: [1, 3, 5, 7], aliases: ['m7b5', 'ø7', 'ø', 'hdim7'] },
+    { id: 'mMaj7', name: 'Minor-Major 7th', formula: '1 - b3 - 5 - 7', intervals: [0, 3, 7, 11], degrees: [1, 3, 5, 7], aliases: ['mMaj7', 'mM7', 'minmaj7', '-Δ7', 'm(maj7)'] },
+    { id: 'm7b5', name: 'Half-Diminished 7th', formula: '1 - b3 - b5 - b7', intervals: [0, 3, 6, 10], degrees: [1, 3, 5, 7], aliases: ['m7b5', 'ø7', 'ø', 'hdim7', 'hdim'] },
     { id: 'dim7', name: 'Diminished 7th', formula: '1 - b3 - b5 - bb7', intervals: [0, 3, 6, 9], degrees: [1, 3, 5, 7], aliases: ['dim7', '°7', 'o7'] },
     { id: 'aug7', name: 'Augmented 7th', formula: '1 - 3 - #5 - b7', intervals: [0, 4, 8, 10], degrees: [1, 3, 5, 7], aliases: ['aug7', '7#5', '7+'] },
     { id: '7sus4', name: 'Dominant 7th Sus4', formula: '1 - 4 - 5 - b7', intervals: [0, 5, 7, 10], degrees: [1, 4, 5, 7], aliases: ['7sus4', '7sus'] },
+    { id: '7b5', name: 'Dominant 7th b5', formula: '1 - 3 - b5 - b7', intervals: [0, 4, 6, 10], degrees: [1, 3, 5, 7], aliases: ['7b5', '7(b5)', '7-5'] },
 
     // 6th Chords
-    { id: '6', name: 'Major 6th', formula: '1 - 3 - 5 - 6', intervals: [0, 4, 7, 9], degrees: [1, 3, 5, 6], aliases: ['6', 'maj6'] },
+    { id: '6', name: 'Major 6th', formula: '1 - 3 - 5 - 6', intervals: [0, 4, 7, 9], degrees: [1, 3, 5, 6], aliases: ['6', 'maj6', 'M6'] },
     { id: 'm6', name: 'Minor 6th', formula: '1 - b3 - 5 - 6', intervals: [0, 3, 7, 9], degrees: [1, 3, 5, 6], aliases: ['m6', 'min6', '-6'] },
     { id: '69', name: 'Major 6/9', formula: '1 - 3 - 5 - 6 - 9', intervals: [0, 4, 7, 9, 14], degrees: [1, 3, 5, 6, 2], aliases: ['6/9', '69', 'maj6/9', '6add9'] },
     { id: 'm69', name: 'Minor 6/9', formula: '1 - b3 - 5 - 6 - 9', intervals: [0, 3, 7, 9, 14], degrees: [1, 3, 5, 6, 2], aliases: ['m6/9', 'm69', 'min6/9', 'm6add9'] },
 
-    // 9th Chords
+    // 9th Chords & Added 9ths
     { id: '9', name: 'Dominant 9th', formula: '1 - 3 - 5 - b7 - 9', intervals: [0, 4, 7, 10, 14], degrees: [1, 3, 5, 7, 2], aliases: ['9', 'dom9'] },
     { id: 'maj9', name: 'Major 9th', formula: '1 - 3 - 5 - 7 - 9', intervals: [0, 4, 7, 11, 14], degrees: [1, 3, 5, 7, 2], aliases: ['maj9', 'M9', 'Δ9'] },
     { id: 'm9', name: 'Minor 9th', formula: '1 - b3 - 5 - b7 - 9', intervals: [0, 3, 7, 10, 14], degrees: [1, 3, 5, 7, 2], aliases: ['m9', 'min9', '-9'] },
-    { id: 'add9', name: 'Add 9', formula: '1 - 3 - 5 - 9', intervals: [0, 4, 7, 14], degrees: [1, 3, 5, 2], aliases: ['add9', '2'] },
+    { id: 'add9', name: 'Add 9', formula: '1 - 3 - 5 - 9', intervals: [0, 4, 7, 14], degrees: [1, 3, 5, 2], aliases: ['add9', '2', 'add2'] },
+    { id: 'madd9', name: 'Minor Add 9', formula: '1 - b3 - 5 - 9', intervals: [0, 3, 7, 14], degrees: [1, 3, 5, 2], aliases: ['madd9', 'm(add9)', 'minadd9', '-add9'] },
     { id: '7b9', name: '7 flat 9', formula: '1 - 3 - 5 - b7 - b9', intervals: [0, 4, 7, 10, 13], degrees: [1, 3, 5, 7, 2], aliases: ['7b9', '7(b9)', 'dom7b9'] },
     { id: '7#9', name: '7 sharp 9 (Hendrix)', formula: '1 - 3 - 5 - b7 - #9', intervals: [0, 4, 7, 10, 15], degrees: [1, 3, 5, 7, 2], aliases: ['7#9', '7(#9)', 'dom7#9'] },
 
     // 11th & Altered 11th Chords
     { id: 'maj7#11', name: 'Major 7th #11 (Lydian)', formula: '1 - 3 - 5 - 7 - #11', intervals: [0, 4, 7, 11, 18], degrees: [1, 3, 5, 7, 4], aliases: ['maj7#11', 'maj7(#11)', 'M7#11', 'M7(#11)', 'Δ7#11', 'Δ7(#11)', 'Δ#11', 'maj7b5', 'maj7(b5)', 'maj9#11', 'maj9(#11)'] },
-    { id: '7#11', name: 'Dominant 7th #11 (Lydian Dominant)', formula: '1 - 3 - 5 - b7 - #11', intervals: [0, 4, 7, 10, 18], degrees: [1, 3, 5, 7, 4], aliases: ['7#11', '7(#11)', '7b5', '7(b5)', '9#11', '9(#11)'] },
+    { id: '7#11', name: 'Dominant 7th #11 (Lydian Dominant)', formula: '1 - 3 - 5 - b7 - #11', intervals: [0, 4, 7, 10, 18], degrees: [1, 3, 5, 7, 4], aliases: ['7#11', '7(#11)', '9#11', '9(#11)'] },
     { id: '11', name: 'Dominant 11th', formula: '1 - 3 - 5 - b7 - 9 - 11', intervals: [0, 4, 7, 10, 14, 17], degrees: [1, 3, 5, 7, 2, 4], aliases: ['11', 'dom11'] },
     { id: 'maj11', name: 'Major 11th', formula: '1 - 3 - 5 - 7 - 9 - 11', intervals: [0, 4, 7, 11, 14, 17], degrees: [1, 3, 5, 7, 2, 4], aliases: ['maj11', 'M11', 'Δ11'] },
     { id: 'm11', name: 'Minor 11th', formula: '1 - b3 - 5 - b7 - 9 - 11', intervals: [0, 3, 7, 10, 14, 17], degrees: [1, 3, 5, 7, 2, 4], aliases: ['m11', 'min11', '-11'] },
+    { id: 'add11', name: 'Add 11', formula: '1 - 3 - 5 - 11', intervals: [0, 4, 7, 17], degrees: [1, 3, 5, 4], aliases: ['add11', '4', 'add4'] },
+    { id: 'madd11', name: 'Minor Add 11', formula: '1 - b3 - 5 - 11', intervals: [0, 3, 7, 17], degrees: [1, 3, 5, 4], aliases: ['madd11', 'm(add11)', 'minadd11', '-add11'] },
 
     // 13th & Altered 13th Chords
     { id: '13', name: 'Dominant 13th', formula: '1 - 3 - 5 - b7 - 9 - 13', intervals: [0, 4, 7, 10, 14, 21], degrees: [1, 3, 5, 7, 2, 6], aliases: ['13', 'dom13'] },
     { id: 'maj13', name: 'Major 13th', formula: '1 - 3 - 5 - 7 - 9 - 13', intervals: [0, 4, 7, 11, 14, 21], degrees: [1, 3, 5, 7, 2, 6], aliases: ['maj13', 'M13', 'Δ13'] },
     { id: 'm13', name: 'Minor 13th', formula: '1 - b3 - 5 - b7 - 9 - 13', intervals: [0, 3, 7, 10, 14, 21], degrees: [1, 3, 5, 7, 2, 6], aliases: ['m13', 'min13', '-13'] },
     { id: '7b13', name: 'Dominant 7th b13', formula: '1 - 3 - 5 - b7 - b13', intervals: [0, 4, 7, 10, 20], degrees: [1, 3, 5, 7, 6], aliases: ['7b13', '7(b13)'] },
+    { id: 'add13', name: 'Add 13', formula: '1 - 3 - 5 - 13', intervals: [0, 4, 7, 21], degrees: [1, 3, 5, 6], aliases: ['add13'] },
+    { id: 'madd13', name: 'Minor Add 13', formula: '1 - b3 - 5 - 13', intervals: [0, 3, 7, 21], degrees: [1, 3, 5, 6], aliases: ['madd13', 'm(add13)'] },
 
     // Other Altered & Augmented Chords
     { id: 'maj7#5', name: 'Augmented Major 7th', formula: '1 - 3 - #5 - 7', intervals: [0, 4, 8, 11], degrees: [1, 3, 5, 7], aliases: ['maj7#5', 'maj7(#5)', 'M7#5', 'Δ#5', 'augMaj7', '+maj7'] },
     { id: 'alt', name: 'Altered Dominant', formula: '1 - 3 - b5 - b7 - b9', intervals: [0, 4, 6, 10, 13], degrees: [1, 3, 5, 7, 2], aliases: ['7alt', 'alt'] }
   ];
 
-  // Robust chord symbol parser
+  // Universal Chord Symbol Parser (Modular Base + Alterations & Additions Engine)
   function parseChord(symbol) {
     if (!symbol || typeof symbol !== 'string') return null;
     let s = symbol.trim();
@@ -134,7 +142,7 @@
     if (slashIdx !== -1) {
       const potentialBass = s.slice(slashIdx + 1).trim();
       if (/^[A-Ga-g][#b♯♭]?$/.test(potentialBass)) {
-        bassNote = potentialBass;
+        bassNote = potentialBass.charAt(0).toUpperCase() + potentialBass.slice(1).replace('♯', '#').replace('♭', 'b');
         bassPC = noteToPitchClass(bassNote);
         s = s.slice(0, slashIdx).trim();
       }
@@ -149,67 +157,158 @@
     if (rootPC === null) return null;
 
     let suffix = match[2].trim();
-    const normSuffixNoParen = suffix.replace(/[()]/g, '');
-    const normSuffix = normSuffixNoParen.toLowerCase();
 
-    let matchedQuality = null;
+    // Sort qualities by longest alias length descending
     const sortedQualities = [...CHORD_QUALITIES].sort((a, b) => {
       const maxA = Math.max(...a.aliases.map(x => x.length));
       const maxB = Math.max(...b.aliases.map(x => x.length));
       return maxB - maxA;
     });
 
-    // Pass 1: Exact case matching (critical for M vs m: e.g. M7 vs m7, M11 vs m11)
+    let baseQuality = null;
+    let modStr = '';
+
+    // Pass 1: Exact case matching (preserves M vs m: e.g. M7 vs m7, M11 vs m11)
     for (const q of sortedQualities) {
       for (const alias of q.aliases) {
-        if (alias === suffix || alias.replace(/[()]/g, '') === normSuffixNoParen) {
-          matchedQuality = q;
+        if (alias && suffix.startsWith(alias)) {
+          baseQuality = q;
+          modStr = suffix.slice(alias.length);
           break;
         }
       }
-      if (matchedQuality) break;
+      if (baseQuality) break;
     }
 
     // Pass 2: Case-insensitive fallback (guarding against M vs m collisions)
-    if (!matchedQuality) {
+    if (!baseQuality) {
+      const suffixLower = suffix.toLowerCase();
       for (const q of sortedQualities) {
         for (const alias of q.aliases) {
-          const aliasClean = alias.replace(/[()]/g, '');
-          if (alias.toLowerCase() === suffix.toLowerCase() || aliasClean.toLowerCase() === normSuffix) {
+          if (alias && suffixLower.startsWith(alias.toLowerCase())) {
             if ((alias.startsWith('M') && suffix.startsWith('m')) || (alias.startsWith('m') && suffix.startsWith('M'))) {
               continue;
             }
-            matchedQuality = q;
+            baseQuality = q;
+            modStr = suffix.slice(alias.length);
             break;
           }
         }
-        if (matchedQuality) break;
+        if (baseQuality) break;
       }
     }
 
-    if (!matchedQuality) {
-      if (suffix === '' || suffix === 'M') {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === 'maj');
-      } else if (normSuffix.startsWith('maj7') || normSuffix.startsWith('m7+') || normSuffix.startsWith('δ7') || normSuffix.startsWith('Δ7')) {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === 'maj7');
-      } else if (normSuffix.startsWith('m7') || normSuffix.startsWith('min7') || normSuffix.startsWith('-7')) {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === 'm7');
-      } else if (normSuffix.startsWith('7')) {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === '7');
-      } else if (normSuffix.startsWith('m') || normSuffix.startsWith('-') || normSuffix.startsWith('min')) {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === 'min');
+    // Default to Major triad if no prefix matched
+    if (!baseQuality) {
+      baseQuality = CHORD_QUALITIES.find(q => q.id === 'maj');
+      modStr = suffix;
+    }
+
+    let intervals = [...baseQuality.intervals];
+    let degrees = [...baseQuality.degrees];
+    let formulaTokens = baseQuality.formula ? baseQuality.formula.split(/\s*-\s*/) : ['1', '3', '5'];
+    const appliedModifierLabels = [];
+
+    function applyDegree(deg, semitones, label) {
+      const existingIdx = degrees.indexOf(deg);
+      if (existingIdx !== -1) {
+        intervals[existingIdx] = semitones;
+        formulaTokens[existingIdx] = label;
       } else {
-        matchedQuality = CHORD_QUALITIES.find(q => q.id === 'maj');
+        degrees.push(deg);
+        intervals.push(semitones);
+        formulaTokens.push(label);
       }
+      appliedModifierLabels.push(label);
     }
 
-    const pitchClasses = matchedQuality.intervals.map(offset => (rootPC + offset) % 12);
-    const degrees = matchedQuality.degrees || matchedQuality.intervals.map((_, i) => (i * 2) % 7 + 1);
-    const notes = matchedQuality.intervals.map((offset, i) => {
-      const deg = degrees[i] || 1;
-      const pc = (rootPC + offset) % 12;
-      return spellIntervalNote(root, deg, pc);
-    });
+    function removeDegree(deg, label) {
+      const idx = degrees.indexOf(deg);
+      if (idx !== -1) {
+        degrees.splice(idx, 1);
+        intervals.splice(idx, 1);
+        formulaTokens.splice(idx, 1);
+      }
+      appliedModifierLabels.push(label);
+    }
+
+    // Tokenize modifier string (clean out brackets, parentheses, commas, slashes)
+    const cleanMods = modStr.replace(/[()[\],]/g, ' ').trim();
+    if (cleanMods) {
+      const modTokens = [...cleanMods.matchAll(/([#b♯♭+-]?)(add|no)?(\d+|alt)/gi)].map(m => m[0]);
+
+      modTokens.forEach(tok => {
+        const t = tok.toLowerCase().replace('♯', '#').replace('♭', 'b');
+
+        // Degree 2 / 9
+        if (t === 'b9' || t === '-9') {
+          applyDegree(2, 13, 'b9');
+        } else if (t === '#9' || t === '+9') {
+          applyDegree(2, 15, '#9');
+        } else if (t === '9' || t === 'add9' || t === '2' || t === 'add2') {
+          applyDegree(2, 14, t.includes('add') || t === '2' ? 'add9' : '9');
+        }
+        // Degree 4 / 11
+        else if (t === 'b11' || t === '-11') {
+          applyDegree(4, 16, 'b11');
+        } else if (t === '#11' || t === '+11') {
+          applyDegree(4, 18, '#11');
+        } else if (t === '11' || t === 'add11' || t === '4' || t === 'add4') {
+          applyDegree(4, 17, t.includes('add') || t === '4' ? 'add11' : '11');
+        }
+        // Degree 5
+        else if (t === 'b5' || t === '-5') {
+          applyDegree(5, 6, 'b5');
+        } else if (t === '#5' || t === '+5') {
+          applyDegree(5, 8, '#5');
+        } else if (t === 'no5') {
+          removeDegree(5, 'no5');
+        }
+        // Degree 3
+        else if (t === 'no3') {
+          removeDegree(3, 'no3');
+        } else if (t === 'sus4' || t === 'sus') {
+          applyDegree(4, 5, '4');
+          removeDegree(3, 'sus4');
+        } else if (t === 'sus2') {
+          applyDegree(2, 2, '2');
+          removeDegree(3, 'sus2');
+        }
+        // Degree 6 / 13
+        else if (t === 'b13' || t === '-13' || t === 'b6' || t === 'addb6') {
+          applyDegree(6, 20, 'b13');
+        } else if (t === '#13' || t === '+13') {
+          applyDegree(6, 22, '#13');
+        } else if (t === '13' || t === 'add13' || t === '6' || t === 'add6') {
+          applyDegree(6, 21, t.includes('add') || t === '6' ? 'add13' : '13');
+        }
+        // Altered
+        else if (t === 'alt') {
+          applyDegree(5, 6, 'b5');
+          applyDegree(7, 10, 'b7');
+          applyDegree(2, 13, 'b9');
+        }
+      });
+    }
+
+    // Sort chord tones harmonically: root (1), 3, 5, 7, 9 (2), 11 (4), 13 (6)
+    const degOrder = { 1: 1, 3: 2, 5: 3, 7: 4, 2: 5, 4: 6, 6: 7 };
+    const combined = degrees.map((d, i) => ({
+      deg: d,
+      interval: intervals[i],
+      token: formulaTokens[i] || `${d}`
+    })).sort((a, b) => (degOrder[a.deg] || 99) - (degOrder[b.deg] || 99));
+
+    const finalDegrees = combined.map(c => c.deg);
+    const finalIntervals = combined.map(c => c.interval);
+    const finalFormula = combined.map(c => c.token).join(' - ');
+
+    const pitchClasses = finalIntervals.map(i => (rootPC + i) % 12);
+    const notes = finalIntervals.map((i, idx) => spellIntervalNote(root, finalDegrees[idx], (rootPC + i) % 12));
+
+    const qualityName = appliedModifierLabels.length > 0
+      ? `${baseQuality.name} (${appliedModifierLabels.join(', ')})`
+      : baseQuality.name;
 
     return {
       rawSymbol: symbol,
@@ -217,14 +316,16 @@
       rootPC,
       bassNote,
       bassPC: bassPC !== null ? bassPC : rootPC,
-      quality: matchedQuality,
-      qualityId: matchedQuality.id,
-      qualityName: matchedQuality.name,
-      formula: matchedQuality.formula,
-      intervals: matchedQuality.intervals,
+      quality: baseQuality,
+      qualityId: baseQuality.id,
+      qualityName,
+      formula: finalFormula,
+      intervals: finalIntervals,
+      degrees: finalDegrees,
       pitchClasses,
       notes,
-      displayName: `${root}${matchedQuality.aliases[0] || (suffix ? suffix : '')}${bassNote ? '/' + bassNote : ''}`
+      modifierLabels: appliedModifierLabels,
+      displayName: `${root}${suffix}${bassNote ? '/' + bassNote : ''}`
     };
   }
 
@@ -371,8 +472,17 @@
       romanNumeral = degreeInfo.roman;
       degreeName = degreeInfo.name;
 
+      // If the chord has a natural 5th, strip degree dim mark (e.g. Dm7 in minor key is ii7, not ii°7)
+      if (chord.intervals && chord.intervals.includes(7) && !['dim', 'm7b5', 'dim7'].includes(chord.qualityId)) {
+        romanNumeral = romanNumeral.replace('°', '');
+      }
+
+      const candidateScalePCs = keyCandidate.scalePCs || (isMajorKey 
+        ? SCALE_DEFINITIONS.ionian.intervals.map(i => (keyCandidate.rootPC + i) % 12)
+        : SCALE_DEFINITIONS.aeolian.intervals.map(i => (keyCandidate.rootPC + i) % 12));
+
       const isQualityDiatonic = degreeInfo.diatonicQuality.includes(chord.qualityId);
-      const allNotesInKey = chord.pitchClasses.every(pc => keyCandidate.scalePCs.includes(pc));
+      const allNotesInKey = chord.pitchClasses.every(pc => candidateScalePCs.includes(pc));
 
       if (allNotesInKey || isQualityDiatonic) {
         isDiatonic = true;
@@ -470,6 +580,25 @@
       romanNumeral += '6/9';
     } else if (chord.qualityId === 'm69') {
       romanNumeral += '6/9';
+    }
+
+    // Ensure minor quality chords use lowercase Roman numerals in major keys (e.g. Cm9 -> i9, Fm7 -> iv7)
+    const isMinorQuality = ['min', 'm7', 'm9', 'm11', 'm13', 'mMaj7', 'm6', 'm69', 'dim', 'm7b5', 'dim7'].includes(chord.qualityId) || (chord.intervals && chord.intervals.includes(3));
+    if (isMinorQuality && !romanNumeral.startsWith('V7/')) {
+      romanNumeral = romanNumeral.replace(/([IVXLCDM]+)/g, (match) => match.toLowerCase());
+    }
+
+    // Append modifier indicators
+    if (chord.modifierLabels && chord.modifierLabels.length > 0) {
+      const extraMods = chord.modifierLabels.filter(m => !romanNumeral.toLowerCase().includes(m.toLowerCase()));
+      if (extraMods.length > 0) {
+        romanNumeral += `(${extraMods.join(',')})`;
+      }
+    }
+
+    // Inversions / slash bass
+    if (chord.bassNote && chord.bassPC !== chord.rootPC) {
+      romanNumeral += `/${chord.bassNote}`;
     }
 
     return {
