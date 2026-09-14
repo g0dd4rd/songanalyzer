@@ -24,6 +24,13 @@
       this.isRhythmPlaying = false;
       this.rhythmLoopTimeout = null;
       this.rhythmTimeouts = [];
+
+      // High-precision Web Audio lookahead scheduler properties (zero memory leak / zero drift)
+      this.metroTimerId = null;
+      this.metroAnimFrameId = null;
+      this.metroVisualQueue = [];
+      this.nextMetroTickAudioTime = 0;
+      this.metroTickCount = 0;
     }
 
     async resumeIfNeeded() {
@@ -288,6 +295,8 @@
     }
 
     // Arbitrary Time Signature Metronome (X / Y e.g. 7/8, 16/15, 4/4, 9/8, 5/4)
+    // High-precision Web Audio lookahead scheduler (W3C/Chris Wilson architecture)
+    // Runs directly on hardware audio time Tone.now() with 0ms drift and zero memory leak
     async startMetronome(bpm, timeSignature = { num: 4, den: 4 }, subdivision = 1, soundMode = 'woodblock', onTick = null) {
       if (!this.initialized) return;
       await this.resumeIfNeeded();
@@ -304,89 +313,172 @@
       this.onTickCallback = onTick;
       this.currentBpm = safeBpm;
 
-      Tone.Transport.bpm.value = safeBpm;
+      if (typeof Tone !== 'undefined' && Tone.Transport) {
+        Tone.Transport.bpm.value = safeBpm;
+      }
 
-      // Mathematical proportional beat interval for any X/Y meter:
-      // A whole note takes 240 / safeBpm seconds.
-      // Unit beat of denominator Y takes 240 / (Y * safeBpm) seconds.
-      // With S subdivisions per beat: tick interval = 240 / (Y * safeBpm * S) seconds.
-      const tickIntervalSeconds = 240 / (this.timeSignature.den * safeBpm * this.subdivision);
+      this.metroVisualQueue = [];
+      this.metroTickCount = 0;
+      this.nextMetroTickAudioTime = Tone.now() + 0.05;
 
-      let tickCount = 0;
+      const lookaheadIntervalMs = 25; // 40Hz polling loop
+      const scheduleAheadSec = 0.12;  // Schedule 120ms in advance (rock solid on mobile)
 
-      this.metronomeLoop = new Tone.Loop((time) => {
-        const totalBeats = this.timeSignature.num;
-        const subIdx = tickCount % this.subdivision;
-        const beatIndex = (Math.floor(tickCount / this.subdivision) % totalBeats) + 1;
-        const isDownbeat = (beatIndex === 1 && subIdx === 0);
-        const isBeatHead = (subIdx === 0);
+      const scheduleAudioLoop = () => {
+        if (!this.isMetronomeRunning) return;
+        const now = Tone.now();
 
-        if (this.metronomeSoundMode === 'woodblock') {
-          const pitch = isDownbeat ? 'A5' : (isBeatHead ? 'E5' : 'C5');
-          const velocity = isDownbeat ? 1.0 : (isBeatHead ? 0.75 : 0.4);
-          this.woodblockSynth.triggerAttackRelease(pitch, '32n', time, velocity);
-        } else if (this.metronomeSoundMode === 'synth') {
-          const pitch = isDownbeat ? 'C6' : (isBeatHead ? 'G5' : 'D5');
-          const velocity = isDownbeat ? 0.95 : (isBeatHead ? 0.65 : 0.35);
-          this.clickSynth.triggerAttackRelease(pitch, '64n', time, velocity);
-        } else if (this.metronomeSoundMode === 'spoken' && this.speechSynth) {
-          if (isBeatHead) {
-            this.speakNumber(beatIndex);
-          } else {
-            if (this.subdivision === 2 && subIdx === 1) this.speakWord('&');
-            else if (this.subdivision === 3) {
-              if (subIdx === 1) this.speakWord('trip');
-              else if (subIdx === 2) this.speakWord('let');
-            } else if (this.subdivision === 4) {
-              if (subIdx === 1) this.speakWord('e');
-              else if (subIdx === 2) this.speakWord('&');
-              else if (subIdx === 3) this.speakWord('a');
-            }
+        // Resync if browser thread was deeply suspended
+        if (this.nextMetroTickAudioTime < now - 0.2) {
+          this.nextMetroTickAudioTime = now + 0.02;
+        }
+
+        while (this.nextMetroTickAudioTime < now + scheduleAheadSec) {
+          const totalBeats = this.timeSignature.num;
+          const subIdx = this.metroTickCount % this.subdivision;
+          const beatIndex = (Math.floor(this.metroTickCount / this.subdivision) % totalBeats) + 1;
+          const isDownbeat = (beatIndex === 1 && subIdx === 0);
+          const isBeatHead = (subIdx === 0);
+          const scheduledTime = this.nextMetroTickAudioTime;
+
+          if (this.metronomeSoundMode === 'woodblock') {
+            const pitch = isDownbeat ? 'A5' : (isBeatHead ? 'E5' : 'C5');
+            const velocity = isDownbeat ? 1.0 : (isBeatHead ? 0.75 : 0.4);
+            this.woodblockSynth.triggerAttackRelease(pitch, '32n', scheduledTime, velocity);
+          } else if (this.metronomeSoundMode === 'synth') {
+            const pitch = isDownbeat ? 'C6' : (isBeatHead ? 'G5' : 'D5');
+            const velocity = isDownbeat ? 0.95 : (isBeatHead ? 0.65 : 0.35);
+            this.clickSynth.triggerAttackRelease(pitch, '64n', scheduledTime, velocity);
+          } else if (this.metronomeSoundMode === 'spoken' && this.speechSynth) {
+            const delayMs = Math.max(0, (scheduledTime - Tone.now()) * 1000);
+            setTimeout(() => {
+              if (!this.isMetronomeRunning) return;
+              if (isBeatHead) {
+                this.speakNumber(beatIndex);
+              } else {
+                if (this.subdivision === 2 && subIdx === 1) this.speakWord('&');
+                else if (this.subdivision === 3) {
+                  if (subIdx === 1) this.speakWord('trip');
+                  else if (subIdx === 2) this.speakWord('let');
+                } else if (this.subdivision === 4) {
+                  if (subIdx === 1) this.speakWord('e');
+                  else if (subIdx === 2) this.speakWord('&');
+                  else if (subIdx === 3) this.speakWord('a');
+                }
+              }
+            }, delayMs);
           }
+
+          if (onTick) {
+            // Keep visual queue strictly bounded (O(1) memory)
+            while (this.metroVisualQueue.length >= 20) {
+              this.metroVisualQueue.shift();
+            }
+            this.metroVisualQueue.push({
+              time: scheduledTime,
+              beat: beatIndex,
+              subIdx: subIdx,
+              isDownbeat: isDownbeat,
+              totalBeats: totalBeats
+            });
+          }
+
+          // Advance by mathematical proportional tick interval based on current dynamic BPM:
+          const activeBpm = this.currentBpm || safeBpm;
+          const tickIntervalSeconds = 240 / (this.timeSignature.den * activeBpm * this.subdivision);
+
+          this.nextMetroTickAudioTime += tickIntervalSeconds;
+          this.metroTickCount++;
         }
+      };
 
-        if (onTick) {
-          Tone.Draw.schedule(() => {
-            onTick(beatIndex, subIdx, isDownbeat, totalBeats);
-          }, time);
-        }
+      // Run immediate schedule burst and start lookahead interval
+      scheduleAudioLoop();
+      this.metroTimerId = setInterval(scheduleAudioLoop, lookaheadIntervalMs);
 
-        tickCount++;
-      }, tickIntervalSeconds);
+      // Lightweight visual flasher loop using requestAnimationFrame
+      if (onTick) {
+        const visualLoop = () => {
+          if (!this.isMetronomeRunning) return;
+          const now = Tone.now();
 
-      this.metronomeLoop.start(0);
-      Tone.Transport.start();
+          // Drop stale frames if tab was backgrounded or frame rate dropped (> 120ms behind)
+          while (this.metroVisualQueue.length > 1 && this.metroVisualQueue[0].time < now - 0.12) {
+            this.metroVisualQueue.shift();
+          }
+
+          // Fire frames that are due (within 25ms anticipation window)
+          while (this.metroVisualQueue.length > 0 && this.metroVisualQueue[0].time <= now + 0.025) {
+            const item = this.metroVisualQueue.shift();
+            onTick(item.beat, item.subIdx, item.isDownbeat, item.totalBeats);
+          }
+
+          this.metroAnimFrameId = requestAnimationFrame(visualLoop);
+        };
+        this.metroAnimFrameId = requestAnimationFrame(visualLoop);
+      }
     }
 
     stopMetronome() {
       this.isMetronomeRunning = false;
+      if (this.metroTimerId) {
+        clearInterval(this.metroTimerId);
+        this.metroTimerId = null;
+      }
+      if (this.metroAnimFrameId) {
+        cancelAnimationFrame(this.metroAnimFrameId);
+        this.metroAnimFrameId = null;
+      }
+      this.metroVisualQueue = [];
+
       if (this.metronomeLoop) {
-        this.metronomeLoop.stop();
-        this.metronomeLoop.dispose();
+        try {
+          this.metronomeLoop.stop();
+          this.metronomeLoop.dispose();
+        } catch (e) {}
         this.metronomeLoop = null;
+      }
+      if (typeof Tone !== 'undefined' && Tone.Transport) {
+        try {
+          Tone.Transport.stop();
+          Tone.Transport.cancel();
+        } catch (e) {}
+      }
+      if (typeof Tone !== 'undefined' && Tone.Draw && typeof Tone.Draw.cancel === 'function') {
+        try {
+          Tone.Draw.cancel();
+        } catch (e) {}
       }
     }
 
     speakNumber(num) {
       if (!this.speechSynth) return;
-      this.speechSynth.cancel();
-      const utterance = new SpeechSynthesisUtterance(String(num));
-      const bpm = this.currentBpm || 110;
-      utterance.rate = Math.min(3.0, Math.max(1.1, 1.0 + (bpm / 120)));
-      utterance.pitch = 1.2;
-      utterance.volume = 0.8;
-      this.speechSynth.speak(utterance);
+      try {
+        this.speechSynth.cancel();
+        const utterance = new SpeechSynthesisUtterance(String(num));
+        const bpm = this.currentBpm || 110;
+        utterance.rate = Math.min(3.0, Math.max(1.1, 1.0 + (bpm / 120)));
+        utterance.pitch = 1.2;
+        utterance.volume = 0.8;
+        this.speechSynth.speak(utterance);
+      } catch (e) {
+        // speech synthesis error protection
+      }
     }
 
     speakWord(word) {
       if (!this.speechSynth) return;
-      this.speechSynth.cancel();
-      const utterance = new SpeechSynthesisUtterance(word);
-      const bpm = this.currentBpm || 110;
-      utterance.rate = Math.min(3.0, Math.max(1.1, 1.0 + (bpm / 120)));
-      utterance.pitch = 1.0;
-      utterance.volume = 0.7;
-      this.speechSynth.speak(utterance);
+      try {
+        this.speechSynth.cancel();
+        const utterance = new SpeechSynthesisUtterance(word);
+        const bpm = this.currentBpm || 110;
+        utterance.rate = Math.min(3.0, Math.max(1.1, 1.0 + (bpm / 120)));
+        utterance.pitch = 1.0;
+        utterance.volume = 0.7;
+        this.speechSynth.speak(utterance);
+      } catch (e) {
+        // speech synthesis error protection
+      }
     }
 
     async playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null) {

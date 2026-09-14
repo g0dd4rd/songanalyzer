@@ -995,6 +995,7 @@
       const container = document.getElementById('metroDotsContainer');
       if (!container) return;
       container.innerHTML = '';
+      this.metroDotElements = [];
 
       for (let i = 1; i <= numBeats; i++) {
         const dot = document.createElement('span');
@@ -1002,6 +1003,7 @@
         dot.dataset.beat = i;
         dot.textContent = `${i}`;
         container.appendChild(dot);
+        this.metroDotElements.push(dot);
       }
     }
 
@@ -1041,15 +1043,19 @@
     }
 
     flashBeatIndicator(beat, isDownbeat) {
-      const dots = document.querySelectorAll('#metroDotsContainer .metro-dot');
-      dots.forEach((dot) => {
-        const dBeat = parseInt(dot.dataset.beat, 10);
-        if (dBeat === beat) {
+      if (!this.metroDotElements || this.metroDotElements.length === 0) {
+        this.metroDotElements = Array.from(document.querySelectorAll('#metroDotsContainer .metro-dot'));
+      }
+      const dots = this.metroDotElements;
+      const len = dots.length;
+      for (let i = 0; i < len; i++) {
+        const dot = dots[i];
+        if (i + 1 === beat) {
           dot.className = `metro-dot ${isDownbeat ? 'downbeat' : 'active'}`;
         } else {
           dot.className = 'metro-dot';
         }
-      });
+      }
     }
 
     // 4b. Practice Session Timer Engine
