@@ -71,7 +71,34 @@
       <!-- Module 1: Progression & Key Analyzer -->
       <section class="card" id="analyzerSection">
         <div class="card-title">
-          <span><span class="card-title-icon">🎼</span> Harmonic Progression & Key Analyzer</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideAnalyzer" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Harmonic Progression & Key Analyzer">ℹ</button>
+            <span><span class="card-title-icon">🎼</span> Harmonic Progression & Key Analyzer</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Harmonic Progression & Key Analyzer -->
+        <div id="guideAnalyzer" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • Harmonic Progression & Key Analyzer</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideAnalyzer" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> Deconstructs chord progressions, calculates constituent note pitches, determines the home key center using diatonic fit and tonic confidence, and performs Roman numeral analysis with secondary dominant and chromatic substitution detection.</p>
+            <p><strong class="label-why">Why use it:</strong> Understand why chord progressions sound good, decode the key of songs by ear, discover cadences (like jazz ii - V - I or the Andalusian cadence), and learn how tension resolves to stability.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>Pick a preset from the <strong>-- Select Preset --</strong> dropdown (e.g. <em>Jazz ii - V - I</em>, <em>Pop I - V - vi - IV</em>, <em>Coltrane Changes</em>) or type chords into the input field (e.g. <code>Dm7 G7 Cmaj7 A7b9</code>).</li>
+                <li>Click <strong>Analyze</strong> (or press Enter) to view the chord notes table, Roman numeral scale degrees, and the <strong>Key Center:</strong> recommendations.</li>
+                <li>Click <strong>▶ Play Progression</strong> (with optional <strong>Loop</strong>) to hear polyphonic electric piano voicings with guide-tone voice leading.</li>
+                <li>Click <strong>📖 Chord Notation Guide</strong> to view all supported chord symbols (triads, 7ths, altered dominants, slash chords).</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> Roman numerals tell you a chord's functional role in the key: uppercase (<em>I, IV, V</em>) are major, lowercase (<em>ii, iii, vi</em>) are minor. Notice how a dominant 7th chord (<em>V7</em>) contains a tritone that resolves outward/inward by half-step to the tonic (<em>I</em>).
+            </div>
+          </div>
         </div>
 
         <div class="input-row">
@@ -207,7 +234,34 @@
       <!-- Module 2: Base-12 Modal Interchange & Mood Engine -->
       <section class="card" id="modalSection">
         <div class="card-title">
-          <span><span class="card-title-icon">🪐</span> Base-12 Modal Interchange & Mood Engine</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideModal" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Base-12 Modal Interchange & Mood Engine">ℹ</button>
+            <span><span class="card-title-icon">🪐</span> Base-12 Modal Interchange & Mood Engine</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Modal Interchange & Mood Engine -->
+        <div id="guideModal" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • Base-12 Modal Interchange & Mood Engine</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideModal" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> Mathematically projects a chord progression (written as scale degrees like <code>1, 6, 4, 5</code> or <code>2, 5, 1</code>) across all 7 parallel diatonic modes (from brightest Lydian to darkest Locrian) using chromatic pitch-class offsets to borrow chords.</p>
+            <p><strong class="label-why">Why use it:</strong> Transform the emotional mood of any song without rewriting its core melody. Borrowing chords from parallel modes (like minor iv in a major key) adds cinematic color and nostalgic lift.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>Enter your root tonic into <strong>Tonic</strong> (e.g. <code>C</code>) and scale degrees into <strong>Degrees</strong> (e.g. <code>1, 6, 4, 5</code> or <code>2, 5, 1</code>).</li>
+                <li>Click <strong>Transform Across Modes</strong> to compute the chords across all 7 parallel modes.</li>
+                <li>Explore the generated mode cards: each displays its specific mood tag (e.g., <em>Mystical / Ethereal</em>, <em>Heroic / Optimistic</em>, <em>Melancholic Jazz</em>, <em>Flamenco / Dark Spanish</em>).</li>
+                <li>Click <strong>▶ Play Mode</strong> on any card to hear that specific modal progression played in real time.</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> Modes are arranged on a <strong>brightness spectrum</strong> by number of sharps/flats: <strong>Lydian</strong> (brightest, ♯4) → <strong>Ionian</strong> (standard major) → <strong>Mixolydian</strong> (bluesy ♭7) → <strong>Dorian</strong> (jazzy minor, ♮6) → <strong>Aeolian</strong> (natural minor) → <strong>Phrygian</strong> (dark Spanish, ♭2) → <strong>Locrian</strong> (darkest, ♭5).
+            </div>
+          </div>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
           Map any scale-degree progression mathematically across all 7 parallel diatonic modes (from darkest Locrian to brightest Lydian).
@@ -227,7 +281,34 @@
       <!-- Module 3: Practice Hub & Drills -->
       <section class="card" id="drillsSection">
         <div class="card-title">
-          <span><span class="card-title-icon">🎯</span> Musician's Practice Hub & Ear Training</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideDrills" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Musician's Practice Hub & Ear Training">ℹ</button>
+            <span><span class="card-title-icon">🎯</span> Musician's Practice Hub & Ear Training</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Practice Hub & Ear Training -->
+        <div id="guideDrills" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • Musician's Practice Hub & Ear Training</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideDrills" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> An interactive ear training gym and practice curriculum with an interval recognition trainer and a categorized library of 44 daily study challenges (technique, scales, fretboard, jazz harmony).</p>
+            <p><strong class="label-why">Why use it:</strong> Bridges the gap between textbook theory and real listening. Train your ears to transcribe melodies and chords on the fly when jamming or transcribing tunes.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>In the <strong>Interactive Interval Ear Trainer</strong>, click <strong>🎧 Play Mystery Interval</strong> to hear two notes played consecutively.</li>
+                <li>Click the matching interval button (from <em>Unison</em> up to <em>Major 7th</em>) to check your guess and see the semitone distance.</li>
+                <li>In the <strong>Daily Study Challenge</strong>, filter by category using <strong>exerciseCategorySelect</strong> (e.g. <em>Technique</em>, <em>Scales & Modes</em>, <em>Bassguitar</em>, <em>Arpeggios & Triads</em>).</li>
+                <li>Click <strong>🎲 Draw Practice Exercise</strong> to receive a targeted practice prompt with execution tips.</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> Associate intervals with famous song openings: <em>Minor 2nd</em> = "Jaws", <em>Major 3rd</em> = "When the Saints Go Marching In", <em>Perfect 4th</em> = "Here Comes the Bride", <em>Tritone</em> = "The Simpsons", <em>Perfect 5th</em> = "Star Wars", <em>Minor 7th</em> = "Star Trek".
+            </div>
+          </div>
         </div>
 
         <div style="margin-bottom: 16px;">
@@ -286,7 +367,33 @@
       <!-- Module 4: Canvas Visualizer -->
       <section class="card" id="visualizerSection">
         <div class="card-title">
-          <span><span class="card-title-icon">👁</span> HTML5 Canvas Visualizer</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideVisualizer" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: HTML5 Canvas Visualizer">ℹ</button>
+            <span><span class="card-title-icon">👁</span> HTML5 Canvas Visualizer</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Canvas Visualizer -->
+        <div id="guideVisualizer" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • HTML5 Canvas Visualizer</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideVisualizer" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> A real-time geometric visualizer with three selectable perspectives: the 12-tone Chromatic Circle (<strong>Clock (Z12 Wheel)</strong>), the <strong>Piano Keyboard</strong>, and an interactive multi-string <strong>Fretboard</strong> (with <strong>6-String Guitar</strong> and <strong>4-String Bass</strong> modes).</p>
+            <p><strong class="label-why">Why use it:</strong> Music theory is geometry! Seeing chords mapped onto the chromatic circle reveals symmetrical harmonies (diminished 7ths form squares, augmented chords form equilateral triangles). The fretboard maps exact fingerings across strings.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>Use the top switcher buttons to toggle between <strong>Clock (Z12 Wheel)</strong>, <strong>Piano Keyboard</strong>, and <strong>Fretboard</strong>.</li>
+                <li>When <strong>Fretboard</strong> is selected, choose your instrument from the dropdown (<strong>6-String Guitar (E A D G B E)</strong> or <strong>4-String Bass (E A D G)</strong>).</li>
+                <li>Play any progression in the Analyzer, Jam Deck, or Drills — the canvas updates in real time: root notes glow in gold, while chord tones appear in cyan.</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> Notes directly opposite each other on the circle are 6 semitones apart (a Tritone). In a <em>G7</em> chord (G-B-D-F), the B and F form a tritone line that collapses inward to C and E when resolving to <em>C Major</em>.
+            </div>
+          </div>
         </div>
 
         <div class="viz-switcher">
@@ -311,7 +418,37 @@
       <!-- Module 5: Musician's Jam Deck (Chord Cards Game) -->
       <section class="card" id="jamSection">
         <div class="card-title">
-          <span><span class="card-title-icon">🃏</span> Musician's Jam Deck (Card Game)</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideJam" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Musician's Jam Deck (Card Game)">ℹ</button>
+            <span><span class="card-title-icon">🃏</span> Musician's Jam Deck (Card Game)</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Jam Deck -->
+        <div id="guideJam" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • Musician's Jam Deck (Card Game)</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideJam" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> A creative flashcard generator that deals random chord cards from customizable card pools (<em>Pure Wildcards</em> or <em>Diatonic + Spice</em>) for songwriting and improvisation games.</p>
+            <p><strong class="label-why">Why use it:</strong> Busts writer's block, forces you to discover fresh chord combinations outside your comfort zone, and tests your ability to connect unrelated harmonies with smooth voice leading.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>Select how many cards you want using the card count dropdown (3 to 6 cards).</li>
+                <li>Choose the card pool: <strong>Pure Wildcards</strong> (adventurous harmony) or <strong>Diatonic + Spice</strong> (harmonically grounded with secondary dominants).</li>
+                <li>Click <strong>🃏 Deal Cards</strong> to draw a new hand.</li>
+                <li>Drag and drop cards to reorder them into a satisfying musical sequence.</li>
+                <li>Click <strong>▶ Play</strong> to hear your card progression looped.</li>
+                <li>Click <strong>💾 Save TXT</strong> to export your chord chart to your computer, or <strong>🎼 Send to Analyzer</strong> to inspect its Roman numerals and key center!</li>
+                <li>Click <strong>🎲 New Jam Prompt</strong> to get specific practice challenges (e.g. guide-tone voice leading).</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> Follow the Jam Prompt: strive for smooth voice leading between cards! Keep common notes between neighboring chords stationary, and move other notes by only a half-step or whole-step.
+            </div>
+          </div>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-muted);">
           Draw random chord cards, drag/reorder them into the most musical progression, and jam on your instrument!
@@ -351,7 +488,36 @@
       <!-- Module 6: Metronome & Rhythm Studio -->
       <section class="card" id="metroSection">
         <div class="card-title">
-          <span><span class="card-title-icon">⏱</span> Metronome & Rhythm Studio</span>
+          <div class="card-title-left">
+            <button type="button" class="panel-help-btn" data-panel-guide="guideMetro" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Metronome & Rhythm Studio">ℹ</button>
+            <span><span class="card-title-icon">⏱</span> Metronome & Rhythm Studio</span>
+          </div>
+        </div>
+
+        <!-- Student Guide Drawer: Metronome & Rhythm Studio -->
+        <div id="guideMetro" class="panel-guide-box" style="display: none;">
+          <div class="guide-box-header">
+            <span class="guide-box-tag">🎓 Student Guide • Metronome & Rhythm Studio</span>
+            <button type="button" class="guide-box-close" data-close-guide="guideMetro" title="Close Guide" aria-label="Close Guide">&times;</button>
+          </div>
+          <div class="guide-box-content">
+            <p><strong class="label-what">What it is:</strong> A high-precision, zero-drift Web Audio metronome with arbitrary time signatures (e.g. 4/4, 7/8, 16/15), subdivisions (quarter, 8ths, triplets, 16ths, quintuplets), polyrhythm clave generator, and an integrated <strong>⏳ Practice Session Timer</strong> with automatic delta logging.</p>
+            <p><strong class="label-why">Why use it:</strong> Develop rock-solid internal timing, master odd meters and syncopation, and track exact practice minutes per exercise so you know where your practice time went.</p>
+            <div>
+              <strong class="label-how">How to use it:</strong>
+              <ol class="guide-how-list">
+                <li>Set your meter in <strong>Meter:</strong> (<code>metroTimeSigInput</code>, e.g. <code>4/4</code>, <code>7/8</code>, <code>5/4</code>) and pick a subdivision from <strong>metroSubdivision</strong> (e.g. <em>Triplets</em>, <em>16ths</em>).</li>
+                <li>Adjust tempo using the slider, <strong>Tempo:</strong> input, or <strong>-5</strong>, <strong>-1</strong>, <strong>+1</strong>, <strong>+5</strong> buttons.</li>
+                <li>Choose a sound from <strong>metroSound</strong> (<em>Woodblock</em>, <em>Digital Click</em>, or <em>Spoken Count</em>).</li>
+                <li>Click <strong>▶ Start Metronome</strong> — the metronome starts and the <strong>Practice Session Timer</strong> begins tracking elapsed exercise time automatically!</li>
+                <li>When switching to a new drill, click <strong>⏭ Next Exercise</strong> to log your completed delta and reset for the next study.</li>
+                <li>In the <strong>Unicode Rhythm Generator</strong>, click <strong>🎲 New Rhythm</strong> and <strong>▶ Play Clave</strong> to practice playing over syncopated clave rhythms.</li>
+              </ol>
+            </div>
+            <div class="guide-tip-box">
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> For odd meters like 7/8, break the beats into asymmetric pulses: <code>2 + 2 + 3</code> or <code>3 + 2 + 2</code>. Use the <strong>Spoken Count</strong> mode to hear verbal counting ("1 & 2 &" or "1 trip let") while playing!
+            </div>
+          </div>
         </div>
 
         <div class="input-row metro-top-controls" style="align-items: center;">

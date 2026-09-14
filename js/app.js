@@ -597,6 +597,51 @@
           this.pickRandomExercise();
         });
       }
+
+      // Panel Student Guide Drawer Toggles
+      this.bindPanelGuides();
+    }
+
+    bindPanelGuides() {
+      // Toggle panel guide drawer when clicking top-left ℹ button
+      document.querySelectorAll('.panel-help-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetId = btn.dataset.panelGuide;
+          if (!targetId) return;
+          const drawer = document.getElementById(targetId);
+          if (!drawer) return;
+
+          const isCurrentlyOpen = drawer.style.display !== 'none';
+          if (isCurrentlyOpen) {
+            drawer.style.display = 'none';
+            btn.classList.remove('active');
+            btn.setAttribute('aria-expanded', 'false');
+          } else {
+            drawer.style.display = 'block';
+            btn.classList.add('active');
+            btn.setAttribute('aria-expanded', 'true');
+          }
+        });
+      });
+
+      // Close button inside guide drawer
+      document.querySelectorAll('.guide-box-close').forEach((closeBtn) => {
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetId = closeBtn.dataset.closeGuide;
+          if (!targetId) return;
+          const drawer = document.getElementById(targetId);
+          if (drawer) {
+            drawer.style.display = 'none';
+          }
+          const triggerBtn = document.querySelector(`.panel-help-btn[data-panel-guide="${targetId}"]`);
+          if (triggerBtn) {
+            triggerBtn.classList.remove('active');
+            triggerBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+      });
     }
 
     // 1. Analyze Chord Progression
