@@ -26,8 +26,28 @@
       this.rhythmTimeouts = [];
     }
 
+    async resumeIfNeeded() {
+      if (typeof Tone === 'undefined' || !Tone.context) return false;
+      try {
+        if (Tone.context.state !== 'running') {
+          if (Tone.context.rawContext && typeof Tone.context.rawContext.resume === 'function') {
+            await Tone.context.rawContext.resume();
+          }
+          await Tone.context.resume();
+          await Tone.start();
+        }
+        return Tone.context.state === 'running';
+      } catch (e) {
+        console.warn('AudioContext resume failed:', e);
+        return false;
+      }
+    }
+
     async init() {
-      if (this.initialized) return true;
+      if (this.initialized) {
+        await this.resumeIfNeeded();
+        return true;
+      }
       if (typeof Tone === 'undefined') {
         console.error('Tone.js is not loaded.');
         return false;
@@ -35,6 +55,9 @@
 
       try {
         await Tone.start();
+        if (Tone.context && Tone.context.rawContext && typeof Tone.context.rawContext.resume === 'function') {
+          await Tone.context.rawContext.resume();
+        }
         console.log('Tone.js AudioContext started.');
 
         // Master audio output chain
@@ -115,10 +138,38 @@
         }).connect(this.masterVolume);
 
         this.initialized = true;
+
+        // Forward AudioContext state changes to window for UI updates
+        if (typeof Tone !== 'undefined' && Tone.context && Tone.context.rawContext) {
+          const raw = Tone.context.rawContext;
+          const notifyState = () => {
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('songaudio-statechange', {
+                detail: { state: Tone.context.state }
+              }));
+            }
+          };
+          if (typeof raw.addEventListener === 'function') {
+            raw.addEventListener('statechange', notifyState);
+          } else {
+            raw.onstatechange = notifyState;
+          }
+        }
+
         return true;
       } catch (e) {
         console.error('Failed to initialize audio:', e);
         return false;
+      }
+    }
+
+    playTestTone() {
+      if (!this.initialized || !this.leadSynth) return;
+      try {
+        const now = Tone.now();
+        this.leadSynth.triggerAttackRelease('C5', '16n', now);
+      } catch (e) {
+        console.warn('Test tone error:', e);
       }
     }
 
@@ -164,16 +215,18 @@
       return notes;
     }
 
-    playChord(chord, duration = '1.2s') {
+    async playChord(chord, duration = '1.2s') {
       if (!this.initialized) return;
+      await this.resumeIfNeeded();
       const voicing = this.generateVoicing(chord);
       if (voicing.length > 0) {
         this.chordSynth.triggerAttackRelease(voicing, duration);
       }
     }
 
-    playArpeggio(chord, noteDurationSeconds = 0.2) {
+    async playArpeggio(chord, noteDurationSeconds = 0.2) {
       if (!this.initialized) return;
+      await this.resumeIfNeeded();
       const voicing = this.generateVoicing(chord);
       const now = Tone.now();
       voicing.forEach((note, idx) => {
@@ -181,8 +234,9 @@
       });
     }
 
-    playProgression(parsedChords, bpm = 110, loop = false, onChordHighlight = null, onFinished = null) {
+    async playProgression(parsedChords, bpm = 110, loop = false, onChordHighlight = null, onFinished = null) {
       if (!this.initialized || !parsedChords || parsedChords.length === 0) return;
+      await this.resumeIfNeeded();
 
       this.stopProgression();
       this.activeProgression = parsedChords;
@@ -234,8 +288,9 @@
     }
 
     // Arbitrary Time Signature Metronome (X / Y e.g. 7/8, 16/15, 4/4, 9/8, 5/4)
-    startMetronome(bpm, timeSignature = { num: 4, den: 4 }, subdivision = 1, soundMode = 'woodblock', onTick = null) {
+    async startMetronome(bpm, timeSignature = { num: 4, den: 4 }, subdivision = 1, soundMode = 'woodblock', onTick = null) {
       if (!this.initialized) return;
+      await this.resumeIfNeeded();
       this.stopMetronome();
 
       const safeBpm = Math.max(15, Math.min(240, parseInt(bpm, 10) || 110));
@@ -334,8 +389,9 @@
       this.speechSynth.speak(utterance);
     }
 
-    playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null) {
+    async playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null) {
       if (!this.initialized || !rhythmItems || rhythmItems.length === 0) return;
+      await this.resumeIfNeeded();
 
       this.stopRhythm();
       this.isRhythmPlaying = true;

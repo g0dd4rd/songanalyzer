@@ -66,10 +66,39 @@
             if (ok) {
               audioBtn.textContent = '🔊 Audio Active';
               audioBtn.classList.add('active');
+              audio.playTestTone();
             }
           }
         });
       }
+
+      // Audio Keep-Alive & Auto-Resume for Safari & Inactive Background Tabs
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && audio && audio.initialized) {
+          await audio.resumeIfNeeded();
+        }
+      });
+
+      window.addEventListener('songaudio-statechange', (e) => {
+        if (audioBtn) {
+          if (e.detail && e.detail.state === 'running') {
+            audioBtn.textContent = '🔊 Audio Active';
+            audioBtn.classList.add('active');
+          } else {
+            audioBtn.textContent = '🔊 Tap to Resume Audio';
+            audioBtn.classList.remove('active');
+          }
+        }
+      });
+
+      // Seamless user gesture wakeup (resumes audio context if suspended when clicking/tapping anywhere)
+      const resumeOnGesture = async () => {
+        if (audio && audio.initialized && typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running') {
+          await audio.resumeIfNeeded();
+        }
+      };
+      document.addEventListener('click', resumeOnGesture, { passive: true });
+      document.addEventListener('touchstart', resumeOnGesture, { passive: true });
 
       // Master Volume
       const masterVol = document.getElementById('masterVolume');
@@ -348,6 +377,22 @@
           }, () => {
             this.highlightCard(-1);
           });
+        });
+      }
+
+      // Export Jam Deck progression as TXT file
+      const btnExportJam = document.getElementById('btnExportJamTxt');
+      if (btnExportJam) {
+        btnExportJam.addEventListener('click', () => {
+          this.exportJamProgressionTxt();
+        });
+      }
+
+      // Send Jam Deck progression directly to Harmonic Analyzer
+      const btnSendJam = document.getElementById('btnSendJamToAnalyzer');
+      if (btnSendJam) {
+        btnSendJam.addEventListener('click', () => {
+          this.sendJamToAnalyzer();
         });
       }
 
@@ -857,6 +902,67 @@
       const pick = challenges[Math.floor(Math.random() * challenges.length)];
       const promptEl = document.getElementById('jamChallengePrompt');
       if (promptEl) promptEl.textContent = `🎯 Practice Prompt: ${pick}`;
+    }
+
+    exportJamProgressionTxt() {
+      const Theory = window.SongTheory;
+      if (!this.jamCards || this.jamCards.length === 0) return;
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+      const chordSymbols = this.jamCards.map(c => c.symbol).join('  ->  ');
+      const challengeEl = document.getElementById('jamChallengePrompt');
+      const challengeText = challengeEl ? challengeEl.textContent.trim() : '';
+
+      let text = `=======================================================\n`;
+      text += `SONG ANALYZER - JAM DECK CHORD PROGRESSION\n`;
+      text += `Exported: ${dateStr}\n`;
+      text += `=======================================================\n\n`;
+      text += `CHORD SEQUENCE:\n`;
+      text += `${chordSymbols}\n\n`;
+      text += `CHORD DETAILS & VOICINGS:\n`;
+
+      this.jamCards.forEach((c, i) => {
+        const parsed = Theory ? Theory.parseChord(c.symbol) : null;
+        const notesStr = parsed && parsed.notes ? parsed.notes.join(' - ') : 'N/A';
+        text += `  #${i + 1}. ${c.symbol.padEnd(10)} | ${c.qualityName}\n`;
+        text += `      Formula: ${c.formula}\n`;
+        text += `      Notes:   ${notesStr}\n\n`;
+      });
+
+      if (challengeText) {
+        text += `PRACTICE PROMPT:\n`;
+        text += `${challengeText}\n\n`;
+      }
+
+      text += `=======================================================\n`;
+      text += `Created with Song Analyzer (https://songanalyzer.dredwerkz.cz)\n`;
+
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const fileDate = now.toISOString().slice(0, 10);
+      a.download = `jam-progression-${fileDate}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    sendJamToAnalyzer() {
+      if (!this.jamCards || this.jamCards.length === 0) return;
+      const progInput = document.getElementById('progressionInput');
+      if (progInput) {
+        progInput.value = this.jamCards.map(c => c.symbol).join(' ');
+        this.analyzeProgression();
+        if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
+          this.setMobileTab('analyzerSection');
+        } else {
+          const analyzerSec = document.getElementById('analyzerSection');
+          if (analyzerSec) analyzerSec.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
 
     // 4. Metronome & Time Signature Engine
