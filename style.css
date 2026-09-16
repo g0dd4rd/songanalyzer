@@ -1516,3 +1516,238 @@ tr:hover td {
     flex: 1;
   }
 }
+
+/* -------------------------------------------------------------
+ * Adaptive Grid Beat Builder & Drum Machine Styles
+ * ------------------------------------------------------------- */
+.metro-mode-selector button {
+  transition: all 0.15s ease;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+.metro-mode-selector button.active {
+  background: var(--accent-blue) !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.beat-builder-container {
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 4px;
+}
+
+.beat-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.beat-grid-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: rgba(11, 15, 25, 0.7);
+  padding: 8px 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.beat-grid-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: max-content;
+}
+
+.beat-step-header-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.beat-step-header-spacer {
+  width: 106px;
+  min-width: 106px;
+  max-width: 106px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.beat-step-num {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 22px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.beat-step-num.is-downbeat {
+  color: #38bdf8;
+  border-bottom: 2px solid #38bdf8;
+}
+
+.beat-track-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.beat-track-info {
+  width: 106px;
+  min-width: 106px;
+  max-width: 106px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 2px 4px;
+  border-radius: 4px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  user-select: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.beat-track-name {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beat-track-btns {
+  display: flex;
+  gap: 2px;
+}
+
+.beat-btn-pill {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.beat-btn-pill.active-mute {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+
+.beat-btn-pill.active-solo {
+  background: #eab308 !important;
+  color: #000000 !important;
+  border-color: #fde047 !important;
+}
+
+.beat-pad {
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.35);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  transition: transform 0.04s ease, background 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.beat-pad:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.beat-pad.bar-boundary {
+  border-left: 2px solid rgba(255, 255, 255, 0.28);
+}
+
+.beat-pad.color-cyan.state-normal {
+  background: #0284c7;
+  border-color: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+}
+.beat-pad.color-cyan.state-accent {
+  background: #0369a1;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+}
+
+.beat-pad.color-amber.state-normal {
+  background: #d97706;
+  border-color: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+.beat-pad.color-amber.state-accent {
+  background: #b45309;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.85);
+}
+
+.beat-pad.color-purple.state-normal {
+  background: #9333ea;
+  border-color: #c084fc;
+  box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
+}
+.beat-pad.color-purple.state-accent {
+  background: #7e22ce;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.85);
+}
+
+.beat-pad.color-emerald.state-normal {
+  background: #059669;
+  border-color: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+}
+.beat-pad.color-emerald.state-accent {
+  background: #047857;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.85);
+}
+
+.beat-pad.state-ghost::after {
+  content: '•';
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1;
+}
+
+.beat-pad.active-cursor {
+  outline: 2px solid #ffffff;
+  box-shadow: 0 0 12px #ffffff !important;
+  transform: scale(1.05);
+  z-index: 2;
+}

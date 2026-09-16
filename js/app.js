@@ -61,6 +61,7 @@
       this.dealJamCards();       // Deal initial jam cards
       this.generateRhythm();     // Generate initial rhythm
       this.initPracticeTimer();  // Initialize practice timer
+      this.initBeatBuilder();    // Initialize adaptive grid drum machine
     }
 
     bindEvents() {
@@ -117,6 +118,7 @@
         if (metroInput && parseInt(metroInput.value, 10) !== val) metroInput.value = val;
 
         if (audio) audio.setBpm(val);
+        if (this.beatSequencer) this.beatSequencer.setBpm(val);
         this.updateTempoMarking(val);
       };
       this.setAppBpm = setAppBpm;
@@ -999,11 +1001,12 @@
     // 4. Metronome & Time Signature Engine
     parseTimeSignature(str) {
       if (!str) return { num: 4, den: 4 };
-      const m = str.trim().match(/^(\d+)\s*[\/:]\s*(\d+)$/);
+      const m = str.trim().match(/^(\d+)\s*[\/:]\s*(\d+)(?::(\d+))?$/);
       if (!m) return { num: 4, den: 4 };
       const num = Math.max(1, Math.min(64, parseInt(m[1], 10)));
       const den = Math.max(1, Math.min(64, parseInt(m[2], 10)));
-      return { num, den };
+      const sub = m[3] ? Math.max(1, Math.min(16, parseInt(m[3], 10))) : null;
+      return { num, den, sub };
     }
 
     updateTimeSignature() {
@@ -1538,6 +1541,341 @@
             <p>${pick.desc}</p>
           </div>
         `;
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Adaptive Grid Beat Builder (9-Voice Drum Sequencer)
+    // -------------------------------------------------------------
+    initBeatBuilder() {
+      if (!window.SongDrums) return;
+
+      this.drumSynth = new window.SongDrums.DrumSynth();
+      this.beatSequencer = new window.SongDrums.BeatSequencer(this.drumSynth);
+      this.beatSequencer.setBpm(this.getBpm());
+
+      // Load initial default groove (self-configures 4/4 16 steps)
+      this.beatSequencer.loadPreset('rock');
+
+      // Bind mode tabs
+      const btnModeClick = document.getElementById('btnMetroModeClick');
+      const btnModeBeats = document.getElementById('btnMetroModeBeats');
+      const clickContainer = document.getElementById('metroClickContainer');
+      const beatContainer = document.getElementById('beatBuilderContainer');
+
+      if (btnModeClick && btnModeBeats) {
+        btnModeClick.addEventListener('click', () => {
+          btnModeClick.classList.add('btn-primary', 'active');
+          btnModeBeats.classList.remove('btn-primary', 'active');
+          if (clickContainer) clickContainer.style.display = 'block';
+          if (beatContainer) beatContainer.style.display = 'none';
+        });
+
+        btnModeBeats.addEventListener('click', async () => {
+          btnModeBeats.classList.add('btn-primary', 'active');
+          btnModeClick.classList.remove('btn-primary', 'active');
+          if (clickContainer) clickContainer.style.display = 'none';
+          if (beatContainer) beatContainer.style.display = 'block';
+          this.ensureDrumAudioContext();
+          this.renderBeatGrid();
+        });
+      }
+
+      // Play / Stop Beat Button
+      const btnToggleBeat = document.getElementById('btnToggleBeat');
+      const statusIndicator = document.getElementById('beatStatusIndicator');
+      if (btnToggleBeat) {
+        btnToggleBeat.addEventListener('click', async () => {
+          await this.ensureDrumAudioContext();
+
+          if (this.beatSequencer.isPlaying) {
+            this.beatSequencer.stop();
+            btnToggleBeat.textContent = '▶ Play Beat';
+            btnToggleBeat.classList.remove('btn-danger');
+            btnToggleBeat.classList.add('btn-success');
+            if (statusIndicator) statusIndicator.textContent = 'Stopped';
+            this.highlightBeatStep(-1);
+          } else {
+            // If simple metronome is running, stop it to avoid cacophony
+            if (window.audio && window.audio.isMetronomeRunning) {
+              window.audio.stopMetronome();
+              const btnMetro = document.getElementById('btnToggleMetronome');
+              if (btnMetro) {
+                btnMetro.textContent = '▶ Start Metronome';
+                btnMetro.classList.remove('btn-danger');
+              }
+            }
+
+            btnToggleBeat.textContent = '⏹ Stop Beat';
+            btnToggleBeat.classList.remove('btn-success');
+            btnToggleBeat.classList.add('btn-danger');
+            if (statusIndicator) statusIndicator.textContent = 'Playing';
+
+            this.beatSequencer.start((stepIdx) => {
+              this.highlightBeatStep(stepIdx);
+            });
+          }
+        });
+      }
+
+      // Independent Arbitrary Beat Meter Input (e.g. 7/8, 5/4, 4/4, 11/8, 3/4)
+      const beatTimeSigInput = document.getElementById('beatTimeSigInput');
+      const handleBeatTimeSigChange = () => {
+        if (!beatTimeSigInput) return;
+        const val = beatTimeSigInput.value.trim();
+        const parsed = this.parseTimeSignature(val);
+        if (parsed) {
+          // Determine natural 16th-note subdivision based on denominator
+          let subdiv = 4;
+          if (parsed.sub) {
+            subdiv = parsed.sub;
+          } else if (parsed.den === 8) {
+            subdiv = 2; // e.g. 7/8 -> 14 steps, 6/8 -> 12 steps, 9/8 -> 18 steps
+          } else if (parsed.den === 16) {
+            subdiv = 1; // e.g. 11/16 -> 11 steps
+          } else if (parsed.den === 2) {
+            subdiv = 8; // e.g. 2/2 -> 16 steps
+          } else {
+            subdiv = Math.max(1, Math.round(16 / parsed.den));
+          }
+
+          this.beatSequencer.setTimeSignature(parsed, subdiv);
+          if (presetSelect) presetSelect.value = '';
+          this.renderBeatGrid();
+        }
+      };
+
+      if (beatTimeSigInput) {
+        beatTimeSigInput.addEventListener('change', handleBeatTimeSigChange);
+        beatTimeSigInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            handleBeatTimeSigChange();
+            beatTimeSigInput.blur();
+          }
+        });
+      }
+
+      // Groove Preset Selector (presets define their own meter and swing)
+      const presetSelect = document.getElementById('beatPresetSelect');
+      if (presetSelect) {
+        presetSelect.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val) {
+            const meta = this.beatSequencer.loadPreset(val);
+            if (meta) {
+              if (beatTimeSigInput) {
+                beatTimeSigInput.value = `${meta.timeSignature.num}/${meta.timeSignature.den}`;
+              }
+              const swingSlider = document.getElementById('beatSwingSlider');
+              const swingVal = document.getElementById('beatSwingValue');
+              if (swingSlider && swingVal) {
+                const pct = Math.round(meta.swing * 100);
+                swingSlider.value = pct;
+                swingVal.textContent = `${pct}%`;
+              }
+            }
+            this.renderBeatGrid();
+          }
+        });
+      }
+
+      // Swing Slider
+      const swingSlider = document.getElementById('beatSwingSlider');
+      const swingVal = document.getElementById('beatSwingValue');
+      if (swingSlider) {
+        swingSlider.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value, 10) || 0;
+          this.beatSequencer.swing = val / 100;
+          if (swingVal) swingVal.textContent = `${val}%`;
+        });
+      }
+
+      // Clear Grid Button
+      const btnClear = document.getElementById('btnClearBeatGrid');
+      if (btnClear) {
+        btnClear.addEventListener('click', () => {
+          this.beatSequencer.clearPattern();
+          if (presetSelect) presetSelect.value = '';
+          this.renderBeatGrid();
+        });
+      }
+
+      // Initial render
+      this.renderBeatGrid();
+    }
+
+    async ensureDrumAudioContext() {
+      if (!this.drumSynth) return;
+      if (window.audio) {
+        await window.audio.init();
+        await window.audio.resumeIfNeeded();
+      }
+      if (typeof Tone !== 'undefined') {
+        if (typeof Tone.start === 'function') await Tone.start();
+        if (Tone.context && typeof Tone.context.resume === 'function' && Tone.context.state !== 'running') {
+          await Tone.context.resume();
+        }
+      }
+      if (this.drumSynth.ctx && this.drumSynth.masterNode && this.drumSynth.noiseBuffer) {
+        if (this.drumSynth.ctx.state !== 'running' && typeof this.drumSynth.ctx.resume === 'function') {
+          await this.drumSynth.ctx.resume();
+        }
+        return;
+      }
+      let ctx = null;
+      if (window.audio && window.audio.rawAudioContext && typeof window.audio.rawAudioContext.createGain === 'function') {
+        ctx = window.audio.rawAudioContext;
+      } else if (typeof Tone !== 'undefined' && Tone.context) {
+        ctx = Tone.context.rawContext || Tone.context;
+      } else if (typeof AudioContext !== 'undefined') {
+        ctx = new AudioContext();
+      }
+
+      if (ctx) {
+        const dest = (window.audio && window.audio.masterVolume)
+          ? window.audio.masterVolume
+          : (typeof Tone !== 'undefined' && Tone.getDestination ? Tone.getDestination() : ctx.destination);
+        this.drumSynth.init(ctx, dest);
+      }
+    }
+
+    renderBeatGrid() {
+      const container = document.getElementById('beatGridContainer');
+      if (!container || !this.beatSequencer) return;
+
+      const stepCount = this.beatSequencer.getStepCount();
+      const sig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
+      const subdiv = this.beatSequencer.subdivision || 4;
+
+      // Update Grouping Badge (e.g. "7/8 • 14 Steps")
+      const badge = document.getElementById('beatGroupingBadge');
+      if (badge) {
+        badge.textContent = `${sig.num}/${sig.den} • ${stepCount} Steps`;
+      }
+
+      container.innerHTML = '';
+
+      // 1. Header row with step numbers and downbeats
+      const headerRow = document.createElement('div');
+      headerRow.className = 'beat-step-header-row';
+
+      const headerSpacer = document.createElement('div');
+      headerSpacer.className = 'beat-step-header-spacer';
+      headerRow.appendChild(headerSpacer);
+
+      for (let s = 0; s < stepCount; s++) {
+        const numEl = document.createElement('span');
+        numEl.className = 'beat-step-num';
+        const isDownbeat = (s % subdiv === 0);
+        if (isDownbeat) {
+          numEl.classList.add('is-downbeat');
+          numEl.textContent = `${Math.floor(s / subdiv) + 1}`;
+        } else {
+          numEl.textContent = `${s + 1}`;
+        }
+        headerRow.appendChild(numEl);
+      }
+      container.appendChild(headerRow);
+
+      // 2. Tracks rows (Kick, Snare, Closed Hat, Open Hat, Ride, Crash, Cowbell, Clap, Clave)
+      this.drumSynth.trackDefs.forEach(track => {
+        const row = document.createElement('div');
+        row.className = 'beat-track-row';
+        row.dataset.track = track.id;
+
+        // Track header with Label, Mute, Solo
+        const info = document.createElement('div');
+        info.className = 'beat-track-info';
+
+        const nameLabel = document.createElement('span');
+        nameLabel.className = 'beat-track-name';
+        nameLabel.textContent = track.name;
+        nameLabel.title = `Click to audition ${track.name}`;
+        nameLabel.style.cursor = 'pointer';
+        nameLabel.addEventListener('click', async () => {
+          await this.ensureDrumAudioContext();
+          if (this.drumSynth && this.drumSynth.ctx) {
+            this.drumSynth.playVoice(track.id, this.drumSynth.ctx.currentTime, 1.1);
+          }
+        });
+
+        const btnsGroup = document.createElement('div');
+        btnsGroup.className = 'beat-track-btns';
+
+        const btnMute = document.createElement('button');
+        btnMute.className = 'beat-btn-pill' + (this.drumSynth.channelStates[track.id].mute ? ' active-mute' : '');
+        btnMute.textContent = 'M';
+        btnMute.title = `Mute ${track.name}`;
+        btnMute.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.drumSynth.channelStates[track.id].mute = !this.drumSynth.channelStates[track.id].mute;
+          btnMute.classList.toggle('active-mute', this.drumSynth.channelStates[track.id].mute);
+        });
+
+        const btnSolo = document.createElement('button');
+        btnSolo.className = 'beat-btn-pill' + (this.drumSynth.channelStates[track.id].solo ? ' active-solo' : '');
+        btnSolo.textContent = 'S';
+        btnSolo.title = `Solo ${track.name}`;
+        btnSolo.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.drumSynth.channelStates[track.id].solo = !this.drumSynth.channelStates[track.id].solo;
+          btnSolo.classList.toggle('active-solo', this.drumSynth.channelStates[track.id].solo);
+        });
+
+        btnsGroup.appendChild(btnMute);
+        btnsGroup.appendChild(btnSolo);
+        info.appendChild(nameLabel);
+        info.appendChild(btnsGroup);
+        row.appendChild(info);
+
+        // Step Pads
+        for (let s = 0; s < stepCount; s++) {
+          const pad = document.createElement('button');
+          pad.className = `beat-pad color-${track.color}`;
+          pad.dataset.track = track.id;
+          pad.dataset.step = s;
+
+          if (s % subdiv === 0 && s > 0) {
+            pad.classList.add('bar-boundary');
+          }
+
+          const state = this.beatSequencer.pattern[track.id] ? this.beatSequencer.pattern[track.id][s] : 0;
+          this.applyPadStateClass(pad, state);
+
+          pad.addEventListener('click', async () => {
+            const nextState = this.beatSequencer.cycleStep(track.id, s);
+            this.applyPadStateClass(pad, nextState);
+            // Audition drum hit on tap
+            if (nextState > 0) {
+              await this.ensureDrumAudioContext();
+              if (this.drumSynth.ctx) {
+                const vel = nextState === 2 ? 1.35 : (nextState === 3 ? 0.35 : 1.0);
+                this.drumSynth.playVoice(track.id, this.drumSynth.ctx.currentTime, vel);
+              }
+            }
+          });
+
+          row.appendChild(pad);
+        }
+
+        container.appendChild(row);
+      });
+    }
+
+    applyPadStateClass(pad, state) {
+      pad.classList.remove('state-normal', 'state-accent', 'state-ghost');
+      if (state === 1) pad.classList.add('state-normal');
+      else if (state === 2) pad.classList.add('state-accent');
+      else if (state === 3) pad.classList.add('state-ghost');
+    }
+
+    highlightBeatStep(stepIdx) {
+      const pads = document.querySelectorAll('.beat-pad.active-cursor');
+      pads.forEach(p => p.classList.remove('active-cursor'));
+
+      if (stepIdx >= 0) {
+        const currentPads = document.querySelectorAll(`.beat-pad[data-step="${stepIdx}"]`);
+        currentPads.forEach(p => p.classList.add('active-cursor'));
       }
     }
   }

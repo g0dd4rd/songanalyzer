@@ -361,11 +361,19 @@ self.onmessage = function(e) {
       try {
         const source = this.rawAudioContext.createBufferSource();
         source.buffer = buffer;
-        const dest = (this.masterVolume && this.masterVolume.input) ? this.masterVolume.input : this.rawAudioContext.destination;
-        source.connect(dest);
+        if (typeof Tone !== 'undefined' && typeof Tone.connect === 'function' && this.masterVolume) {
+          Tone.connect(source, this.masterVolume);
+        } else {
+          const dest = (this.masterVolume && this.masterVolume.input && this.masterVolume.input.input)
+            ? this.masterVolume.input.input
+            : this.rawAudioContext.destination;
+          source.connect(dest);
+        }
         source.start(scheduledTime);
+        return true;
       } catch (e) {
         console.warn('Error scheduling metronome buffer:', e);
+        return false;
       }
     }
 

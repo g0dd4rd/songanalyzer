@@ -10,6 +10,7 @@
   <script src="js/theory.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/visualizer.js"></script>
+  <script src="js/drums.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -505,6 +506,18 @@
           </div>
         </div>
 
+        <!-- Metronome / Beat Builder Mode Switcher -->
+        <div class="metro-mode-selector" style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button id="btnMetroModeClick" class="btn btn-sm btn-primary active" style="flex: 1; font-weight: 600;">
+            ⏱ Metronome Click
+          </button>
+          <button id="btnMetroModeBeats" class="btn btn-sm" style="flex: 1; font-weight: 600;">
+            🥁 Beat Builder (9-Track Drum Grid)
+          </button>
+        </div>
+
+        <!-- Mode 1: Metronome Click Container -->
+        <div id="metroClickContainer">
         <div class="input-row metro-top-controls" style="align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <label for="metroTimeSigInput" style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">Meter:</label>
@@ -616,6 +629,69 @@
             <div id="timerLogEntries" class="timer-log-entries">
               <div class="timer-log-empty">No exercises logged yet. Start metronome to practice!</div>
             </div>
+          </div>
+        </div>
+        </div> <!-- /#metroClickContainer -->
+
+        <!-- Mode 2: Beat Builder (Adaptive 9-Track Drum Sequencer) -->
+        <div id="beatBuilderContainer" class="beat-builder-container" style="display: none;">
+          <div class="input-row beat-toolbar-row" style="align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button id="btnToggleBeat" class="btn btn-sm btn-success" style="min-width: 120px; font-weight: 700;">
+                ▶ Play Beat
+              </button>
+
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label for="beatTimeSigInput" style="font-size: 0.82rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Meter:</label>
+                <input type="text" id="beatTimeSigInput" value="4/4" style="width: 62px; text-align: center; font-weight: 700; font-size: 0.95rem; padding: 2px 4px;" placeholder="X/Y" title="Enter any arbitrary time signature (e.g. 7/8, 5/4, 4/4, 11/8, 3/4)">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label for="beatPresetSelect" style="font-size: 0.82rem; color: var(--text-muted); margin: 0;">Groove:</label>
+                <select id="beatPresetSelect" class="form-control" style="font-size: 0.82rem; padding: 3px 6px; width: auto;">
+                  <option value="" disabled selected>Load Preset...</option>
+                  <option value="rock">Rock Power Drive (4/4)</option>
+                  <option value="funk">Funk & Ghost Snare (4/4)</option>
+                  <option value="latinCowbell">Latin Mambo & 808 Cowbell (4/4)</option>
+                  <option value="jazzSwing">Jazz Ride Swing (4/4)</option>
+                  <option value="balkan78">Balkan Râčenica (7/8)</option>
+                  <option value="takeFive54">Take Five (5/4)</option>
+                  <option value="afro68">Afro-Cuban Bembé (6/8)</option>
+                  <option value="waltz34">Viennese Waltz (3/4)</option>
+                  <option value="bossaNova">Bossa Nova (4/4)</option>
+                  <option value="fourOnFloor">4-on-the-Floor Disco (4/4)</option>
+                </select>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label for="beatSwingSlider" style="font-size: 0.82rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Swing:</label>
+                <input type="range" id="beatSwingSlider" min="0" max="65" value="0" step="1" style="width: 65px;">
+                <span id="beatSwingValue" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); min-width: 24px;">0%</span>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button id="btnClearBeatGrid" class="btn btn-sm" title="Clear all drum steps" style="font-size: 0.78rem; padding: 2px 7px;">
+                🔄 Clear
+              </button>
+              <span id="beatGroupingBadge" class="tempo-marking-badge" style="font-size: 0.78rem; padding: 2px 8px;">
+                4/4 • 16 Steps
+              </span>
+            </div>
+          </div>
+
+          <!-- Interactive 9-Track Step Sequencer Grid -->
+          <div class="beat-grid-wrapper" id="beatGridWrapper">
+            <div class="beat-grid-scroll">
+              <div id="beatGridContainer" class="beat-grid-table">
+                <!-- Dynamically populated by js/app.js -->
+              </div>
+            </div>
+          </div>
+
+          <div class="beat-legend-bar" style="margin-top: 10px; font-size: 0.76rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <span>💡 Tap pad: <strong>Normal</strong> (●) → <strong>Accent</strong> (◉) → <strong>Ghost</strong> (·) → <strong>Off</strong></span>
+            <span id="beatStatusIndicator" style="font-weight: 600;">Stopped</span>
           </div>
         </div>
 
