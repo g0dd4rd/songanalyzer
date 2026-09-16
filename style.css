@@ -877,7 +877,8 @@ tr:hover td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.05s ease;
+  transition: transform 0.04s ease, opacity 0.04s ease;
+  will-change: transform;
   user-select: none;
 }
 
@@ -1218,8 +1219,9 @@ tr:hover td {
     padding: 8px 10px;
   }
   .header-container {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
   }
   .logo-area {
@@ -1230,16 +1232,9 @@ tr:hover td {
   }
   .header-controls {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 8px;
-    width: 100%;
-  }
-  #btnStartAudio {
-    flex: 1 1 100%;
-    min-height: 38px;
-    font-size: 0.88rem;
   }
   .header-controls .control-item {
     font-size: 0.78rem;

@@ -26,21 +26,6 @@
       </div>
 
       <div class="header-controls">
-        <button id="btnStartAudio" class="btn btn-primary" title="Unlock Web Audio engine">
-          🔊 Start Audio
-        </button>
-
-        <div class="control-item">
-          <label for="masterBpm">Tempo:</label>
-          <input type="range" id="masterBpm" min="15" max="240" value="110" step="1">
-          <div style="display: inline-flex; align-items: center; gap: 4px;">
-            <input type="number" id="masterBpmInput" min="15" max="240" value="110" step="1"
-                   style="width: 58px; padding: 2px 4px; font-size: 0.88rem; font-weight: 700; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-color);"
-                   title="Tempo (15 to 240 BPM)">
-            <span id="bpmDisplay" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">BPM</span>
-          </div>
-        </div>
-
         <div class="control-item">
           <label for="masterVolume">Vol:</label>
           <input type="range" id="masterVolume" min="-30" max="4" value="-6" step="1">
@@ -548,20 +533,20 @@
             <label style="font-size: 0.85rem; color: var(--text-muted); margin-right: 4px;">Tempo:</label>
             <button id="btnBpmMinus5" class="btn btn-sm" title="Decrease 5 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-5</button>
             <button id="btnBpmMinus1" class="btn btn-sm" title="Decrease 1 BPM" style="padding: 2px 7px; font-size: 0.82rem;">-1</button>
-            <input type="number" id="metroBpmInput" min="15" max="240" value="110" step="1"
+            <input type="number" id="metroBpmInput" min="15" max="240" value="113" step="1"
                    style="width: 60px; padding: 3px 4px; font-size: 0.92rem; font-weight: 700; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-color);"
                    title="Metronome Tempo (15 to 240 BPM)">
             <button id="btnBpmPlus1" class="btn btn-sm" title="Increase 1 BPM" style="padding: 2px 7px; font-size: 0.82rem;">+1</button>
             <button id="btnBpmPlus5" class="btn btn-sm" title="Increase 5 BPM" style="padding: 2px 7px; font-size: 0.82rem;">+5</button>
           </div>
-          <input type="range" id="metroBpmSlider" min="15" max="240" value="110" step="1" style="flex: 1; min-width: 140px;">
+          <input type="range" id="metroBpmSlider" min="15" max="240" value="113" step="1" style="flex: 1; min-width: 140px;">
         </div>
 
         <div class="metro-display-area">
           <div id="metroDotsContainer" class="metro-dots-container">
             <!-- Dynamic Beat Dots 1..X -->
           </div>
-          <span id="tempoMarkingText" class="tempo-marking-badge">4/4 • 110 BPM • Moderato</span>
+          <span id="tempoMarkingText" class="tempo-marking-badge">4/4 • 113 BPM • Moderato</span>
         </div>
 
         <!-- Practice Session Timer -->

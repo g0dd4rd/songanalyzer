@@ -29,6 +29,10 @@
       };
     }
 
+    getBpm() {
+      return this.currentBpm || 113;
+    }
+
     async init() {
       // Setup Visualizer Canvas
       const canvas = document.getElementById('visualizerCanvas');
@@ -45,7 +49,13 @@
       }
 
       this.currentTimeSignature = { num: 4, den: 4 };
+      this.currentBpm = 113;
       this.bindEvents();
+      if (this.setAppBpm) {
+        const metroInput = document.getElementById('metroBpmInput');
+        const initBpm = metroInput ? (parseInt(metroInput.value, 10) || 113) : 113;
+        this.setAppBpm(initBpm);
+      }
       this.updateTimeSignature(); // Initialize time signature and dots
       this.analyzeProgression(); // Run default analysis on load
       this.dealJamCards();       // Deal initial jam cards
@@ -57,21 +67,6 @@
       const audio = window.audio;
       const Theory = window.SongTheory;
 
-      // Audio Unlock Button
-      const audioBtn = document.getElementById('btnStartAudio');
-      if (audioBtn) {
-        audioBtn.addEventListener('click', async () => {
-          if (audio) {
-            const ok = await audio.init();
-            if (ok) {
-              audioBtn.textContent = '🔊 Audio Active';
-              audioBtn.classList.add('active');
-              audio.playTestTone();
-            }
-          }
-        });
-      }
-
       // Audio Keep-Alive & Auto-Resume for Safari & Inactive Background Tabs
       document.addEventListener('visibilitychange', async () => {
         if (document.visibilityState === 'visible' && audio && audio.initialized) {
@@ -80,14 +75,14 @@
       });
 
       window.addEventListener('songaudio-statechange', (e) => {
-        if (audioBtn) {
-          if (e.detail && e.detail.state === 'running') {
-            audioBtn.textContent = '🔊 Audio Active';
-            audioBtn.classList.add('active');
-          } else {
-            audioBtn.textContent = '🔊 Tap to Resume Audio';
-            audioBtn.classList.remove('active');
-          }
+        const btnMetro = document.getElementById('btnToggleMetronome');
+        if (btnMetro && (!audio || !audio.isMetronomeRunning)) {
+          btnMetro.textContent = '▶ Start Metronome';
+          btnMetro.classList.remove('btn-danger');
+        }
+        const btnPlayRhythm = document.getElementById('btnPlayRhythm');
+        if (btnPlayRhythm && (!audio || !audio.isRhythmPlaying)) {
+          this.updateRhythmPlayButtonState(false);
         }
       });
 
@@ -108,34 +103,23 @@
         });
       }
 
-      // Master & Metronome BPM (15 to 240 BPM)
+      // Unified Metronome BPM (15 to 240 BPM, default 113)
       const setAppBpm = (rawVal) => {
         let val = parseInt(rawVal, 10);
         if (isNaN(val)) return;
         val = Math.max(15, Math.min(240, val));
+        this.currentBpm = val;
 
-        const masterSlider = document.getElementById('masterBpm');
-        const masterInput = document.getElementById('masterBpmInput');
         const metroSlider = document.getElementById('metroBpmSlider');
         const metroInput = document.getElementById('metroBpmInput');
 
-        if (masterSlider && parseInt(masterSlider.value, 10) !== val) masterSlider.value = val;
-        if (masterInput && parseInt(masterInput.value, 10) !== val) masterInput.value = val;
         if (metroSlider && parseInt(metroSlider.value, 10) !== val) metroSlider.value = val;
         if (metroInput && parseInt(metroInput.value, 10) !== val) metroInput.value = val;
 
         if (audio) audio.setBpm(val);
         this.updateTempoMarking(val);
       };
-
-      const bpmSlider = document.getElementById('masterBpm');
-      if (bpmSlider) bpmSlider.addEventListener('input', (e) => setAppBpm(e.target.value));
-
-      const bpmInput = document.getElementById('masterBpmInput');
-      if (bpmInput) {
-        bpmInput.addEventListener('input', (e) => setAppBpm(e.target.value));
-        bpmInput.addEventListener('change', (e) => setAppBpm(e.target.value));
-      }
+      this.setAppBpm = setAppBpm;
 
       const metroBpmSlider = document.getElementById('metroBpmSlider');
       if (metroBpmSlider) metroBpmSlider.addEventListener('input', (e) => setAppBpm(e.target.value));
@@ -148,26 +132,22 @@
 
       const btnMinus5 = document.getElementById('btnBpmMinus5');
       if (btnMinus5) btnMinus5.addEventListener('click', () => {
-        const cur = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
-        setAppBpm(cur - 5);
+        setAppBpm(this.currentBpm - 5);
       });
 
       const btnMinus1 = document.getElementById('btnBpmMinus1');
       if (btnMinus1) btnMinus1.addEventListener('click', () => {
-        const cur = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
-        setAppBpm(cur - 1);
+        setAppBpm(this.currentBpm - 1);
       });
 
       const btnPlus1 = document.getElementById('btnBpmPlus1');
       if (btnPlus1) btnPlus1.addEventListener('click', () => {
-        const cur = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
-        setAppBpm(cur + 1);
+        setAppBpm(this.currentBpm + 1);
       });
 
       const btnPlus5 = document.getElementById('btnBpmPlus5');
       if (btnPlus5) btnPlus5.addEventListener('click', () => {
-        const cur = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
-        setAppBpm(cur + 5);
+        setAppBpm(this.currentBpm + 5);
       });
 
       // Progression Analyzer controls
@@ -238,7 +218,7 @@
             audio.stopProgression();
             btnPlayProg.textContent = '▶ Play Progression';
           } else {
-            const bpm = parseInt(document.getElementById('masterBpm').value, 10);
+            const bpm = this.getBpm();
             const loop = document.getElementById('loopProgression').checked;
             btnPlayProg.textContent = '⏹ Stop Progression';
 
@@ -369,7 +349,7 @@
         btnPlayCards.addEventListener('click', async () => {
           if (!audio) return;
           await audio.init();
-          const bpm = parseInt(document.getElementById('masterBpm').value, 10);
+          const bpm = this.getBpm();
           const parsedCards = this.jamCards.map(c => Theory.parseChord(c.symbol)).filter(Boolean);
           audio.playProgression(parsedCards, bpm, false, (idx, chord) => {
             this.highlightCard(idx);
@@ -546,25 +526,31 @@
             statusBadge.textContent = (loopCount === Infinity) ? 'Loop 1 (∞)' : `Loop 1 of ${loopCount}`;
           }
 
-          audio.playRhythmSequence(
-            this.currentRhythmItems,
-            () => parseInt(document.getElementById('masterBpm').value, 10) || 110,
-            loopCount,
-            (idx) => {
-              this.highlightRhythmGlyph(idx);
-            },
-            (currentLoop, maxLoops) => {
-              if (statusBadge) {
-                statusBadge.textContent = (maxLoops === Infinity)
-                  ? `Loop ${currentLoop} (∞)`
-                  : `Loop ${currentLoop} of ${maxLoops}`;
+          try {
+            audio.playRhythmSequence(
+              this.currentRhythmItems,
+              () => this.getBpm(),
+              loopCount,
+              (idx) => {
+                this.highlightRhythmGlyph(idx);
+              },
+              (currentLoop, maxLoops) => {
+                if (statusBadge) {
+                  statusBadge.textContent = (maxLoops === Infinity)
+                    ? `Loop ${currentLoop} (∞)`
+                    : `Loop ${currentLoop} of ${maxLoops}`;
+                }
+              },
+              () => {
+                this.updateRhythmPlayButtonState(false);
+                this.highlightRhythmGlyph(-1);
               }
-            },
-            () => {
-              this.updateRhythmPlayButtonState(false);
-              this.highlightRhythmGlyph(-1);
-            }
-          );
+            );
+          } catch (err) {
+            console.error('Error starting rhythm playback:', err);
+            this.updateRhythmPlayButtonState(false);
+            this.highlightRhythmGlyph(-1);
+          }
         });
       }
 
@@ -820,7 +806,7 @@
         card.querySelector('.btn-play-tier').addEventListener('click', async () => {
           if (!audio) return;
           await audio.init();
-          const bpm = parseInt(document.getElementById('masterBpm').value, 10);
+          const bpm = this.getBpm();
           const parsed = item.chords.map(c => Theory.parseChord(c)).filter(Boolean);
           audio.playProgression(parsed, bpm, false, null, null);
         });
@@ -1027,8 +1013,7 @@
 
       this.renderMetronomeDots(this.currentTimeSignature.num);
 
-      const bpmSlider = document.getElementById('masterBpm');
-      const bpm = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
+      const bpm = this.getBpm();
       this.updateTempoMarking(bpm);
 
       if (window.audio && window.audio.isMetronomeRunning) {
@@ -1056,8 +1041,7 @@
       const audio = window.audio;
       if (!audio) return;
 
-      const bpmSlider = document.getElementById('masterBpm');
-      const bpm = bpmSlider ? parseInt(bpmSlider.value, 10) : 110;
+      const bpm = this.getBpm();
       const subEl = document.getElementById('metroSubdivision');
       const sub = subEl ? (parseInt(subEl.value, 10) || 1) : 1;
       const soundEl = document.getElementById('metroSound');
@@ -1095,10 +1079,10 @@
       const len = dots.length;
       for (let i = 0; i < len; i++) {
         const dot = dots[i];
-        if (i + 1 === beat) {
-          dot.className = `metro-dot ${isDownbeat ? 'downbeat' : 'active'}`;
-        } else {
-          dot.className = 'metro-dot';
+        const isActive = (i + 1 === beat);
+        const targetClass = isActive ? `metro-dot ${isDownbeat ? 'downbeat' : 'active'}` : 'metro-dot';
+        if (dot.className !== targetClass) {
+          dot.className = targetClass;
         }
       }
     }
