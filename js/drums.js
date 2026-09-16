@@ -705,7 +705,7 @@
     }
 
     // Playback loop with Web Audio lookahead scheduling
-    start(onVisualStep = null) {
+    start(onVisualStep = null, startTime = null) {
       if (this.isPlaying) return;
       if (!this.synth.ctx) return;
 
@@ -713,7 +713,7 @@
       this.currentStep = 0;
       this.visualQueue = [];
       const now = this.synth.ctx.currentTime;
-      this.nextStepAudioTime = now + 0.04;
+      this.nextStepAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
 
       const scheduleAheadSec = 0.25; // 250ms lookahead buffer
 
@@ -802,6 +802,117 @@
         this.animFrameId = null;
       }
       this.visualQueue = [];
+    }
+
+    // Calculate exact audio timestamp of the next measure downbeat (step 0)
+    // Used for quantized transport synchronization across chords, clave, and drums
+    getNextDownbeatAudioTime() {
+      if (!this.isPlaying || !this.synth || !this.synth.ctx) return null;
+      const currentTime = this.synth.ctx.currentTime;
+      const stepCount = this.getStepCount();
+      const beatSec = (60 / this.bpm) * (4 / (this.timeSignature.den || 4));
+      const stepInterval = beatSec / (this.subdivision || 4);
+
+      const nextStepIdx = this.currentStep % stepCount;
+      const stepsUntilDownbeat = (stepCount - nextStepIdx) % stepCount;
+      let targetDownbeatTime = this.nextStepAudioTime + (stepsUntilDownbeat * stepInterval);
+
+      if (targetDownbeatTime < currentTime + 0.02) {
+        targetDownbeatTime += stepCount * stepInterval;
+      }
+      return targetDownbeatTime;
+    }
+
+    // -------------------------------------------------------------
+    // User Groove Storage & Management (localStorage + JSON)
+    // -------------------------------------------------------------
+    saveUserGroove(name) {
+      const cleanName = (name || '').trim() || `Groove ${new Date().toLocaleDateString()}`;
+      const id = 'groove_' + Date.now();
+      const groove = {
+        id,
+        name: cleanName,
+        bpm: this.bpm,
+        timeSignature: { ...this.timeSignature },
+        subdivision: this.subdivision,
+        swing: this.swing,
+        pattern: JSON.parse(JSON.stringify(this.pattern)),
+        createdAt: Date.now()
+      };
+
+      const grooves = this.getUserGrooves();
+      grooves.push(groove);
+      try {
+        localStorage.setItem('song_analyzer_user_grooves', JSON.stringify(grooves));
+      } catch (e) {
+        console.warn('Unable to save to localStorage:', e);
+      }
+      return groove;
+    }
+
+    getUserGrooves() {
+      try {
+        const raw = localStorage.getItem('song_analyzer_user_grooves');
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    loadUserGroove(id) {
+      const grooves = this.getUserGrooves();
+      const groove = grooves.find(g => g.id === id);
+      if (!groove) return null;
+
+      this.setTimeSignature(groove.timeSignature || { num: 4, den: 4 }, groove.subdivision || 4);
+      if (groove.bpm) this.setBpm(groove.bpm);
+      if (typeof groove.swing === 'number') this.swing = groove.swing;
+      if (groove.pattern) {
+        this.synth.trackDefs.forEach(track => {
+          if (groove.pattern[track.id]) {
+            this.pattern[track.id] = [...groove.pattern[track.id]];
+          }
+        });
+      }
+      return groove;
+    }
+
+    deleteUserGroove(id) {
+      const grooves = this.getUserGrooves().filter(g => g.id !== id);
+      try {
+        localStorage.setItem('song_analyzer_user_grooves', JSON.stringify(grooves));
+      } catch (e) {}
+      return grooves;
+    }
+
+    exportUserGroovesJson() {
+      const grooves = this.getUserGrooves();
+      return JSON.stringify(grooves, null, 2);
+    }
+
+    importUserGroovesJson(jsonString) {
+      try {
+        const incoming = JSON.parse(jsonString);
+        if (!Array.isArray(incoming)) return false;
+        const current = this.getUserGrooves();
+        const existingIds = new Set(current.map(g => g.id));
+        let added = 0;
+        incoming.forEach(g => {
+          if (g && g.name && g.pattern) {
+            if (!g.id || existingIds.has(g.id)) {
+              g.id = 'groove_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            }
+            current.push(g);
+            existingIds.add(g.id);
+            added++;
+          }
+        });
+        localStorage.setItem('song_analyzer_user_grooves', JSON.stringify(current));
+        return added;
+      } catch (e) {
+        console.error('Failed to parse grooves JSON:', e);
+        return false;
+      }
     }
   }
 

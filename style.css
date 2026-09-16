@@ -114,6 +114,158 @@ body {
   border-radius: 4px;
 }
 
+/* Master Jam Transport Bar */
+.master-jam-transport {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 8px;
+  padding: 4px 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.btn-master-jam {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+}
+
+.btn-master-jam:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.6);
+}
+
+.btn-master-jam.is-playing {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.6);
+  animation: pulseJamGlow 1.8s infinite;
+}
+
+@keyframes pulseJamGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85); }
+}
+
+.jam-btn-icon {
+  font-size: 0.85rem;
+}
+
+.jam-btn-key {
+  font-size: 0.65rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.jam-tracks-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.jam-track-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  user-select: none;
+}
+
+.jam-track-toggle input {
+  display: none;
+}
+
+.jam-track-chip {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #64748b;
+  border: 1px solid #334155;
+  transition: all 0.15s ease;
+}
+
+.jam-track-toggle input:checked + .jam-track-chip {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.jam-track-toggle input:checked + .chip-chords {
+  background: #2563eb;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+}
+
+.jam-track-toggle input:checked + .chip-drums {
+  background: #0d9488;
+  box-shadow: 0 0 8px rgba(13, 148, 136, 0.4);
+}
+
+.jam-track-toggle input:checked + .chip-clave {
+  background: #7c3aed;
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+}
+
+.jam-track-toggle input:checked + .chip-click {
+  background: #d97706;
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.4);
+}
+
+.jam-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  padding: 2px 6px;
+}
+
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #64748b;
+  transition: all 0.2s ease;
+}
+
+.sync-dot.is-active {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.btn-outline-cyan {
+  background: transparent;
+  color: #06b6d4;
+  border: 1px solid rgba(6, 182, 212, 0.5);
+  transition: all 0.18s ease;
+}
+
+.btn-outline-cyan:hover {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: #06b6d4;
+  color: #22d3ee;
+}
+
 /* Mobile Quick-Nav Tab Bar (Sticky on < 960px) */
 .mobile-nav-bar {
   display: none;

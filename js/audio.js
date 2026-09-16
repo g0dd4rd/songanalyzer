@@ -444,7 +444,7 @@ self.onmessage = function(e) {
       });
     }
 
-    async playProgression(parsedChords, bpm = 113, loop = false, onChordHighlight = null, onFinished = null) {
+    async playProgression(parsedChords, bpm = 113, loop = false, onChordHighlight = null, onFinished = null, startTime = null) {
       if (!this.initialized || !parsedChords || parsedChords.length === 0) return;
       await this.resumeIfNeeded();
 
@@ -456,38 +456,67 @@ self.onmessage = function(e) {
       Tone.Transport.bpm.value = bpm;
       const secondsPerChord = (60 / bpm) * 2;
       let currentIdx = 0;
+      const now = Tone.now();
+      let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
+      this.nextChordAudioTime = nextChordAudioTime;
 
-      const scheduleNext = () => {
+      // Lookahead scheduling loop for chords with sample-accurate Web Audio timing
+      const scheduleAhead = 0.3; // 300ms lookahead
+      const scheduleChords = () => {
         if (!this.isPlayingProgression) return;
+        const currentAudioTime = Tone.now();
 
-        if (currentIdx >= this.activeProgression.length) {
-          if (loop) {
-            currentIdx = 0;
-          } else {
-            this.stopProgression();
-            if (onFinished) onFinished();
-            return;
+        while (nextChordAudioTime < currentAudioTime + scheduleAhead) {
+          if (currentIdx >= this.activeProgression.length) {
+            if (loop) {
+              currentIdx = 0;
+            } else {
+              this.stopProgression();
+              if (onFinished) onFinished();
+              return;
+            }
           }
+
+          const chordIdx = currentIdx;
+          const chord = this.activeProgression[chordIdx];
+          const voicing = this.generateVoicing(chord);
+          const targetTime = Math.max(currentAudioTime, nextChordAudioTime);
+
+          // Audio attack scheduled with hardware precision
+          this.chordSynth.triggerAttackRelease(voicing, secondsPerChord * 0.9, targetTime);
+
+          // Visual highlight synchronized to audio time
+          if (this.onChordHighlight) {
+            const visualDelay = Math.max(0, (targetTime - Tone.now()) * 1000);
+            const tId = setTimeout(() => {
+              if (this.isPlayingProgression && this.onChordHighlight) {
+                this.onChordHighlight(chordIdx, chord);
+              }
+            }, visualDelay);
+            this.progressionVisualTimeouts.push(tId);
+          }
+
+          nextChordAudioTime += secondsPerChord;
+          this.nextChordAudioTime = nextChordAudioTime;
+          currentIdx++;
         }
-
-        const chord = this.activeProgression[currentIdx];
-        const voicing = this.generateVoicing(chord);
-
-        if (this.onChordHighlight) {
-          this.onChordHighlight(currentIdx, chord);
-        }
-
-        this.chordSynth.triggerAttackRelease(voicing, secondsPerChord * 0.9);
-
-        currentIdx++;
-        this.progressionTimeout = setTimeout(scheduleNext, secondsPerChord * 1000);
       };
 
-      scheduleNext();
+      this.progressionVisualTimeouts = [];
+      scheduleChords();
+      this.progressionInterval = setInterval(scheduleChords, 35);
     }
 
     stopProgression() {
       this.isPlayingProgression = false;
+      if (this.progressionInterval) {
+        clearInterval(this.progressionInterval);
+        this.progressionInterval = null;
+      }
+      if (this.progressionVisualTimeouts) {
+        this.progressionVisualTimeouts.forEach(tId => clearTimeout(tId));
+        this.progressionVisualTimeouts = [];
+      }
       if (this.progressionTimeout) {
         clearTimeout(this.progressionTimeout);
         this.progressionTimeout = null;
@@ -495,6 +524,12 @@ self.onmessage = function(e) {
       if (this.onChordHighlight) {
         this.onChordHighlight(-1, null);
       }
+    }
+
+    getNextChordDownbeatTime() {
+      if (!this.isPlayingProgression) return null;
+      const now = Tone.now();
+      return Math.max(now + 0.03, this.nextChordAudioTime || now);
     }
 
     // Arbitrary Time Signature Metronome (X / Y e.g. 7/8, 16/15, 4/4, 9/8, 5/4)
@@ -712,7 +747,7 @@ self.onmessage = function(e) {
       }
     }
 
-    async playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null) {
+    async playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null, startTime = null) {
       if (!this.initialized) {
         await this.init();
       }
@@ -728,7 +763,7 @@ self.onmessage = function(e) {
       const isInfinite = (loopCount === Infinity || loopCount === 'infinite');
       const maxLoops = isInfinite ? Infinity : Math.max(1, parseInt(loopCount, 10) || 1);
 
-      let nextIterationAudioTime = Tone.now() + 0.05;
+      let nextIterationAudioTime = (typeof startTime === 'number' && startTime >= Tone.now()) ? startTime : (Tone.now() + 0.05);
 
       const scheduleIteration = () => {
         if (!this.isRhythmPlaying) return;

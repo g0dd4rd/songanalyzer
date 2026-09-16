@@ -62,6 +62,9 @@
       this.generateRhythm();     // Generate initial rhythm
       this.initPracticeTimer();  // Initialize practice timer
       this.initBeatBuilder();    // Initialize adaptive grid drum machine
+      this.initMasterJamTransport(); // Initialize master transport (Spacebar, Jam sync)
+      this.initGrooveManagement();   // Initialize custom groove saving & library
+      this.initMidiExportImport();   // Initialize MIDI export & import studio
     }
 
     bindEvents() {
@@ -219,20 +222,32 @@
           if (audio.isPlayingProgression) {
             audio.stopProgression();
             btnPlayProg.textContent = '▶ Play Progression';
+            btnPlayProg.classList.remove('btn-warning');
           } else {
             const bpm = this.getBpm();
             const loop = document.getElementById('loopProgression').checked;
-            btnPlayProg.textContent = '⏹ Stop Progression';
+
+            let syncStartTime = null;
+            if (this.beatSequencer && this.beatSequencer.isPlaying) {
+              syncStartTime = this.beatSequencer.getNextDownbeatAudioTime();
+              btnPlayProg.textContent = '⏳ Syncing...';
+              btnPlayProg.classList.add('btn-warning');
+            } else {
+              btnPlayProg.textContent = '⏹ Stop Progression';
+            }
 
             audio.playProgression(this.parsedChords, bpm, loop, (idx, chord) => {
+              btnPlayProg.textContent = '⏹ Stop Progression';
+              btnPlayProg.classList.remove('btn-warning');
               this.highlightTableRow(idx);
               if (chord && this.visualizer) {
                 this.visualizer.setActiveChord(chord);
               }
             }, () => {
               btnPlayProg.textContent = '▶ Play Progression';
+              btnPlayProg.classList.remove('btn-warning');
               this.highlightTableRow(-1);
-            });
+            }, syncStartTime);
           }
         });
       }
@@ -521,7 +536,14 @@
             loopCount = Math.max(1, parseInt(mode, 10) || 1);
           }
 
-          this.updateRhythmPlayButtonState(true);
+          let syncStartTime = null;
+          if (this.beatSequencer && this.beatSequencer.isPlaying) {
+            syncStartTime = this.beatSequencer.getNextDownbeatAudioTime();
+            btnPlayRhythm.textContent = '⏳ Syncing...';
+          } else {
+            this.updateRhythmPlayButtonState(true);
+          }
+
           const statusBadge = document.getElementById('rhythmLoopStatus');
           if (statusBadge) {
             statusBadge.style.display = 'inline-block';
@@ -534,6 +556,7 @@
               () => this.getBpm(),
               loopCount,
               (idx) => {
+                this.updateRhythmPlayButtonState(true);
                 this.highlightRhythmGlyph(idx);
               },
               (currentLoop, maxLoops) => {
@@ -546,7 +569,8 @@
               () => {
                 this.updateRhythmPlayButtonState(false);
                 this.highlightRhythmGlyph(-1);
-              }
+              },
+              syncStartTime
             );
           } catch (err) {
             console.error('Error starting rhythm playback:', err);
@@ -1611,9 +1635,14 @@
             btnToggleBeat.classList.add('btn-danger');
             if (statusIndicator) statusIndicator.textContent = 'Playing';
 
+            let syncStartTime = null;
+            if (window.audio && window.audio.isPlayingProgression) {
+              syncStartTime = window.audio.getNextChordDownbeatTime();
+            }
+
             this.beatSequencer.start((stepIdx) => {
               this.highlightBeatStep(stepIdx);
-            });
+            }, syncStartTime);
           }
         });
       }
@@ -1877,6 +1906,493 @@
         const currentPads = document.querySelectorAll(`.beat-pad[data-step="${stepIdx}"]`);
         currentPads.forEach(p => p.classList.add('active-cursor'));
       }
+    }
+
+    // -------------------------------------------------------------
+    // Master Jam Transport Bar & Synchronized Playback Engine
+    // -------------------------------------------------------------
+    initMasterJamTransport() {
+      const btnToggle = document.getElementById('btnMasterJamToggle');
+      this.isMasterJamPlaying = false;
+
+      if (btnToggle) {
+        btnToggle.addEventListener('click', async () => {
+          await this.toggleMasterJam();
+        });
+      }
+
+      // Spacebar global keyboard listener (ignoring inputs/textareas/selects)
+      window.addEventListener('keydown', async (e) => {
+        if (e.code === 'Space') {
+          const target = e.target;
+          const isInput = target && (
+            target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable
+          );
+          if (!isInput) {
+            e.preventDefault();
+            await this.toggleMasterJam();
+          }
+        }
+      });
+
+      // Track checkboxes: live arming/muting during jam
+      const trackChords = document.getElementById('jamTrackChords');
+      const trackDrums = document.getElementById('jamTrackDrums');
+      const trackClave = document.getElementById('jamTrackClave');
+      const trackClick = document.getElementById('jamTrackClick');
+
+      [trackChords, trackDrums, trackClave, trackClick].forEach(box => {
+        if (!box) return;
+        box.addEventListener('change', async () => {
+          if (!this.isMasterJamPlaying) return;
+          await this.syncActiveJamTracks();
+        });
+      });
+
+      // Export Jam MIDI button in header
+      const btnExportJam = document.getElementById('btnExportJamMidi');
+      if (btnExportJam) {
+        btnExportJam.addEventListener('click', () => {
+          this.exportJamSessionMidi();
+        });
+      }
+    }
+
+    async toggleMasterJam() {
+      if (this.isMasterJamPlaying) {
+        this.stopMasterJam();
+      } else {
+        await this.startMasterJam();
+      }
+    }
+
+    async startMasterJam() {
+      if (!window.audio) return;
+      await window.audio.init();
+      await window.audio.resumeIfNeeded();
+      await this.ensureDrumAudioContext();
+
+      this.isMasterJamPlaying = true;
+      const bpm = this.getBpm();
+
+      const btnToggle = document.getElementById('btnMasterJamToggle');
+      const btnIcon = document.getElementById('masterJamBtnIcon');
+      const btnLabel = document.getElementById('masterJamBtnLabel');
+      const syncDot = document.getElementById('jamSyncDot');
+      const syncText = document.getElementById('jamSyncStatusText');
+
+      if (btnToggle) btnToggle.classList.add('is-playing');
+      if (btnIcon) btnIcon.textContent = '⏹';
+      if (btnLabel) btnLabel.textContent = 'STOP JAM';
+      if (syncDot) syncDot.classList.add('is-active');
+      if (syncText) syncText.textContent = 'Locked 🔒';
+
+      // Start all tracks locked to exact same audio timestamp
+      const startTime = Tone.now() + 0.08;
+
+      const trackChords = document.getElementById('jamTrackChords');
+      const trackDrums = document.getElementById('jamTrackDrums');
+      const trackClave = document.getElementById('jamTrackClave');
+      const trackClick = document.getElementById('jamTrackClick');
+
+      // 1. Drums
+      if (trackDrums && trackDrums.checked && this.beatSequencer) {
+        this.beatSequencer.setBpm(bpm);
+        this.beatSequencer.stop();
+        this.beatSequencer.start((stepIdx) => this.highlightBeatStep(stepIdx), startTime);
+        const btnToggleBeat = document.getElementById('btnToggleBeat');
+        if (btnToggleBeat) {
+          btnToggleBeat.textContent = '⏹ Stop Beat';
+          btnToggleBeat.classList.remove('btn-success');
+          btnToggleBeat.classList.add('btn-danger');
+        }
+        const beatStatus = document.getElementById('beatStatusIndicator');
+        if (beatStatus) beatStatus.textContent = 'Playing';
+      }
+
+      // 2. Chords
+      if (trackChords && trackChords.checked && this.parsedChords && this.parsedChords.length > 0) {
+        const btnPlayProg = document.getElementById('btnPlayProgression');
+        if (btnPlayProg) btnPlayProg.textContent = '⏹ Stop Progression';
+        window.audio.playProgression(
+          this.parsedChords,
+          bpm,
+          true,
+          (idx, chord) => {
+            this.highlightTableRow(idx);
+            if (chord && this.visualizer) this.visualizer.setActiveChord(chord);
+          },
+          () => {
+            if (btnPlayProg) btnPlayProg.textContent = '▶ Play Progression';
+            this.highlightTableRow(-1);
+          },
+          startTime
+        );
+      }
+
+      // 3. Clave / Rhythm
+      if (trackClave && trackClave.checked && this.currentRhythmItems && this.currentRhythmItems.length > 0) {
+        this.updateRhythmPlayButtonState(true);
+        const statusBadge = document.getElementById('rhythmLoopStatus');
+        if (statusBadge) {
+          statusBadge.style.display = 'inline-block';
+          statusBadge.textContent = 'Jam Loop (∞)';
+        }
+        window.audio.playRhythmSequence(
+          this.currentRhythmItems,
+          () => this.getBpm(),
+          Infinity,
+          (idx) => this.highlightRhythmGlyph(idx),
+          null,
+          () => {
+            this.updateRhythmPlayButtonState(false);
+            this.highlightRhythmGlyph(-1);
+          },
+          startTime
+        );
+      }
+
+      // 4. Metronome Click
+      if (trackClick && trackClick.checked) {
+        const sig = this.getMetronomeTimeSignature ? this.getMetronomeTimeSignature() : { num: 4, den: 4 };
+        window.audio.startMetronome(bpm, sig, 1, 'woodblock', (beat) => this.updateMetronomeBeat(beat));
+        const btnMetro = document.getElementById('btnToggleMetronome');
+        if (btnMetro) {
+          btnMetro.textContent = '⏹ Stop Metronome';
+          btnMetro.classList.add('btn-danger');
+        }
+      }
+    }
+
+    stopMasterJam() {
+      this.isMasterJamPlaying = false;
+
+      const btnToggle = document.getElementById('btnMasterJamToggle');
+      const btnIcon = document.getElementById('masterJamBtnIcon');
+      const btnLabel = document.getElementById('masterJamBtnLabel');
+      const syncDot = document.getElementById('jamSyncDot');
+      const syncText = document.getElementById('jamSyncStatusText');
+
+      if (btnToggle) btnToggle.classList.remove('is-playing');
+      if (btnIcon) btnIcon.textContent = '▶';
+      if (btnLabel) btnLabel.textContent = 'MASTER JAM';
+      if (syncDot) syncDot.classList.remove('is-active');
+      if (syncText) syncText.textContent = 'Jam Ready';
+
+      if (window.audio) {
+        window.audio.stopProgression();
+        window.audio.stopRhythm();
+        window.audio.stopMetronome();
+      }
+
+      if (this.beatSequencer) {
+        this.beatSequencer.stop();
+        this.highlightBeatStep(-1);
+      }
+
+      // Reset individual buttons
+      const btnPlayProg = document.getElementById('btnPlayProgression');
+      if (btnPlayProg) {
+        btnPlayProg.textContent = '▶ Play Progression';
+        btnPlayProg.classList.remove('btn-warning');
+      }
+      this.highlightTableRow(-1);
+
+      const btnToggleBeat = document.getElementById('btnToggleBeat');
+      if (btnToggleBeat) {
+        btnToggleBeat.textContent = '▶ Play Beat';
+        btnToggleBeat.classList.remove('btn-danger');
+        btnToggleBeat.classList.add('btn-success');
+      }
+      const beatStatus = document.getElementById('beatStatusIndicator');
+      if (beatStatus) beatStatus.textContent = 'Stopped';
+
+      const btnPlayRhythm = document.getElementById('btnPlayRhythm');
+      if (btnPlayRhythm) {
+        this.updateRhythmPlayButtonState(false);
+        this.highlightRhythmGlyph(-1);
+      }
+      const rhythmLoopStatus = document.getElementById('rhythmLoopStatus');
+      if (rhythmLoopStatus) rhythmLoopStatus.style.display = 'none';
+
+      const btnMetro = document.getElementById('btnToggleMetronome');
+      if (btnMetro) {
+        btnMetro.textContent = '▶ Start Metronome';
+        btnMetro.classList.remove('btn-danger');
+      }
+    }
+
+    async syncActiveJamTracks() {
+      if (!this.isMasterJamPlaying) return;
+      const bpm = this.getBpm();
+      const trackChords = document.getElementById('jamTrackChords');
+      const trackDrums = document.getElementById('jamTrackDrums');
+      const trackClave = document.getElementById('jamTrackClave');
+      const trackClick = document.getElementById('jamTrackClick');
+
+      // Quantize to next downbeat
+      const syncTime = (this.beatSequencer && this.beatSequencer.isPlaying)
+        ? this.beatSequencer.getNextDownbeatAudioTime()
+        : (Tone.now() + 0.05);
+
+      // Chords
+      if (trackChords && trackChords.checked && !window.audio.isPlayingProgression) {
+        window.audio.playProgression(this.parsedChords, bpm, true, (idx, c) => {
+          this.highlightTableRow(idx);
+          if (c && this.visualizer) this.visualizer.setActiveChord(c);
+        }, null, syncTime);
+      } else if (trackChords && !trackChords.checked && window.audio.isPlayingProgression) {
+        window.audio.stopProgression();
+        this.highlightTableRow(-1);
+      }
+
+      // Drums
+      if (trackDrums && trackDrums.checked && this.beatSequencer && !this.beatSequencer.isPlaying) {
+        this.beatSequencer.start((step) => this.highlightBeatStep(step), syncTime);
+      } else if (trackDrums && !trackDrums.checked && this.beatSequencer && this.beatSequencer.isPlaying) {
+        this.beatSequencer.stop();
+        this.highlightBeatStep(-1);
+      }
+
+      // Clave
+      if (trackClave && trackClave.checked && !window.audio.isRhythmPlaying) {
+        window.audio.playRhythmSequence(this.currentRhythmItems, () => this.getBpm(), Infinity, (s) => this.highlightRhythmGlyph(s), null, null, syncTime);
+      } else if (trackClave && !trackClave.checked && window.audio.isRhythmPlaying) {
+        window.audio.stopRhythm();
+        this.highlightRhythmGlyph(-1);
+      }
+
+      // Click
+      if (trackClick && trackClick.checked && !window.audio.isMetronomeRunning) {
+        const sig = this.getMetronomeTimeSignature ? this.getMetronomeTimeSignature() : { num: 4, den: 4 };
+        window.audio.startMetronome(bpm, sig, 1, 'woodblock', (b) => this.updateMetronomeBeat(b));
+      } else if (trackClick && !trackClick.checked && window.audio.isMetronomeRunning) {
+        window.audio.stopMetronome();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Custom Groove Library & Persistence (localStorage + JSON)
+    // -------------------------------------------------------------
+    initGrooveManagement() {
+      this.refreshSavedGroovesDropdown();
+
+      const btnSave = document.getElementById('btnSaveUserGroove');
+      const btnDelete = document.getElementById('btnDeleteUserGroove');
+      const selectPreset = document.getElementById('beatPresetSelect');
+
+      if (btnSave) {
+        btnSave.addEventListener('click', () => {
+          const sig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
+          const defName = `Groove ${sig.num}/${sig.den} (${this.getBpm()} BPM)`;
+          const name = prompt('Enter a name for this custom groove:', defName);
+          if (name && name.trim()) {
+            const saved = this.beatSequencer.saveUserGroove(name.trim());
+            this.refreshSavedGroovesDropdown(saved.id);
+          }
+        });
+      }
+
+      if (btnDelete) {
+        btnDelete.addEventListener('click', () => {
+          if (!selectPreset || !selectPreset.value.startsWith('user_')) return;
+          const id = selectPreset.value.replace('user_', '');
+          if (confirm('Are you sure you want to delete this saved groove?')) {
+            this.beatSequencer.deleteUserGroove(id);
+            this.refreshSavedGroovesDropdown();
+          }
+        });
+      }
+
+      if (selectPreset) {
+        selectPreset.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val && val.startsWith('user_')) {
+            const id = val.replace('user_', '');
+            const groove = this.beatSequencer.loadUserGroove(id);
+            if (groove) {
+              const beatTimeSigInput = document.getElementById('beatTimeSigInput');
+              if (beatTimeSigInput) {
+                beatTimeSigInput.value = `${groove.timeSignature.num}/${groove.timeSignature.den}`;
+              }
+              const swingSlider = document.getElementById('beatSwingSlider');
+              const swingVal = document.getElementById('beatSwingValue');
+              if (swingSlider && swingVal) {
+                const pct = Math.round((groove.swing || 0) * 100);
+                swingSlider.value = pct;
+                swingVal.textContent = `${pct}%`;
+              }
+              if (btnDelete) btnDelete.style.display = 'inline-block';
+              this.renderBeatGrid();
+            }
+          } else {
+            if (btnDelete) btnDelete.style.display = 'none';
+          }
+        });
+      }
+
+      // Backup JSON
+      const btnBackup = document.getElementById('btnBackupGroovesJson');
+      if (btnBackup) {
+        btnBackup.addEventListener('click', () => {
+          const jsonStr = this.beatSequencer.exportUserGroovesJson();
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'my_saved_grooves.json';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 150);
+        });
+      }
+
+      // Restore JSON
+      const btnRestore = document.getElementById('btnRestoreGroovesJson');
+      const fileInput = document.getElementById('groovesJsonFileInput');
+      if (btnRestore && fileInput) {
+        btnRestore.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (re) => {
+            const text = re.target.result;
+            const count = this.beatSequencer.importUserGroovesJson(text);
+            if (count !== false) {
+              alert(`Successfully imported ${count} grooves!`);
+              this.refreshSavedGroovesDropdown();
+            } else {
+              alert('Could not parse grooves file. Please check the JSON format.');
+            }
+          };
+          reader.readAsText(file);
+          fileInput.value = '';
+        });
+      }
+    }
+
+    refreshSavedGroovesDropdown(selectedId = null) {
+      const optgroup = document.getElementById('optgroupSavedGrooves');
+      const btnDelete = document.getElementById('btnDeleteUserGroove');
+      if (!optgroup || !this.beatSequencer) return;
+
+      optgroup.innerHTML = '';
+      const grooves = this.beatSequencer.getUserGrooves();
+
+      if (grooves.length === 0) {
+        const opt = document.createElement('option');
+        opt.disabled = true;
+        opt.textContent = '(No saved grooves yet)';
+        optgroup.appendChild(opt);
+        if (btnDelete) btnDelete.style.display = 'none';
+        return;
+      }
+
+      grooves.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = `user_${g.id}`;
+        opt.textContent = `⭐ ${g.name} (${g.timeSignature.num}/${g.timeSignature.den})`;
+        if (selectedId && g.id === selectedId) {
+          opt.selected = true;
+        }
+        optgroup.appendChild(opt);
+      });
+
+      if (selectedId && btnDelete) {
+        btnDelete.style.display = 'inline-block';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Standard MIDI File Studio (Export / Import for DAWs)
+    // -------------------------------------------------------------
+    initMidiExportImport() {
+      // 1. Export Beat MIDI
+      const btnExportBeat = document.getElementById('btnExportBeatMidi');
+      if (btnExportBeat) {
+        btnExportBeat.addEventListener('click', () => {
+          if (!window.SongMidi || !this.beatSequencer) return;
+          const sig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
+          const bytes = window.SongMidi.exportBeatToMidi(this.beatSequencer, {
+            loops: 2,
+            title: `Drum Beat ${sig.num}_${sig.den}`
+          });
+          window.SongMidi.downloadMidiBlob(bytes, `beat_${sig.num}_${sig.den}_${this.getBpm()}bpm.mid`);
+        });
+      }
+
+      // 2. Export Chords MIDI
+      const btnExportChords = document.getElementById('btnExportChordsMidi');
+      if (btnExportChords) {
+        btnExportChords.addEventListener('click', () => {
+          if (!window.SongMidi || !this.parsedChords || this.parsedChords.length === 0) {
+            alert('Please analyze a chord progression first.');
+            return;
+          }
+          const bpm = this.getBpm();
+          const bytes = window.SongMidi.exportChordsToMidi(this.parsedChords, window.audio, {
+            bpm,
+            loops: 2,
+            title: 'Chords (Song Analyzer)'
+          });
+          window.SongMidi.downloadMidiBlob(bytes, `chords_${bpm}bpm.mid`);
+        });
+      }
+
+      // 3. Import Beat MIDI
+      const btnImportBeat = document.getElementById('btnImportBeatMidi');
+      const beatFileInput = document.getElementById('beatMidiFileInput');
+      if (btnImportBeat && beatFileInput) {
+        btnImportBeat.addEventListener('click', () => beatFileInput.click());
+        beatFileInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (re) => {
+            try {
+              const buffer = re.target.result;
+              const res = window.SongMidi.importMidiToBeat(buffer, this.beatSequencer);
+              if (res) {
+                if (res.bpm && this.setAppBpm) this.setAppBpm(res.bpm);
+                const beatTimeSigInput = document.getElementById('beatTimeSigInput');
+                if (beatTimeSigInput && res.timeSignature) {
+                  beatTimeSigInput.value = `${res.timeSignature.num}/${res.timeSignature.den}`;
+                }
+                const presetSelect = document.getElementById('beatPresetSelect');
+                if (presetSelect) presetSelect.value = '';
+                this.renderBeatGrid();
+                alert(`Imported MIDI drum beat! (${res.notesFound} notes mapped to ${res.stepCount} steps)`);
+              }
+            } catch (err) {
+              console.error('Failed to import MIDI:', err);
+              alert('Could not parse MIDI file. Make sure it is a valid Standard MIDI file (.mid).');
+            }
+          };
+          reader.readAsArrayBuffer(file);
+          beatFileInput.value = '';
+        });
+      }
+    }
+
+    exportJamSessionMidi() {
+      if (!window.SongMidi) return;
+      const bpm = this.getBpm();
+      const bytes = window.SongMidi.exportJamSessionToMidi({
+        sequencer: this.beatSequencer,
+        parsedChords: this.parsedChords,
+        rhythmItems: this.currentRhythmItems,
+        audioEngine: window.audio,
+        bpm,
+        loops: 2
+      });
+      window.SongMidi.downloadMidiBlob(bytes, `jam_session_${bpm}bpm.mid`);
     }
   }
 

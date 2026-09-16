@@ -11,6 +11,7 @@
   <script src="js/audio.js"></script>
   <script src="js/visualizer.js"></script>
   <script src="js/drums.js"></script>
+  <script src="js/midi.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -26,10 +27,48 @@
         </div>
       </div>
 
+      <!-- Master Jam Transport (Starts/Stops All Active Tracks in 100% Phase-Locked Sync) -->
+      <div class="master-jam-transport" id="masterJamTransport">
+        <button id="btnMasterJamToggle" class="btn btn-master-jam" title="Play or Stop all enabled jam tracks in sync (Shortcut: Spacebar)">
+          <span class="jam-btn-icon" id="masterJamBtnIcon">▶</span>
+          <span class="jam-btn-label" id="masterJamBtnLabel">MASTER JAM</span>
+          <span class="jam-btn-key">SPACE</span>
+        </button>
+
+        <!-- Track Arm / Mute Toggles -->
+        <div class="jam-tracks-group">
+          <label class="jam-track-toggle" title="Include Chords in Master Jam">
+            <input type="checkbox" id="jamTrackChords" checked>
+            <span class="jam-track-chip chip-chords">🎹 Chords</span>
+          </label>
+          <label class="jam-track-toggle" title="Include Beat Builder Drums in Master Jam">
+            <input type="checkbox" id="jamTrackDrums" checked>
+            <span class="jam-track-chip chip-drums">🥁 Drums</span>
+          </label>
+          <label class="jam-track-toggle" title="Include Clave / Rhythm in Master Jam">
+            <input type="checkbox" id="jamTrackClave" checked>
+            <span class="jam-track-chip chip-clave">🥢 Clave</span>
+          </label>
+          <label class="jam-track-toggle" title="Include Metronome Click in Master Jam">
+            <input type="checkbox" id="jamTrackClick">
+            <span class="jam-track-chip chip-click">⏱ Click</span>
+          </label>
+        </div>
+
+        <div class="jam-sync-status" id="jamSyncStatus" title="Playback Synchronization Clock">
+          <span class="sync-dot" id="jamSyncDot"></span>
+          <span class="sync-text" id="jamSyncStatusText">Jam Ready</span>
+        </div>
+
+        <button id="btnExportJamMidi" class="btn btn-sm btn-outline-cyan" title="Export entire multi-track jam (Chords + Drums + Clave) as Standard MIDI file for DAWs">
+          ⬇ Export Jam MIDI
+        </button>
+      </div>
+
       <div class="header-controls">
         <div class="control-item">
           <label for="masterVolume">Vol:</label>
-          <input type="range" id="masterVolume" min="-30" max="4" value="-6" step="1">
+          <input type="range" id="masterVolume" min="-30" max="4" value="-6" step="1" title="Master Audio Volume">
         </div>
       </div>
     </div>
@@ -110,8 +149,9 @@
         <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
           <button id="btnPlayProgression" class="btn btn-success">▶ Play Progression</button>
           <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer;">
-            <input type="checkbox" id="loopProgression"> Loop
+            <input type="checkbox" id="loopProgression" checked> Loop
           </label>
+          <button id="btnExportChordsMidi" class="btn btn-sm btn-outline-cyan" title="Export chord progression as Standard MIDI file (.mid) on Channel 1 (Piano)">⬇ Chords MIDI</button>
           <button type="button" id="btnToggleChordGuide" class="btn btn-sm" title="Toggle Chord Syntax &amp; Examples Guide" style="display: inline-flex; align-items: center; gap: 5px;">📖 Chord Notation Guide</button>
 
           <div style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px;">
@@ -650,17 +690,24 @@
                 <label for="beatPresetSelect" style="font-size: 0.82rem; color: var(--text-muted); margin: 0;">Groove:</label>
                 <select id="beatPresetSelect" class="form-control" style="font-size: 0.82rem; padding: 3px 6px; width: auto;">
                   <option value="" disabled selected>Load Preset...</option>
-                  <option value="rock">Rock Power Drive (4/4)</option>
-                  <option value="funk">Funk & Ghost Snare (4/4)</option>
-                  <option value="latinCowbell">Latin Mambo & 808 Cowbell (4/4)</option>
-                  <option value="jazzSwing">Jazz Ride Swing (4/4)</option>
-                  <option value="balkan78">Balkan Râčenica (7/8)</option>
-                  <option value="takeFive54">Take Five (5/4)</option>
-                  <option value="afro68">Afro-Cuban Bembé (6/8)</option>
-                  <option value="waltz34">Viennese Waltz (3/4)</option>
-                  <option value="bossaNova">Bossa Nova (4/4)</option>
-                  <option value="fourOnFloor">4-on-the-Floor Disco (4/4)</option>
+                  <optgroup id="optgroupSavedGrooves" label="⭐ My Saved Grooves">
+                    <!-- Populated dynamically from localStorage -->
+                  </optgroup>
+                  <optgroup label="📁 Factory Grooves">
+                    <option value="rock">Rock Power Drive (4/4)</option>
+                    <option value="funk">Funk & Ghost Snare (4/4)</option>
+                    <option value="latinCowbell">Latin Mambo & 808 Cowbell (4/4)</option>
+                    <option value="jazzSwing">Jazz Ride Swing (4/4)</option>
+                    <option value="balkan78">Balkan Râčenica (7/8)</option>
+                    <option value="takeFive54">Take Five (5/4)</option>
+                    <option value="afro68">Afro-Cuban Bembé (6/8)</option>
+                    <option value="waltz34">Viennese Waltz (3/4)</option>
+                    <option value="bossaNova">Bossa Nova (4/4)</option>
+                    <option value="fourOnFloor">4-on-the-Floor Disco (4/4)</option>
+                  </optgroup>
                 </select>
+                <button id="btnSaveUserGroove" class="btn btn-sm btn-primary" title="Save current beat as a named groove in your personal library" style="padding: 2px 7px; font-size: 0.8rem;">💾 Save</button>
+                <button id="btnDeleteUserGroove" class="btn btn-sm btn-danger" title="Delete currently selected saved groove" style="padding: 2px 6px; font-size: 0.8rem; display: none;">🗑</button>
               </div>
 
               <div style="display: flex; align-items: center; gap: 4px;">
@@ -670,7 +717,13 @@
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+              <button id="btnExportBeatMidi" class="btn btn-sm btn-outline-cyan" title="Export drum pattern to General MIDI (.mid) on Channel 10" style="font-size: 0.78rem; padding: 2px 7px;">⬇ Beat MIDI</button>
+              <button id="btnImportBeatMidi" class="btn btn-sm" title="Import drum pattern from Standard MIDI (.mid) file" style="font-size: 0.78rem; padding: 2px 7px;">⬆ Import MIDI</button>
+              <input type="file" id="beatMidiFileInput" accept=".mid,.midi" style="display: none;">
+              <button id="btnBackupGroovesJson" class="btn btn-sm" title="Backup all saved grooves to JSON file" style="font-size: 0.78rem; padding: 2px 7px;">💾 Backup</button>
+              <button id="btnRestoreGroovesJson" class="btn btn-sm" title="Restore saved grooves from JSON file" style="font-size: 0.78rem; padding: 2px 7px;">📂 Restore</button>
+              <input type="file" id="groovesJsonFileInput" accept=".json" style="display: none;">
               <button id="btnClearBeatGrid" class="btn btn-sm" title="Clear all drum steps" style="font-size: 0.78rem; padding: 2px 7px;">
                 🔄 Clear
               </button>
