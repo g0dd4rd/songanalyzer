@@ -997,6 +997,102 @@ tr:hover td {
   color: #e9d5ff;
 }
 
+/* Oblique Strategies Creative Cards */
+.btn-oblique {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #ffffff;
+  border: 1px solid #a78bfa;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-oblique:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  border-color: #c4b5fd;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.oblique-card-box {
+  background: linear-gradient(145deg, #181c2b, #0f121d);
+  border: 1px solid #7c3aed;
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(124, 58, 237, 0.2);
+  animation: obliqueCardFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes obliqueCardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.oblique-card-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.oblique-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a78bfa;
+  border-bottom: 1px dashed rgba(167, 139, 250, 0.25);
+  padding-bottom: 6px;
+}
+
+.oblique-card-edition {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.oblique-card-tracker {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.oblique-card-quote {
+  font-size: 1.18rem;
+  font-style: italic;
+  font-weight: 500;
+  color: #f8fafc;
+  line-height: 1.45;
+  padding: 10px 4px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.oblique-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.oblique-cycle-tag {
+  font-size: 0.75rem;
+  color: var(--accent-gold);
+  background: rgba(245, 158, 11, 0.12);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-family: var(--font-mono);
+}
+
+
 /* Metronome & Rhythm Studio */
 .metro-display-area {
   display: flex;

@@ -12,6 +12,7 @@
   <script src="js/visualizer.js"></script>
   <script src="js/drums.js"></script>
   <script src="js/midi.js"></script>
+  <script src="js/oblique.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -480,13 +481,13 @@
           Draw random chord cards, drag/reorder them into the most musical progression, and jam on your instrument!
         </p>
 
-        <div class="input-row" style="margin-top: 10px;">
-          <select id="jamCardCount" style="max-width: 120px;">
-            <option value="3">3 Cards</option>
-            <option value="4" selected>4 Cards</option>
-            <option value="5">5 Cards</option>
-            <option value="6">6 Cards</option>
-          </select>
+        <div class="input-row" style="margin-top: 10px; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: inline-flex; align-items: center; gap: 4px;">
+            <label for="jamCardCount" style="font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Cards:</label>
+            <input type="number" id="jamCardCount" class="form-control" min="1" max="64" value="4" 
+                   style="width: 65px; padding: 4px 6px; font-size: 0.9rem; font-weight: 700; text-align: center;" 
+                   title="Deal any arbitrary number of chord cards (e.g. 1 to 64)">
+          </div>
 
           <select id="jamCardPool" style="max-width: 160px;">
             <option value="wildcard" selected>Pure Wildcards</option>
@@ -496,6 +497,7 @@
           <button id="btnDealCards" class="btn">🃏 Deal Cards</button>
           <button id="btnPlayCards" class="btn btn-success">▶ Play</button>
           <button id="btnExportJamTxt" class="btn" title="Save Jam Deck chord progression as a text file on your computer">💾 Save TXT</button>
+          <button id="btnExportJamDeckMidi" class="btn" title="Save Jam Deck chord progression as a MIDI file on your computer">⬇ Save MIDI</button>
           <button id="btnSendJamToAnalyzer" class="btn" title="Send this card sequence directly to Harmonic Progression Analyzer">🎼 Send to Analyzer</button>
         </div>
 
@@ -503,10 +505,34 @@
           <!-- Dynamic Jam Cards Render Here -->
         </div>
 
-        <div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
           <button id="btnNewChallenge" class="btn btn-sm">🎲 New Jam Prompt</button>
-          <div id="jamChallengePrompt" class="jam-challenge-box">
-            🎯 Practice Prompt: Reorder cards so at least one guide tone (3rd or 7th) moves by half-step.
+          <button id="btnDrawOblique" class="btn btn-sm btn-oblique" title="Draw a non-repeating Oblique Strategies card (Brian Eno & Peter Schmidt)">🔮 Oblique Prompt</button>
+          <button id="btnReshuffleOblique" class="btn btn-sm" title="Reshuffle the 133-card Oblique Strategies deck" style="font-size: 0.78rem; padding: 2px 7px;">🔄 Reshuffle Deck</button>
+          <span id="obliqueDeckBadge" class="tempo-marking-badge" style="font-size: 0.76rem; padding: 2px 8px; margin-left: auto;">Deck: 0 / 133 Drawn</span>
+        </div>
+
+        <div id="jamChallengePrompt" class="jam-challenge-box" style="margin-top: 8px;">
+          🎯 Practice Prompt: Reorder cards so at least one guide tone (3rd or 7th) moves by half-step.
+        </div>
+
+        <!-- Oblique Strategy Card Modal / Banner -->
+        <div id="obliqueCardDisplay" class="oblique-card-box" style="display: none; margin-top: 10px;">
+          <div class="oblique-card-inner">
+            <div class="oblique-card-meta">
+              <span class="oblique-card-edition">OBLIQUE STRATEGIES</span>
+              <span id="obliqueCardNum" class="oblique-card-tracker">#1 of 133</span>
+            </div>
+            <div id="obliqueCardText" class="oblique-card-quote">
+              <!-- Card text injected by js/app.js -->
+            </div>
+            <div class="oblique-card-footer">
+              <span id="obliqueCycleInfo" class="oblique-cycle-tag">Cycle 1</span>
+              <div style="display: flex; gap: 6px;">
+                <button id="btnNextObliqueCard" class="btn btn-sm btn-oblique" style="font-size: 0.75rem; padding: 2px 8px;">🔮 Next Card</button>
+                <button id="btnCloseOblique" class="btn btn-sm" style="font-size: 0.75rem; padding: 2px 8px;">✕ Close</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>

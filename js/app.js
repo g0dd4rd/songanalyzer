@@ -65,6 +65,7 @@
       this.initMasterJamTransport(); // Initialize master transport (Spacebar, Jam sync)
       this.initGrooveManagement();   // Initialize custom groove saving & library
       this.initMidiExportImport();   // Initialize MIDI export & import studio
+      this.initObliquePrompts();     // Initialize Oblique Strategies non-repeating creative deck
     }
 
     bindEvents() {
@@ -347,6 +348,26 @@
       }
 
       // Jam Cards Controls
+      const countEl = document.getElementById('jamCardCount');
+      if (countEl) {
+        countEl.addEventListener('change', () => {
+          this.dealJamCards();
+        });
+        countEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.dealJamCards();
+          }
+        });
+      }
+
+      const poolEl = document.getElementById('jamCardPool');
+      if (poolEl) {
+        poolEl.addEventListener('change', () => {
+          this.dealJamCards();
+        });
+      }
+
       const btnDeal = document.getElementById('btnDealCards');
       if (btnDeal) {
         btnDeal.addEventListener('click', () => {
@@ -382,6 +403,14 @@
       if (btnExportJam) {
         btnExportJam.addEventListener('click', () => {
           this.exportJamProgressionTxt();
+        });
+      }
+
+      // Export Jam Deck progression as MIDI file
+      const btnExportJamDeckMidi = document.getElementById('btnExportJamDeckMidi');
+      if (btnExportJamDeckMidi) {
+        btnExportJamDeckMidi.addEventListener('click', () => {
+          this.exportJamProgressionMidi();
         });
       }
 
@@ -847,24 +876,64 @@
       if (!Theory) return;
 
       const countEl = document.getElementById('jamCardCount');
-      const numCards = countEl ? (parseInt(countEl.value, 10) || 4) : 4;
+      let numCards = countEl ? parseInt(countEl.value, 10) : 4;
+      if (isNaN(numCards) || numCards < 1) numCards = 4;
+      if (numCards > 64) numCards = 64;
+      if (countEl) countEl.value = numCards;
+
+      if (!this.lockedCards) {
+        this.lockedCards = new Set();
+      } else {
+        for (const idx of this.lockedCards) {
+          if (idx >= numCards) this.lockedCards.delete(idx);
+        }
+      }
+
+      const poolEl = document.getElementById('jamCardPool');
+      const pool = poolEl ? poolEl.value : 'wildcard';
+
       const roots = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
       const qualities = Theory.CHORD_QUALITIES;
 
+      // Diatonic key center and degree maps
+      const diatonicTonic = roots[Math.floor(Math.random() * roots.length)];
+      const diatonicIntervals = [0, 2, 4, 5, 7, 9, 11]; // Major scale degrees
+      const diatonicQualities = ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5'];
+      const spiceQualities = ['7', 'dim7', '7b9', '9', 'sus4', 'm9', 'maj9'];
+
       const newCards = [];
       for (let i = 0; i < numCards; i++) {
-        if (this.lockedCards.has(i) && this.jamCards[i]) {
+        if (this.lockedCards.has(i) && this.jamCards && this.jamCards[i]) {
           newCards.push(this.jamCards[i]);
         } else {
-          const root = roots[Math.floor(Math.random() * roots.length)];
-          const quality = qualities[Math.floor(Math.random() * qualities.length)];
-          const symbol = `${root}${quality.aliases[0] || ''}`;
+          let root, qualitySymbol, qualityObj;
+
+          if (pool === 'diatonic_spice') {
+            const isSpice = Math.random() < 0.25; // 25% chance of spice chord
+            if (!isSpice) {
+              const degIdx = Math.floor(Math.random() * diatonicIntervals.length);
+              const tonicPC = roots.indexOf(diatonicTonic);
+              const chordPC = (tonicPC + diatonicIntervals[degIdx]) % 12;
+              root = roots[chordPC];
+              qualitySymbol = diatonicQualities[degIdx];
+            } else {
+              root = roots[Math.floor(Math.random() * roots.length)];
+              qualitySymbol = spiceQualities[Math.floor(Math.random() * spiceQualities.length)];
+            }
+            qualityObj = qualities.find(q => q.aliases && q.aliases.includes(qualitySymbol)) || qualities[0];
+          } else {
+            root = roots[Math.floor(Math.random() * roots.length)];
+            qualityObj = qualities[Math.floor(Math.random() * qualities.length)];
+            qualitySymbol = (qualityObj.aliases && qualityObj.aliases[0]) || '';
+          }
+
+          const symbol = `${root}${qualitySymbol}`;
           newCards.push({
             index: i,
             symbol,
             root,
-            qualityName: quality.name,
-            formula: quality.formula
+            qualityName: qualityObj.name,
+            formula: qualityObj.formula
           });
         }
       }
@@ -908,6 +977,11 @@
 
         cardEl.querySelector('.btn-card-move-left').addEventListener('click', () => {
           if (idx > 0) {
+            const isCurrLocked = this.lockedCards.has(idx);
+            const isPrevLocked = this.lockedCards.has(idx - 1);
+            if (isCurrLocked) this.lockedCards.add(idx - 1); else this.lockedCards.delete(idx - 1);
+            if (isPrevLocked) this.lockedCards.add(idx); else this.lockedCards.delete(idx);
+
             const temp = this.jamCards[idx];
             this.jamCards[idx] = this.jamCards[idx - 1];
             this.jamCards[idx - 1] = temp;
@@ -917,6 +991,11 @@
 
         cardEl.querySelector('.btn-card-move-right').addEventListener('click', () => {
           if (idx < this.jamCards.length - 1) {
+            const isCurrLocked = this.lockedCards.has(idx);
+            const isNextLocked = this.lockedCards.has(idx + 1);
+            if (isCurrLocked) this.lockedCards.add(idx + 1); else this.lockedCards.delete(idx + 1);
+            if (isNextLocked) this.lockedCards.add(idx); else this.lockedCards.delete(idx);
+
             const temp = this.jamCards[idx];
             this.jamCards[idx] = this.jamCards[idx + 1];
             this.jamCards[idx + 1] = temp;
@@ -950,7 +1029,7 @@
       const challenges = [
         'Voice Leading: Reorder cards so at least one guide tone (3rd or 7th) moves by a single semitone.',
         'Pedal Point Challenge: Keep a constant low E or A bass pedal ringing while playing these voicings on top.',
-        'Smooth Cadence: Arrange the 4 cards so the final chord resolves seamlessly back into the first card in a loop.',
+        'Smooth Cadence: Arrange the cards so the final chord resolves seamlessly back into the first card in a loop.',
         'Tritone Substitution: Identify any dominant 7th chord in your cards and swap it with its tritone substitution.',
         'Shell Voicings: Play only Root, 3rd, and 7th (leave out the 5th) on the middle 4 guitar strings.',
         'Arpeggio Run: Play each chord as an ascending arpeggio and resolve the top note into the next chord’s 3rd.'
@@ -1007,6 +1086,23 @@
       URL.revokeObjectURL(url);
     }
 
+    exportJamProgressionMidi() {
+      const Theory = window.SongTheory;
+      if (!Theory || !window.SongMidi || !this.jamCards || this.jamCards.length === 0) return;
+
+      const bpm = this.getBpm();
+      const parsedCards = this.jamCards.map(c => Theory.parseChord(c.symbol)).filter(Boolean);
+      if (parsedCards.length === 0) return;
+
+      const bytes = window.SongMidi.exportChordsToMidi(parsedCards, window.audio, {
+        bpm,
+        loops: 2,
+        title: `Jam Deck (${parsedCards.length} Chords)`
+      });
+      const fileDate = new Date().toISOString().slice(0, 10);
+      window.SongMidi.downloadMidiBlob(bytes, `jam-progression-${parsedCards.length}chords-${fileDate}.mid`);
+    }
+
     sendJamToAnalyzer() {
       if (!this.jamCards || this.jamCards.length === 0) return;
       const progInput = document.getElementById('progressionInput');
@@ -1019,6 +1115,75 @@
           const analyzerSec = document.getElementById('analyzerSection');
           if (analyzerSec) analyzerSec.scrollIntoView({ behavior: 'smooth' });
         }
+      }
+    }
+
+    // Oblique Strategies Non-Repeating Creative Deck Engine
+    initObliquePrompts() {
+      const btnDraw = document.getElementById('btnDrawOblique');
+      const btnNext = document.getElementById('btnNextObliqueCard');
+      const btnReshuffle = document.getElementById('btnReshuffleOblique');
+      const btnClose = document.getElementById('btnCloseOblique');
+      const cardDisplay = document.getElementById('obliqueCardDisplay');
+      const cardText = document.getElementById('obliqueCardText');
+      const cardNum = document.getElementById('obliqueCardNum');
+      const cycleInfo = document.getElementById('obliqueCycleInfo');
+      const badge = document.getElementById('obliqueDeckBadge');
+
+      const deck = window.SongOblique ? window.SongOblique.deck : null;
+      if (!deck) return;
+
+      const updateBadge = () => {
+        if (!badge) return;
+        const stats = deck.getStats();
+        badge.textContent = `Deck: ${stats.drawnCount} / ${stats.total} Drawn`;
+        badge.title = `Cycle ${stats.cycle} • ${stats.remainingCount} cards remaining before auto-reshuffle`;
+      };
+
+      const showCard = (card) => {
+        if (!card || !cardDisplay || !cardText) return;
+        cardText.textContent = `“${card.text}”`;
+        if (cardNum) cardNum.textContent = `#${card.drawnNumber} of ${card.totalCards}`;
+        if (cycleInfo) cycleInfo.textContent = `Cycle ${card.cycle}`;
+        cardDisplay.style.display = 'block';
+        updateBadge();
+      };
+
+      if (btnDraw) {
+        btnDraw.addEventListener('click', () => {
+          const card = deck.drawCard();
+          showCard(card);
+        });
+      }
+
+      if (btnNext) {
+        btnNext.addEventListener('click', () => {
+          const card = deck.drawCard();
+          showCard(card);
+        });
+      }
+
+      if (btnReshuffle) {
+        btnReshuffle.addEventListener('click', () => {
+          deck.resetDeck();
+          updateBadge();
+          if (cardDisplay && cardDisplay.style.display !== 'none') {
+            const card = deck.drawCard();
+            showCard(card);
+          }
+        });
+      }
+
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (cardDisplay) cardDisplay.style.display = 'none';
+        });
+      }
+
+      updateBadge();
+      const current = deck.getCurrentCard();
+      if (current && cardDisplay && cardDisplay.style.display !== 'none') {
+        showCard(current);
       }
     }
 
