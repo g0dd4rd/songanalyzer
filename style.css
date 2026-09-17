@@ -1092,6 +1092,202 @@ tr:hover td {
   font-family: var(--font-mono);
 }
 
+/* ==========================================================================
+   Module 0: Chromatic Strobe & Needle Tuner
+   ========================================================================== */
+.tuner-card {
+  background: linear-gradient(145deg, #131b2e, #0c101d);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.tuner-card.in-tune-glow {
+  border-color: rgba(16, 185, 129, 0.7);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.25);
+}
+
+.tuner-rack-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 260px;
+  gap: 20px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+@media (max-width: 1040px) {
+  .tuner-rack-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.tuner-rack-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tuner-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tuner-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.tuner-strings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 6px;
+}
+
+.btn-tuner-string {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.btn-tuner-string:hover {
+  background: #334155;
+  border-color: var(--accent-cyan);
+  color: #38bdf8;
+}
+
+.btn-tuner-string.active {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+}
+
+.btn-tuner-string.in-tune {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #34d399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.tuner-rack-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.tuner-gauge-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+}
+
+.tuner-canvas {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  display: block;
+}
+
+.tuner-note-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: -35px;
+  z-index: 2;
+}
+
+.tuner-note-primary {
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #f8fafc;
+  font-family: var(--font-sans);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  letter-spacing: -0.02em;
+  transition: color 0.15s ease;
+}
+
+.tuner-note-primary.in-tune {
+  color: #10b981;
+  text-shadow: 0 0 18px rgba(16, 185, 129, 0.7);
+}
+
+.tuner-status-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 10px;
+  border-radius: 12px;
+  margin-top: 4px;
+  background: #1e293b;
+  color: var(--text-muted);
+  border: 1px solid #334155;
+  transition: all 0.2s ease;
+}
+
+.tuner-status-badge.in-tune {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.tuner-status-badge.flat {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.tuner-status-badge.sharp {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.tuner-freq-readout {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
+.tuner-vu-meter-bar {
+  width: 100%;
+  height: 10px;
+  background: #0f172a;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.tuner-vu-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #10b981 65%, #f59e0b 85%, #ef4444 100%);
+  border-radius: 5px;
+  transition: width 0.08s ease-out;
+}
+
 
 /* Metronome & Rhythm Studio */
 .metro-display-area {

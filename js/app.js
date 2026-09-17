@@ -66,6 +66,7 @@
       this.initGrooveManagement();   // Initialize custom groove saving & library
       this.initMidiExportImport();   // Initialize MIDI export & import studio
       this.initObliquePrompts();     // Initialize Oblique Strategies non-repeating creative deck
+      this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
     }
 
     bindEvents() {
@@ -296,6 +297,7 @@
           allCards.forEach(card => {
             if (card.id === targetId) {
               card.classList.add('mobile-active-card');
+              if (card.id === 'tunerSection') card.style.display = 'block';
             } else {
               card.classList.remove('mobile-active-card');
             }
@@ -1184,6 +1186,294 @@
       const current = deck.getCurrentCard();
       if (current && cardDisplay && cardDisplay.style.display !== 'none') {
         showCard(current);
+      }
+    }
+
+    // Chromatic Strobe & Needle Tuner Module
+    initTunerModule() {
+      const Tuner = window.SongTuner;
+      if (!Tuner) return;
+
+      const tuner = Tuner.tuner;
+      const tunerCanvas = document.getElementById('tunerCanvas');
+      const tunerSection = document.getElementById('tunerSection');
+      const btnToggleTop = document.getElementById('btnToggleTunerTop');
+      const btnPower = document.getElementById('btnToggleTunerPower');
+      const btnClose = document.getElementById('btnCloseTuner');
+      const presetSelect = document.getElementById('tunerPresetSelect');
+      const stringsContainer = document.getElementById('tunerStringsContainer');
+      const btnChromatic = document.getElementById('btnTunerChromaticMode');
+      const noteText = document.getElementById('tunerNoteText');
+      const statusText = document.getElementById('tunerStatusText');
+      const freqText = document.getElementById('tunerFreqText');
+      const liveBadge = document.getElementById('tunerLiveBadge');
+      const vuFill = document.getElementById('tunerVuFill');
+      const a4Input = document.getElementById('tunerA4Input');
+      const btnResetA4 = document.getElementById('btnResetA4');
+      const gainInput = document.getElementById('tunerGainInput');
+      const gainVal = document.getElementById('tunerGainVal');
+      const btnSyncFretboard = document.getElementById('btnSyncFretboardTuning');
+
+      let renderer = null;
+      if (tunerCanvas && Tuner.TunerRenderer) {
+        renderer = new Tuner.TunerRenderer(tunerCanvas);
+        window.addEventListener('resize', () => {
+          if (renderer) renderer.setupCanvas();
+        });
+      }
+
+      const updateStringButtons = () => {
+        if (!stringsContainer) return;
+        stringsContainer.innerHTML = '';
+        const tuning = tuner.getCurrentTuning();
+        if (!tuning || !Array.isArray(tuning.strings)) return;
+
+        tuning.strings.forEach((strObj, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `btn-tuner-string ${tuner.selectedStringIndex === idx ? 'active' : ''}`;
+          btn.textContent = strObj.note;
+          btn.title = `String #${idx + 1}: ${strObj.note} (${strObj.freq.toFixed(1)} Hz). Click for reference pitch.`;
+
+          btn.addEventListener('click', () => {
+            tuner.playReferenceTone(strObj.freq);
+            tuner.selectString(idx);
+            updateStringButtons();
+            if (btnChromatic) btnChromatic.classList.remove('active');
+            setTimeout(() => {
+              tuner.stopReferenceTone();
+            }, 1400);
+          });
+
+          stringsContainer.appendChild(btn);
+        });
+      };
+
+      // Handle live pitch & strobe updates
+      tuner.onPitchUpdate = (state) => {
+        if (renderer) {
+          renderer.render(state);
+        }
+
+        const isRunning = state.isRunning;
+        const hasPitch = state.detectedFrequency > 0;
+
+        if (noteText) {
+          if (hasPitch) {
+            noteText.textContent = `${state.detectedNote}${state.detectedOctave}`;
+            if (state.isInTune) {
+              noteText.classList.add('in-tune');
+            } else {
+              noteText.classList.remove('in-tune');
+            }
+          } else {
+            noteText.textContent = isRunning ? '...' : '--';
+            noteText.classList.remove('in-tune');
+          }
+        }
+
+        if (statusText) {
+          if (!isRunning) {
+            statusText.textContent = 'STANDBY';
+            statusText.className = 'tuner-status-badge';
+          } else if (!hasPitch) {
+            statusText.textContent = 'LISTENING...';
+            statusText.className = 'tuner-status-badge';
+          } else if (state.isInTune) {
+            statusText.textContent = 'IN TUNE';
+            statusText.className = 'tuner-status-badge in-tune';
+          } else if (state.cents < 0) {
+            statusText.textContent = `FLAT (${state.cents}¢)`;
+            statusText.className = 'tuner-status-badge flat';
+          } else {
+            statusText.textContent = `SHARP (+${state.cents}¢)`;
+            statusText.className = 'tuner-status-badge sharp';
+          }
+        }
+
+        if (freqText) {
+          if (hasPitch) {
+            freqText.textContent = `${state.detectedFrequency.toFixed(2)} Hz (Target: ${state.targetFrequency.toFixed(2)} Hz)`;
+          } else {
+            freqText.textContent = isRunning ? 'Pluck string... (Target: --)' : '0.00 Hz (Target: --)';
+          }
+        }
+
+        if (vuFill) {
+          const percent = Math.min(100, Math.round(state.rmsLevel * 700));
+          vuFill.style.width = `${percent}%`;
+        }
+
+        if (liveBadge) {
+          if (isRunning) {
+            liveBadge.textContent = hasPitch ? `Pitch: ${state.detectedNote}${state.detectedOctave} (${state.cents > 0 ? '+' : ''}${state.cents}¢)` : 'Microphone: Active';
+            liveBadge.style.borderColor = state.isInTune ? '#10b981' : (hasPitch ? '#38bdf8' : '#64748b');
+          } else {
+            liveBadge.textContent = 'Microphone: Off';
+            liveBadge.style.borderColor = '';
+          }
+        }
+
+        if (btnToggleTop) {
+          if (isRunning) {
+            if (state.isInTune) {
+              btnToggleTop.textContent = `🎸 Tuner: ${state.detectedNote}${state.detectedOctave} (In Tune)`;
+              btnToggleTop.classList.add('btn-success');
+              btnToggleTop.classList.remove('btn-outline-cyan');
+            } else if (hasPitch) {
+              btnToggleTop.textContent = `🎸 Tuner: ${state.detectedNote}${state.detectedOctave} (${state.cents > 0 ? '+' : ''}${state.cents}¢)`;
+              btnToggleTop.classList.remove('btn-success');
+              btnToggleTop.classList.add('btn-outline-cyan');
+            } else {
+              btnToggleTop.textContent = '🎸 Tuner: On';
+              btnToggleTop.classList.remove('btn-success');
+              btnToggleTop.classList.add('btn-outline-cyan');
+            }
+          } else {
+            btnToggleTop.textContent = '🎸 Tuner: Off';
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+        }
+
+        if (btnPower) {
+          if (isRunning) {
+            btnPower.textContent = '⏹ Stop Tuner';
+            btnPower.className = 'btn btn-sm btn-danger';
+          } else {
+            btnPower.textContent = '⚡ Turn Tuner On';
+            btnPower.className = 'btn btn-sm btn-success';
+          }
+        }
+
+        if (tunerSection) {
+          if (state.isInTune) {
+            tunerSection.classList.add('in-tune-glow');
+          } else {
+            tunerSection.classList.remove('in-tune-glow');
+          }
+        }
+      };
+
+      const toggleTunerState = async () => {
+        try {
+          if (tuner.isRunning) {
+            tuner.stop();
+          } else {
+            if (tunerSection) tunerSection.style.display = 'block';
+            await tuner.start();
+          }
+        } catch (err) {
+          alert('Microphone access is required for the instrument tuner. Please allow microphone permissions in your browser.');
+        }
+      };
+
+      if (btnPower) {
+        btnPower.addEventListener('click', () => {
+          toggleTunerState();
+        });
+      }
+
+      if (btnToggleTop) {
+        btnToggleTop.addEventListener('click', () => {
+          if (tunerSection) {
+            const isHidden = tunerSection.style.display === 'none' || !tunerSection.style.display;
+            if (isHidden) {
+              tunerSection.style.display = 'block';
+              tunerSection.scrollIntoView({ behavior: 'smooth' });
+              if (!tuner.isRunning) {
+                tuner.start().catch(() => {});
+              }
+            } else {
+              if (tuner.isRunning) {
+                tuner.stop();
+              }
+              tunerSection.style.display = 'none';
+            }
+          }
+        });
+      }
+
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (tuner.isRunning) tuner.stop();
+          if (tunerSection) tunerSection.style.display = 'none';
+        });
+      }
+
+      // Keyboard Shortcut: 'T' toggles tuner
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 't' || e.key === 'T') {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            return;
+          }
+          e.preventDefault();
+          if (btnToggleTop) btnToggleTop.click();
+        }
+      });
+
+      if (presetSelect) {
+        presetSelect.addEventListener('change', () => {
+          const val = presetSelect.value;
+          tuner.setTuning(val);
+          updateStringButtons();
+          if (btnChromatic) btnChromatic.classList.add('active');
+          // Automatically sync with Canvas Fretboard
+          const tuning = tuner.getCurrentTuning();
+          if (this.visualizer && tuning) {
+            this.visualizer.setCustomTuning(tuning);
+          }
+        });
+      }
+
+      if (btnChromatic) {
+        btnChromatic.addEventListener('click', () => {
+          tuner.selectString(null);
+          btnChromatic.classList.add('active');
+          document.querySelectorAll('.btn-tuner-string').forEach(b => b.classList.remove('active'));
+        });
+      }
+
+      if (a4Input) {
+        a4Input.addEventListener('change', () => {
+          tuner.setA4(a4Input.value);
+        });
+      }
+
+      if (btnResetA4) {
+        btnResetA4.addEventListener('click', () => {
+          if (a4Input) a4Input.value = '440';
+          tuner.setA4(440);
+        });
+      }
+
+      if (gainInput) {
+        gainInput.addEventListener('input', () => {
+          const val = gainInput.value;
+          tuner.setInputGain(val);
+          if (gainVal) gainVal.textContent = parseFloat(val).toFixed(2) + 'x';
+        });
+        tuner.setInputGain(gainInput.value);
+        if (gainVal) gainVal.textContent = parseFloat(gainInput.value).toFixed(2) + 'x';
+      }
+
+      if (btnSyncFretboard) {
+        btnSyncFretboard.addEventListener('click', () => {
+          const tuning = tuner.getCurrentTuning();
+          if (this.visualizer && tuning) {
+            this.visualizer.setMode('fretboard');
+            this.visualizer.setCustomTuning(tuning);
+            const visSec = document.getElementById('visualizerSection');
+            if (visSec) visSec.scrollIntoView({ behavior: 'smooth' });
+          }
+        });
+      }
+
+      // Initialize initial string buttons and initial render
+      updateStringButtons();
+      if (renderer) {
+        renderer.render(tuner.getState());
       }
     }
 

@@ -55,6 +55,22 @@
       }
     }
 
+    setCustomTuning(tuning) {
+      if (!tuning || !Array.isArray(tuning.strings)) return;
+      this.fretboardInstrument = tuning.instrument || 'guitar';
+      const reversed = [...tuning.strings].reverse();
+      if (this.fretboardInstrument === 'bass') {
+        this.bassStrings = reversed.map(s => s.pc);
+        this.bassStringNotes = reversed.map(s => s.note);
+      } else {
+        this.guitarStrings = reversed.map(s => s.pc);
+        this.guitarStringNotes = reversed.map(s => s.note);
+      }
+      if (this.mode === 'fretboard') {
+        this.render();
+      }
+    }
+
     setActiveChord(chord) {
       this.activeChord = chord;
       this.render();

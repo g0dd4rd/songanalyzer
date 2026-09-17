@@ -13,6 +13,7 @@
   <script src="js/drums.js"></script>
   <script src="js/midi.js"></script>
   <script src="js/oblique.js"></script>
+  <script src="js/tuner.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -64,6 +65,10 @@
         <button id="btnExportJamMidi" class="btn btn-sm btn-outline-cyan" title="Export entire multi-track jam (Chords + Drums + Clave) as Standard MIDI file for DAWs">
           ⬇ Export Jam MIDI
         </button>
+
+        <button id="btnToggleTunerTop" class="btn btn-sm btn-outline-cyan" title="Toggle Chromatic Instrument Tuner [T]">
+          🎸 Tuner: Off
+        </button>
       </div>
 
       <div class="header-controls">
@@ -79,6 +84,7 @@
   <nav class="mobile-nav-bar" id="mobileNavBar" aria-label="Mobile Module Navigation">
     <div class="mobile-nav-scroll">
       <button class="mobile-nav-btn active" data-target="all">🌟 All</button>
+      <button class="mobile-nav-btn" data-target="tunerSection">🎸 Tuner</button>
       <button class="mobile-nav-btn" data-target="analyzerSection">🎼 Chords</button>
       <button class="mobile-nav-btn" data-target="visualizerSection">👁 Visualizer</button>
       <button class="mobile-nav-btn" data-target="metroSection">⏱ Metronome</button>
@@ -90,6 +96,133 @@
 
   <!-- Main Content Layout -->
   <main class="main-layout">
+
+    <!-- Module 0: Chromatic Strobe & Needle Tuner (Collapsible Studio Rack) -->
+    <section class="card tuner-card" id="tunerSection" style="display: none; grid-column: 1 / -1;">
+      <div class="card-title">
+        <div class="card-title-left">
+          <button type="button" class="panel-help-btn" data-panel-guide="guideTuner" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Chromatic Strobe Tuner">ℹ</button>
+          <span><span class="card-title-icon">🎸</span> Chromatic Strobe &amp; Needle Tuner</span>
+          <span id="tunerLiveBadge" class="tempo-marking-badge" style="margin-left: 8px; font-size: 0.76rem; padding: 2px 8px;">Microphone: Off</span>
+        </div>
+        <div class="card-title-right" style="display: flex; gap: 8px; align-items: center;">
+          <button id="btnToggleTunerPower" class="btn btn-sm btn-success" title="Turn Instrument Tuner On/Off">⚡ Turn Tuner On</button>
+          <button id="btnCloseTuner" class="btn btn-sm" title="Close Tuner Panel" style="padding: 2px 8px;">✕</button>
+        </div>
+      </div>
+
+      <!-- Student Guide Drawer: Tuner -->
+      <div id="guideTuner" class="panel-guide-box" style="display: none;">
+        <div class="guide-box-header">
+          <span class="guide-box-tag">🎓 Student Guide • Chromatic Strobe &amp; Needle Tuner</span>
+          <button type="button" class="guide-box-close" data-close-guide="guideTuner" title="Close Guide" aria-label="Close Guide">&times;</button>
+        </div>
+        <div class="guide-box-content">
+          <div class="guide-concept-item">
+            <span class="guide-concept-term">🎯 How to Tune with the Gauge &amp; Strobe:</span>
+            <p>
+              Pluck your guitar or bass string firmly. The tuner will detect the pitch and display the note name (e.g. <strong>E2</strong>) and exact frequency in Hertz (Hz).
+            </p>
+            <ol class="guide-steps-list">
+              <li>If the needle is to the <strong>left</strong> (negative cents), your string is <strong>flat</strong> (tune up).</li>
+              <li>If the needle is to the <strong>right</strong> (positive cents), your string is <strong>sharp</strong> (tune down).</li>
+              <li>The <strong>Virtual Strobe Ring</strong> rotates counter-clockwise when flat and clockwise when sharp. When the strobe <strong>freezes stationary</strong> and the display glows emerald green, you have achieved perfect harmonic resonance (within &plusmn;3 cents)!</li>
+              <li>Select alternate tunings (Drop D, DADGAD, Open G, 7-string, 5-string bass) from the dropdown—the Canvas Fretboard will instantly sync to your tuning!</li>
+            </ol>
+          </div>
+          <div class="guide-tip-box">
+            💡 <strong class="label-tip">Student Pro-Tip:</strong> Always tune <em>up</em> to pitch, never down! If your string is sharp, tune below the note first, then slowly bring it up to pitch. This locks the string tension onto the machine head gears and prevents slipping while you play.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tuner Rackmount Grid -->
+      <div class="tuner-rack-grid">
+        <!-- Left Wing: Presets & String Targets -->
+        <div class="tuner-rack-col tuner-rack-left">
+          <div class="tuner-control-group">
+            <label for="tunerPresetSelect" class="tuner-label">Instrument &amp; Tuning:</label>
+            <select id="tunerPresetSelect" class="form-control" style="width: 100%;">
+              <optgroup label="6-String Guitar">
+                <option value="guitar_std" selected>6-String Guitar: Standard (EADGBE)</option>
+                <option value="guitar_drop_d">6-String Guitar: Drop D (DADGBE)</option>
+                <option value="guitar_dadgad">6-String Guitar: DADGAD</option>
+                <option value="guitar_open_d">6-String Guitar: Open D (DADF#AD)</option>
+                <option value="guitar_open_g">6-String Guitar: Open G (DGDGBD)</option>
+                <option value="guitar_half_step">6-String Guitar: Half-Step Down (Eb)</option>
+              </optgroup>
+              <optgroup label="Extended Range Guitar">
+                <option value="guitar_7str">7-String Guitar: Low B (BEADGBE)</option>
+                <option value="guitar_8str">8-String Guitar: Low F# (F#BEADGBE)</option>
+              </optgroup>
+              <optgroup label="Bass Guitars">
+                <option value="bass_4str">4-String Bass: Standard (EADG)</option>
+                <option value="bass_5str">5-String Bass: Low B (BEADG)</option>
+                <option value="bass_6str">6-String Bass: (BEADGC)</option>
+              </optgroup>
+              <optgroup label="Ukulele">
+                <option value="ukulele_std">Ukulele: Standard (GCEA)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="tuner-control-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span class="tuner-label">Target Strings (Audible Reference):</span>
+              <button id="btnTunerChromaticMode" class="btn btn-sm active" style="font-size: 0.72rem; padding: 1px 6px;" title="Auto-detect any chromatic pitch">Auto (Chromatic)</button>
+            </div>
+            <div id="tunerStringsContainer" class="tuner-strings-grid">
+              <!-- String buttons injected by js/app.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage: Circular Cents Gauge, Strobe Ring, Note Display -->
+        <div class="tuner-rack-col tuner-rack-center">
+          <div class="tuner-gauge-wrapper">
+            <canvas id="tunerCanvas" class="tuner-canvas" width="340" height="220"></canvas>
+            <div class="tuner-note-display">
+              <div id="tunerNoteText" class="tuner-note-primary">--</div>
+              <div id="tunerStatusText" class="tuner-status-badge">STANDBY</div>
+              <div id="tunerFreqText" class="tuner-freq-readout">0.00 Hz (Target: --)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Wing: Calibration & Audio Controls -->
+        <div class="tuner-rack-col tuner-rack-right">
+          <div class="tuner-control-group">
+            <label for="tunerA4Input" class="tuner-label">Reference Calibration:</label>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input type="number" id="tunerA4Input" class="form-control" min="420" max="460" value="440" style="width: 70px; text-align: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">Hz (A4)</span>
+              <button id="btnResetA4" class="btn btn-sm" style="padding: 2px 7px; font-size: 0.75rem;" title="Reset to standard A4 = 440 Hz">440</button>
+            </div>
+          </div>
+
+          <div class="tuner-control-group">
+            <label class="tuner-label">Input Microphone Level:</label>
+            <div class="tuner-vu-meter-bar">
+              <div id="tunerVuFill" class="tuner-vu-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="tuner-control-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label for="tunerGainInput" class="tuner-label">Mic Sensitivity / Gain:</label>
+              <span id="tunerGainVal" style="font-size: 0.78rem; color: var(--accent-cyan); font-family: var(--font-mono);">0.3x</span>
+            </div>
+            <input type="range" id="tunerGainInput" min="0.05" max="2.0" step="0.05" value="0.3" style="width: 100%;">
+          </div>
+
+          <div class="tuner-control-group" style="margin-top: 6px;">
+            <button id="btnSyncFretboardTuning" class="btn btn-sm btn-outline-cyan" style="width: 100%; font-size: 0.78rem;" title="Apply this tuning to the Canvas Fretboard in Module 2">
+              🎸 Apply to Canvas Fretboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Left Column: Harmony, Key Analysis & Practice -->
     <div class="panel-column">
