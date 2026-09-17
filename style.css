@@ -1288,6 +1288,303 @@ tr:hover td {
   transition: width 0.08s ease-out;
 }
 
+/* ==========================================================================
+   Module 0B: Rhythmic Accuracy Analyzer & "Pocket Meter"
+   ========================================================================== */
+.accuracy-card {
+  background: linear-gradient(145deg, #0d1927, #080f1a);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.accuracy-card.in-pocket-glow {
+  border-color: rgba(16, 185, 129, 0.7);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 22px rgba(16, 185, 129, 0.3);
+}
+
+.accuracy-rack-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 270px;
+  gap: 20px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+@media (max-width: 1040px) {
+  .accuracy-rack-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.accuracy-rack-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accuracy-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.accuracy-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.accuracy-rack-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.pocket-gauge-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+}
+
+.pocket-canvas {
+  width: 100%;
+  height: auto;
+  max-height: 210px;
+  display: block;
+}
+
+.pocket-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: -30px;
+  z-index: 2;
+}
+
+.pocket-delta-primary {
+  font-size: 2.5rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #f8fafc;
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  transition: color 0.15s ease;
+}
+
+.pocket-delta-primary.pocket {
+  color: #10b981;
+  text-shadow: 0 0 16px rgba(16, 185, 129, 0.7);
+}
+
+.pocket-delta-primary.early {
+  color: #f97316;
+}
+
+.pocket-delta-primary.late {
+  color: #38bdf8;
+}
+
+.pocket-status-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 12px;
+  border-radius: 12px;
+  margin-top: 5px;
+  background: #1e293b;
+  color: var(--text-muted);
+  border: 1px solid #334155;
+  transition: all 0.2s ease;
+}
+
+.pocket-status-badge.pocket {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.pocket-status-badge.early {
+  background: rgba(249, 115, 22, 0.18);
+  color: #f97316;
+  border-color: #f97316;
+}
+
+.pocket-status-badge.late {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+
+.pocket-beat-readout {
+  font-size: 0.76rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
+/* Scorecard Rack Box */
+.accuracy-scorecard {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scorecard-header {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-cyan);
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.scorecard-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.scorecard-metric-label {
+  color: var(--text-muted);
+}
+
+.scorecard-metric-val {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #f8fafc;
+}
+
+.scorecard-metric-val.score-high {
+  color: #10b981;
+}
+
+.scorecard-metric-val.score-pocket {
+  color: #34d399;
+}
+
+.scorecard-ratio-bar {
+  height: 8px;
+  width: 100%;
+  border-radius: 4px;
+  background: #0f172a;
+  overflow: hidden;
+  display: flex;
+  margin-top: 4px;
+  border: 1px solid #1e293b;
+}
+
+.ratio-segment {
+  height: 100%;
+  transition: width 0.2s ease-out;
+}
+
+.segment-pocket {
+  background: #10b981;
+}
+
+.segment-early {
+  background: #f97316;
+}
+
+.segment-late {
+  background: #38bdf8;
+}
+
+.scorecard-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Heatmap Canvas Strip */
+.accuracy-heatmap-wrapper {
+  background: #0b1120;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.heatmap-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-pocket {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.dot-rush {
+  background: #f97316;
+  box-shadow: 0 0 6px #f97316;
+}
+
+.dot-drag {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.heatmap-canvas {
+  width: 100%;
+  height: 100px;
+  display: block;
+  border-radius: 6px;
+}
 
 /* Metronome & Rhythm Studio */
 .metro-display-area {

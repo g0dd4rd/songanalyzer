@@ -14,6 +14,7 @@
   <script src="js/midi.js"></script>
   <script src="js/oblique.js"></script>
   <script src="js/tuner.js"></script>
+  <script src="js/accuracy.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -69,6 +70,10 @@
         <button id="btnToggleTunerTop" class="btn btn-sm btn-outline-cyan" title="Toggle Chromatic Instrument Tuner [T]">
           🎸 Tuner: Off
         </button>
+
+        <button id="btnToggleAccuracyTop" class="btn btn-sm btn-outline-cyan" title="Toggle Rhythmic Accuracy Analyzer / Pocket Meter [R]">
+          🎯 Pocket: Off
+        </button>
       </div>
 
       <div class="header-controls">
@@ -85,6 +90,7 @@
     <div class="mobile-nav-scroll">
       <button class="mobile-nav-btn active" data-target="all">🌟 All</button>
       <button class="mobile-nav-btn" data-target="tunerSection">🎸 Tuner</button>
+      <button class="mobile-nav-btn" data-target="accuracySection">🎯 Pocket</button>
       <button class="mobile-nav-btn" data-target="analyzerSection">🎼 Chords</button>
       <button class="mobile-nav-btn" data-target="visualizerSection">👁 Visualizer</button>
       <button class="mobile-nav-btn" data-target="metroSection">⏱ Metronome</button>
@@ -221,6 +227,143 @@
             </button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Module 0B: Rhythmic Accuracy Analyzer & "Pocket Meter" (Collapsible Studio Rack) -->
+    <section class="card accuracy-card" id="accuracySection" style="display: none; grid-column: 1 / -1;">
+      <div class="card-title">
+        <div class="card-title-left">
+          <button type="button" class="panel-help-btn" data-panel-guide="guideAccuracy" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Rhythmic Accuracy Analyzer">ℹ</button>
+          <span><span class="card-title-icon">🎯</span> Rhythmic Accuracy Analyzer &amp; "Pocket Meter"</span>
+          <span id="accuracyLiveBadge" class="tempo-marking-badge" style="margin-left: 8px; font-size: 0.76rem; padding: 2px 8px;">Microphone: Off</span>
+        </div>
+        <div class="card-title-actions" style="display: flex; gap: 8px; align-items: center;">
+          <button id="btnToggleAccuracyPower" class="btn btn-sm btn-success" title="Turn Accuracy Analyzer On/Off">⚡ Turn Pocket Meter On</button>
+          <button id="btnCloseAccuracy" class="btn btn-sm" title="Close Pocket Meter Panel" style="padding: 2px 8px;">✕</button>
+        </div>
+      </div>
+
+      <!-- Student Guide Drawer: Accuracy -->
+      <div id="guideAccuracy" class="panel-guide-box" style="display: none;">
+        <div class="guide-box-header">
+          <span class="guide-box-tag">🎓 Student Guide • Rhythmic Accuracy &amp; Pocket Meter</span>
+          <button type="button" class="guide-box-close" data-close-guide="guideAccuracy" title="Close Guide" aria-label="Close Guide">&times;</button>
+        </div>
+        <div class="guide-box-content">
+          <p><strong class="label-what">What it is:</strong> A sub-millisecond precision timing analyzer that measures your rhythmic placement against the metronome or drum grid. It evaluates whether you are playing ahead of the beat (<em>rushing</em>), behind the beat (<em>dragging</em>), or locked dead-center (<em>in the pocket</em>).</p>
+          <p><strong class="label-why">Why use it:</strong> Eliminates guesswork about groove tightness. Master musicians don't just know the right notes—they land in the pocket with consistent micro-timing precision (&plusmn;6ms).</p>
+          <div>
+            <strong class="label-how">How to use it:</strong>
+            <ol class="guide-how-list">
+              <li>Start the <strong>Metronome</strong> or <strong>Drum Machine</strong>, or click <strong>⚡ Turn Pocket Meter On</strong> (which can auto-start your metronome).</li>
+              <li>Pluck notes, tap drum sticks, or clap along to the pulse. The <strong>Pocket Meter Needle</strong> instantly displays your timing delta in milliseconds.</li>
+              <li>Aim for the <strong>Emerald Sweet Zone (&plusmn;6ms)</strong> to lock into the groove.</li>
+              <li>Review the <strong>4-Bar Scrolling Heatmap</strong> below the meter to spot timing drift across measures.</li>
+              <li>Check your <strong>Groove Accuracy Score</strong> and download a detailed breakdown via <strong>💾 Export Report</strong>.</li>
+            </ol>
+          </div>
+          <div class="guide-tip-box">
+            💡 <strong class="label-tip">Pro-Tip:</strong> If your hits consistently show up as late or early across all beats, adjust the <strong>Latency Compensation</strong> slider (default ~12ms) to match your specific soundcard/audio driver buffer delay!
+          </div>
+        </div>
+      </div>
+
+      <!-- Accuracy Rack Grid (3 Columns) -->
+      <div class="accuracy-rack-grid">
+        <!-- Left: Session Controls & Calibration -->
+        <div class="accuracy-rack-col accuracy-rack-left">
+          <div class="accuracy-control-group">
+            <label for="accuracySubdivSelect" class="accuracy-label">Subdivision Target:</label>
+            <select id="accuracySubdivSelect" class="form-control" style="width: 100%;">
+              <option value="quarter" selected>Quarter Notes (1, 2, 3, 4)</option>
+              <option value="eighth">8th Notes (1 &amp; 2 &amp; 3 &amp; 4 &amp;)</option>
+              <option value="sixteenth">16th Notes (1 e &amp; a ...)</option>
+              <option value="triplet">8th Triplets (1 trip let ...)</option>
+            </select>
+          </div>
+
+          <div class="accuracy-control-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="accuracySensitivityInput" class="accuracy-label">Transient Sensitivity:</label>
+              <span id="accuracySensitivityVal" style="font-size: 0.78rem; color: var(--accent-cyan); font-family: var(--font-mono);">0.50</span>
+            </div>
+            <input type="range" id="accuracySensitivityInput" min="0.1" max="1.0" step="0.05" value="0.5" style="width: 100%;">
+          </div>
+
+          <div class="accuracy-control-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="accuracyLatencyInput" class="accuracy-label">Latency Compensation:</label>
+              <span id="accuracyLatencyVal" style="font-size: 0.78rem; color: var(--accent-cyan); font-family: var(--font-mono);">+12 ms</span>
+            </div>
+            <input type="range" id="accuracyLatencyInput" min="-20" max="60" step="1" value="12" style="width: 100%;">
+            <small style="font-size: 0.72rem; color: var(--text-muted);">Compensates for OS microphone input delay</small>
+          </div>
+
+          <div class="accuracy-control-group" style="margin-top: 4px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #cbd5e1; cursor: pointer;">
+              <input type="checkbox" id="accuracyAutoMetronome" checked>
+              <span>Auto-start Metronome if idle</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Center: Pocket Meter Arc Gauge & Live Readout -->
+        <div class="accuracy-rack-col accuracy-rack-center">
+          <div class="pocket-gauge-wrapper">
+            <canvas id="pocketMeterCanvas" class="pocket-canvas" width="340" height="210"></canvas>
+            <div class="pocket-readout">
+              <div id="pocketDeltaText" class="pocket-delta-primary">-- ms</div>
+              <div id="pocketStatusBadge" class="pocket-status-badge">READY</div>
+              <div id="pocketBeatText" class="pocket-beat-readout">Waiting for transients...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Session Scorecard -->
+        <div class="accuracy-rack-col accuracy-rack-right">
+          <div class="accuracy-scorecard">
+            <div class="scorecard-header">Session Scorecard</div>
+            <div class="scorecard-metric-row">
+              <span class="scorecard-metric-label">Groove Tightness:</span>
+              <span id="scorecardGrooveVal" class="scorecard-metric-val score-high">100%</span>
+            </div>
+            <div class="scorecard-metric-row">
+              <span class="scorecard-metric-label">Consistency:</span>
+              <span id="scorecardConsistencyVal" class="scorecard-metric-val">100%</span>
+            </div>
+            <div class="scorecard-metric-row">
+              <span class="scorecard-metric-label">Mean Delta:</span>
+              <span id="scorecardMeanDeltaVal" class="scorecard-metric-val score-pocket">0.0 ms</span>
+            </div>
+            <div class="scorecard-metric-row">
+              <span class="scorecard-metric-label">Hits Analyzed:</span>
+              <span id="scorecardHitsVal" class="scorecard-metric-val">0</span>
+            </div>
+            <div class="scorecard-ratio-bar" title="Pocket / Rushing / Dragging distribution">
+              <div id="scorecardBarPocket" class="ratio-segment segment-pocket" style="width: 100%;"></div>
+              <div id="scorecardBarEarly" class="ratio-segment segment-early" style="width: 0%;"></div>
+              <div id="scorecardBarLate" class="ratio-segment segment-late" style="width: 0%;"></div>
+            </div>
+            <div class="scorecard-actions">
+              <button id="btnResetAccuracyStats" class="btn btn-sm" title="Clear current session statistics" style="flex: 1; font-size: 0.76rem;">🔄 Reset</button>
+              <button id="btnExportAccuracyReport" class="btn btn-sm btn-outline-cyan" title="Download text report of this practice session" style="flex: 1.3; font-size: 0.76rem;">💾 Export Report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4-Bar Beat Accuracy Heatmap Canvas Strip -->
+      <div class="accuracy-heatmap-wrapper" style="margin-top: 16px;">
+        <div class="heatmap-header">
+          <span class="heatmap-title">4-Bar Beat Accuracy Heatmap</span>
+          <div class="heatmap-legend">
+            <span class="legend-item"><span class="legend-dot dot-pocket"></span> In Pocket (&plusmn;6ms)</span>
+            <span class="legend-item"><span class="legend-dot dot-rush"></span> Rushing (Early)</span>
+            <span class="legend-item"><span class="legend-dot dot-drag"></span> Dragging (Late)</span>
+          </div>
+        </div>
+        <canvas id="beatHeatmapCanvas" class="heatmap-canvas" width="900" height="100"></canvas>
       </div>
     </section>
 
@@ -705,13 +848,16 @@
           </div>
         </div>
 
-        <!-- Metronome / Beat Builder Mode Switcher -->
-        <div class="metro-mode-selector" style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button id="btnMetroModeClick" class="btn btn-sm btn-primary active" style="flex: 1; font-weight: 600;">
+        <!-- Metronome / Beat Builder / Pocket Meter Mode Switcher -->
+        <div class="metro-mode-selector" style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+          <button id="btnMetroModeClick" class="btn btn-sm btn-primary active" style="flex: 1; font-weight: 600; min-width: 140px;">
             ⏱ Metronome Click
           </button>
-          <button id="btnMetroModeBeats" class="btn btn-sm" style="flex: 1; font-weight: 600;">
+          <button id="btnMetroModeBeats" class="btn btn-sm" style="flex: 1; font-weight: 600; min-width: 140px;">
             🥁 Beat Builder (9-Track Drum Grid)
+          </button>
+          <button id="btnMetroOpenPocket" class="btn btn-sm btn-outline-cyan" style="flex: 1; font-weight: 600; min-width: 140px;" title="Open Rhythmic Accuracy Analyzer & Pocket Meter [R]">
+            🎯 Pocket Meter
           </button>
         </div>
 

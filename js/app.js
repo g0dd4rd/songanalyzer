@@ -67,6 +67,7 @@
       this.initMidiExportImport();   // Initialize MIDI export & import studio
       this.initObliquePrompts();     // Initialize Oblique Strategies non-repeating creative deck
       this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
+      this.initAccuracyModule();     // Initialize Rhythmic Accuracy Analyzer & Pocket Meter
     }
 
     bindEvents() {
@@ -297,7 +298,7 @@
           allCards.forEach(card => {
             if (card.id === targetId) {
               card.classList.add('mobile-active-card');
-              if (card.id === 'tunerSection') card.style.display = 'block';
+              if (card.id === 'tunerSection' || card.id === 'accuracySection') card.style.display = 'block';
             } else {
               card.classList.remove('mobile-active-card');
             }
@@ -1474,6 +1475,343 @@
       updateStringButtons();
       if (renderer) {
         renderer.render(tuner.getState());
+      }
+    }
+
+    // 0B. Rhythmic Accuracy Analyzer & "Pocket Meter"
+    initAccuracyModule() {
+      const Accuracy = window.SongAccuracy;
+      if (!Accuracy) return;
+
+      const engine = Accuracy.engine;
+      const gaugeCanvas = document.getElementById('pocketMeterCanvas');
+      const heatmapCanvas = document.getElementById('beatHeatmapCanvas');
+      const accuracySection = document.getElementById('accuracySection');
+      const btnToggleTop = document.getElementById('btnToggleAccuracyTop');
+      const btnPower = document.getElementById('btnToggleAccuracyPower');
+      const btnClose = document.getElementById('btnCloseAccuracy');
+      const subdivSelect = document.getElementById('accuracySubdivSelect');
+      const sensitivityInput = document.getElementById('accuracySensitivityInput');
+      const sensitivityVal = document.getElementById('accuracySensitivityVal');
+      const latencyInput = document.getElementById('accuracyLatencyInput');
+      const latencyVal = document.getElementById('accuracyLatencyVal');
+      const autoMetronomeCheckbox = document.getElementById('accuracyAutoMetronome');
+      const deltaText = document.getElementById('pocketDeltaText');
+      const statusBadge = document.getElementById('pocketStatusBadge');
+      const beatText = document.getElementById('pocketBeatText');
+      const liveBadge = document.getElementById('accuracyLiveBadge');
+      const scorecardGroove = document.getElementById('scorecardGrooveVal');
+      const scorecardConsistency = document.getElementById('scorecardConsistencyVal');
+      const scorecardMeanDelta = document.getElementById('scorecardMeanDeltaVal');
+      const scorecardHits = document.getElementById('scorecardHitsVal');
+      const barPocket = document.getElementById('scorecardBarPocket');
+      const barEarly = document.getElementById('scorecardBarEarly');
+      const barLate = document.getElementById('scorecardBarLate');
+      const btnReset = document.getElementById('btnResetAccuracyStats');
+      const btnExport = document.getElementById('btnExportAccuracyReport');
+      const btnMetroOpen = document.getElementById('btnMetroOpenPocket');
+
+      let renderer = null;
+      if (gaugeCanvas && heatmapCanvas && Accuracy.PocketMeterRenderer) {
+        renderer = new Accuracy.PocketMeterRenderer(gaugeCanvas, heatmapCanvas);
+        window.addEventListener('resize', () => {
+          if (renderer) renderer.setupCanvases();
+        });
+      }
+
+      // Continuous animation loop for smooth needle motion and live 4-bar playhead cursor
+      let animLoopId = null;
+      const runAnimLoop = () => {
+        if (renderer && accuracySection && accuracySection.style.display !== 'none') {
+          renderer.render(engine);
+        }
+        animLoopId = requestAnimationFrame(runAnimLoop);
+      };
+      animLoopId = requestAnimationFrame(runAnimLoop);
+
+      // Engine state change callback
+      engine.onStateChange = (running) => {
+        if (running) {
+          if (liveBadge) {
+            liveBadge.textContent = 'Microphone: Active (Listening)';
+            liveBadge.className = 'tempo-marking-badge in-pocket';
+            liveBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+            liveBadge.style.color = '#10b981';
+            liveBadge.style.borderColor = '#10b981';
+          }
+          if (btnPower) {
+            btnPower.textContent = '⏹ Stop Pocket Meter';
+            btnPower.className = 'btn btn-sm btn-danger';
+          }
+          if (btnToggleTop) {
+            btnToggleTop.textContent = '🎯 Pocket: On';
+            btnToggleTop.classList.add('active');
+            btnToggleTop.style.borderColor = 'var(--accent-emerald)';
+            btnToggleTop.style.color = 'var(--accent-emerald)';
+          }
+          if (statusBadge && statusBadge.textContent === 'READY') {
+            statusBadge.textContent = 'LISTENING...';
+          }
+        } else {
+          if (liveBadge) {
+            liveBadge.textContent = 'Microphone: Off';
+            liveBadge.className = 'tempo-marking-badge';
+            liveBadge.style.background = '';
+            liveBadge.style.color = '';
+            liveBadge.style.borderColor = '';
+          }
+          if (btnPower) {
+            btnPower.textContent = '⚡ Turn Pocket Meter On';
+            btnPower.className = 'btn btn-sm btn-success';
+          }
+          if (btnToggleTop) {
+            btnToggleTop.textContent = '🎯 Pocket: Off';
+            btnToggleTop.classList.remove('active');
+            btnToggleTop.style.borderColor = '';
+            btnToggleTop.style.color = '';
+          }
+          if (accuracySection) {
+            accuracySection.classList.remove('in-pocket-glow');
+          }
+        }
+      };
+
+      // Engine transient hit callback
+      engine.onHit = (hit, stats) => {
+        if (deltaText) {
+          const sign = hit.deltaMs > 0 ? '+' : '';
+          deltaText.textContent = `${sign}${hit.deltaMs.toFixed(1)} ms`;
+          deltaText.className = `pocket-delta-primary ${hit.rating}`;
+        }
+
+        if (statusBadge) {
+          if (hit.rating === 'pocket') {
+            statusBadge.textContent = 'IN THE POCKET 🟢';
+            statusBadge.className = 'pocket-status-badge pocket';
+            if (accuracySection) accuracySection.classList.add('in-pocket-glow');
+          } else if (hit.rating === 'early') {
+            statusBadge.textContent = 'RUSHING (EARLY) 🔴';
+            statusBadge.className = 'pocket-status-badge early';
+            if (accuracySection) accuracySection.classList.remove('in-pocket-glow');
+          } else {
+            statusBadge.textContent = 'DRAGGING (LATE) 🔵';
+            statusBadge.className = 'pocket-status-badge late';
+            if (accuracySection) accuracySection.classList.remove('in-pocket-glow');
+          }
+        }
+
+        if (beatText) {
+          const ratingLabel = hit.rating === 'pocket' ? 'Locked In' : (hit.rating === 'early' ? 'Rush' : 'Drag');
+          beatText.textContent = `Bar ${hit.bar}, Beat ${hit.beat} • ${ratingLabel}`;
+        }
+
+        // Update Scorecard
+        if (scorecardGroove) {
+          scorecardGroove.textContent = `${stats.grooveAccuracy}%`;
+          scorecardGroove.className = `scorecard-metric-val ${stats.grooveAccuracy >= 80 ? 'score-high' : ''}`;
+        }
+        if (scorecardConsistency) {
+          scorecardConsistency.textContent = `${stats.consistencyScore}%`;
+        }
+        if (scorecardMeanDelta) {
+          const meanSign = stats.meanDeltaMs > 0 ? '+' : '';
+          scorecardMeanDelta.textContent = `${meanSign}${stats.meanDeltaMs} ms`;
+          scorecardMeanDelta.className = `scorecard-metric-val ${Math.abs(stats.meanDeltaMs) <= 6 ? 'score-pocket' : ''}`;
+        }
+        if (scorecardHits) {
+          scorecardHits.textContent = stats.totalHits;
+        }
+
+        if (barPocket && barEarly && barLate && stats.totalHits > 0) {
+          const pFrac = (stats.pocketCount / stats.totalHits) * 100;
+          const eFrac = (stats.earlyCount / stats.totalHits) * 100;
+          const lFrac = (stats.lateCount / stats.totalHits) * 100;
+          barPocket.style.width = `${pFrac}%`;
+          barEarly.style.width = `${eFrac}%`;
+          barLate.style.width = `${lFrac}%`;
+        }
+      };
+
+      // Toggle accuracy state helper
+      const toggleAccuracyState = async () => {
+        try {
+          if (engine.isRunning) {
+            engine.stop();
+            if (this.metronomeAutoStartedByPocket) {
+              const audio = window.audio;
+              if (audio && audio.isMetronomeRunning) {
+                const btnMetro = document.getElementById('btnToggleMetronome');
+                if (btnMetro) btnMetro.click();
+              }
+              this.metronomeAutoStartedByPocket = false;
+            }
+          } else {
+            if (accuracySection) {
+              accuracySection.style.display = 'block';
+              if (renderer) renderer.setupCanvases();
+            }
+
+            // Auto-start Metronome if enabled and no rhythm is currently active
+            if (autoMetronomeCheckbox && autoMetronomeCheckbox.checked) {
+              const audio = window.audio;
+              const drums = window.drumMachine || (window.app && window.app.beatSequencer);
+              const isMetroRunning = audio && audio.isMetronomeRunning;
+              const isDrumsRunning = drums && drums.isPlaying;
+
+              if (!isMetroRunning && !isDrumsRunning) {
+                const btnMetro = document.getElementById('btnToggleMetronome');
+                if (btnMetro) {
+                  btnMetro.click();
+                  this.metronomeAutoStartedByPocket = true;
+                } else if (audio) {
+                  await audio.init();
+                  this.restartRunningMetronome();
+                  this.metronomeAutoStartedByPocket = true;
+                }
+              }
+            }
+
+            await engine.start();
+          }
+        } catch (err) {
+          console.error('Accuracy Engine start error:', err);
+          alert('Microphone access is required for the Rhythmic Accuracy Analyzer. Please allow microphone permissions in your browser.');
+        }
+      };
+
+      if (btnPower) {
+        btnPower.addEventListener('click', () => {
+          toggleAccuracyState();
+        });
+      }
+
+      if (btnToggleTop) {
+        btnToggleTop.addEventListener('click', () => {
+          if (accuracySection) {
+            const isHidden = accuracySection.style.display === 'none' || !accuracySection.style.display;
+            if (isHidden) {
+              accuracySection.style.display = 'block';
+              accuracySection.scrollIntoView({ behavior: 'smooth' });
+              if (renderer) renderer.setupCanvases();
+              if (!engine.isRunning) {
+                toggleAccuracyState();
+              }
+            } else {
+              if (engine.isRunning) {
+                engine.stop();
+                if (this.metronomeAutoStartedByPocket) {
+                  const audio = window.audio;
+                  if (audio && audio.isMetronomeRunning) {
+                    const btnMetro = document.getElementById('btnToggleMetronome');
+                    if (btnMetro) btnMetro.click();
+                  }
+                  this.metronomeAutoStartedByPocket = false;
+                }
+              }
+              accuracySection.style.display = 'none';
+            }
+          }
+        });
+      }
+
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (engine.isRunning) {
+            engine.stop();
+            if (this.metronomeAutoStartedByPocket) {
+              const audio = window.audio;
+              if (audio && audio.isMetronomeRunning) {
+                const btnMetro = document.getElementById('btnToggleMetronome');
+                if (btnMetro) btnMetro.click();
+              }
+              this.metronomeAutoStartedByPocket = false;
+            }
+          }
+          if (accuracySection) accuracySection.style.display = 'none';
+        });
+      }
+
+      // Shortcut button from Metronome / Rhythm Studio
+      if (btnMetroOpen) {
+        btnMetroOpen.addEventListener('click', () => {
+          if (accuracySection) {
+            accuracySection.style.display = 'block';
+            accuracySection.scrollIntoView({ behavior: 'smooth' });
+            if (renderer) renderer.setupCanvases();
+            if (!engine.isRunning) {
+              toggleAccuracyState();
+            }
+          }
+        });
+      }
+
+      // Keyboard Shortcut: 'R' toggles Pocket Meter
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'r' || e.key === 'R') {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            return;
+          }
+          e.preventDefault();
+          if (btnToggleTop) btnToggleTop.click();
+        }
+      });
+
+      // Controls
+      if (subdivSelect) {
+        subdivSelect.addEventListener('change', () => {
+          engine.setSubdivision(subdivSelect.value);
+        });
+      }
+
+      if (sensitivityInput) {
+        sensitivityInput.addEventListener('input', () => {
+          const val = sensitivityInput.value;
+          engine.setSensitivity(val);
+          if (sensitivityVal) sensitivityVal.textContent = parseFloat(val).toFixed(2);
+        });
+      }
+
+      if (latencyInput) {
+        latencyInput.addEventListener('input', () => {
+          const val = latencyInput.value;
+          engine.setLatencyOffset(val);
+          if (latencyVal) {
+            const num = parseInt(val, 10);
+            latencyVal.textContent = `${num > 0 ? '+' : ''}${num} ms`;
+          }
+        });
+      }
+
+      if (btnReset) {
+        btnReset.addEventListener('click', () => {
+          engine.reset();
+          if (deltaText) deltaText.textContent = '-- ms';
+          if (statusBadge) {
+            statusBadge.textContent = engine.isRunning ? 'LISTENING...' : 'READY';
+            statusBadge.className = 'pocket-status-badge';
+          }
+          if (beatText) beatText.textContent = 'Waiting for transients...';
+          if (scorecardGroove) scorecardGroove.textContent = '100%';
+          if (scorecardConsistency) scorecardConsistency.textContent = '100%';
+          if (scorecardMeanDelta) scorecardMeanDelta.textContent = '0.0 ms';
+          if (scorecardHits) scorecardHits.textContent = '0';
+          if (barPocket) barPocket.style.width = '100%';
+          if (barEarly) barEarly.style.width = '0%';
+          if (barLate) barLate.style.width = '0%';
+          if (accuracySection) accuracySection.classList.remove('in-pocket-glow');
+        });
+      }
+
+      if (btnExport) {
+        btnExport.addEventListener('click', () => {
+          engine.exportAccuracyReportTxt();
+        });
+      }
+
+      // Initial canvas setup
+      if (renderer) {
+        renderer.render(engine);
       }
     }
 
