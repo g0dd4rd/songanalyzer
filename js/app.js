@@ -10,6 +10,8 @@
       this.detectedKeys = [];
       this.selectedKey = null;
       this.visualizer = null;
+      this.ribbonEngine = null;
+      this.ribbonRenderer = null;
       this.jamCards = [];
       this.lockedCards = new Set();
       this.currentRhythmItems = [];
@@ -57,6 +59,7 @@
         this.setAppBpm(initBpm);
       }
       this.updateTimeSignature(); // Initialize time signature and dots
+      this.initRibbonModule();   // Initialize Voice Leading Ribbon & 6-School Melodic Pathway Studio
       this.analyzeProgression(); // Run default analysis on load
       this.dealJamCards();       // Deal initial jam cards
       this.generateRhythm();     // Generate initial rhythm
@@ -264,6 +267,10 @@
             this.selectedKey = this.detectedKeys[idx];
             this.updateKeyBanner();
             this.renderHarmonicTable();
+            if (this.ribbonEngine) {
+              this.ribbonEngine.setProgression(this.parsedChords, this.selectedKey);
+              this.updateRibbonUI();
+            }
           }
         });
       }
@@ -716,6 +723,12 @@
       // Send first chord to visualizer
       if (this.parsedChords[0] && this.visualizer) {
         this.visualizer.setActiveChord(this.parsedChords[0]);
+      }
+
+      // Update Voice Leading Ribbon Engine
+      if (this.ribbonEngine) {
+        this.ribbonEngine.setProgression(this.parsedChords, this.selectedKey);
+        this.updateRibbonUI();
       }
     }
 
@@ -1813,6 +1826,252 @@
       if (renderer) {
         renderer.render(engine);
       }
+    }
+
+    // 0C. Voice Leading Ribbon & 6-School Melodic Pathway Studio
+    initRibbonModule() {
+      if (!window.VoiceLeadingEngine || !window.RibbonCanvasRenderer) return;
+
+      const canvas = document.getElementById('voiceLeadingCanvas');
+      if (!canvas) return;
+
+      this.ribbonEngine = new window.VoiceLeadingEngine();
+      this.ribbonRenderer = new window.RibbonCanvasRenderer(canvas, this.ribbonEngine);
+
+      // UI elements
+      const schoolTabs = document.querySelectorAll('.ribbon-school-tab');
+      const pathwaySelect = document.getElementById('ribbonPathwaySelect');
+      const leadVoiceSelect = document.getElementById('ribbonLeadVoiceSelect');
+      const btnPlay = document.getElementById('btnPlayRibbonMelody');
+      const loopToggle = document.getElementById('ribbonLoopToggle');
+      const melodyVol = document.getElementById('ribbonMelodyVol');
+      const chordsVol = document.getElementById('ribbonChordsVol');
+      const btnReset = document.getElementById('btnResetRibbonNodes');
+      const btnCopy = document.getElementById('btnCopyRibbonMelody');
+      const btnToggleHeight = document.getElementById('btnToggleRibbonHeight');
+
+      // Hook custom node click override on canvas
+      this.ribbonRenderer.onCustomNodeChanged = (chordIndex, candidate) => {
+        this.updateRibbonUI();
+        if (window.audio && window.audio.isPlayingMelodyProgression) {
+          window.audio.onNodeCustomizedDuringPlayback(chordIndex, candidate);
+        }
+      };
+
+      // Populate pathways for currently selected school
+      const populatePathways = () => {
+        if (!pathwaySelect) return;
+        pathwaySelect.innerHTML = '';
+        const school = window.VOICE_LEADING_SCHOOLS[this.ribbonEngine.activeSchoolId];
+        if (!school) return;
+
+        school.pathways.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${p.name} — ${p.tagline}`;
+          if (p.id === this.ribbonEngine.activePathwayId) {
+            opt.selected = true;
+          }
+          pathwaySelect.appendChild(opt);
+        });
+      };
+
+      // School tab clicks
+      schoolTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const schoolId = tab.getAttribute('data-school');
+          schoolTabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          this.ribbonEngine.setSchool(schoolId);
+          populatePathways();
+          this.updateRibbonUI();
+        });
+      });
+
+      // Pathway dropdown change
+      if (pathwaySelect) {
+        pathwaySelect.addEventListener('change', (e) => {
+          this.ribbonEngine.setPathway(e.target.value);
+          this.updateRibbonUI();
+        });
+      }
+
+      // Lead voice timbre change
+      if (leadVoiceSelect) {
+        leadVoiceSelect.addEventListener('change', (e) => {
+          if (window.audio && window.audio.setMelodyLeadVoice) {
+            window.audio.setMelodyLeadVoice(e.target.value);
+            if (window.audio.isPlayingMelodyProgression) {
+              window.audio.updateActiveMelodyNodes(this.ribbonEngine.activeMelodyNodes, true);
+            }
+          }
+        });
+      }
+
+      // Volume sliders
+      if (melodyVol) {
+        melodyVol.addEventListener('input', (e) => {
+          if (window.audio && window.audio.setMelodyVolume) {
+            window.audio.setMelodyVolume(parseFloat(e.target.value) / 100);
+          }
+        });
+      }
+
+      if (chordsVol) {
+        chordsVol.addEventListener('input', (e) => {
+          if (window.audio && window.audio.setChordVolume) {
+            window.audio.setChordVolume(parseFloat(e.target.value) / 100);
+          }
+        });
+      }
+
+      // Canvas height stretch toggle button
+      if (btnToggleHeight) {
+        btnToggleHeight.addEventListener('click', () => {
+          if (this.ribbonRenderer && this.ribbonRenderer.toggleHeight) {
+            const isExtra = this.ribbonRenderer.toggleHeight();
+            btnToggleHeight.textContent = isExtra ? '↕ Standard View' : '↕ Extra Tall';
+            btnToggleHeight.classList.toggle('btn-primary', isExtra);
+            btnToggleHeight.classList.toggle('btn-secondary', !isExtra);
+          }
+        });
+      }
+
+      // Reset Custom Nodes button
+      if (btnReset) {
+        btnReset.addEventListener('click', () => {
+          this.ribbonEngine.clearCustomOverrides();
+          this.updateRibbonUI();
+        });
+      }
+
+      // Copy Melody button
+      if (btnCopy) {
+        btnCopy.addEventListener('click', async () => {
+          const nodes = this.ribbonEngine.activeMelodyNodes;
+          if (!nodes || nodes.length === 0) return;
+          const text = nodes.map(n => {
+            const chordName = n.chord ? (n.chord.displayName || n.chord.rawSymbol) : '';
+            return `${chordName}: ${n.scientific} (${n.roleLabel || n.deg})`;
+          }).join(' ➔ ');
+
+          try {
+            await navigator.clipboard.writeText(text);
+            const orig = btnCopy.textContent;
+            btnCopy.textContent = '✓ Copied!';
+            setTimeout(() => { btnCopy.textContent = orig; }, 1800);
+          } catch (err) {
+            prompt('Copy melody progression notes:', text);
+          }
+        });
+      }
+
+      // Play / Stop Melody Playback
+      if (btnPlay) {
+        btnPlay.addEventListener('click', async () => {
+          const audio = window.audio;
+          if (!audio) return;
+
+          if (audio.isPlayingMelodyProgression) {
+            audio.stopProgressionWithMelody();
+            btnPlay.innerHTML = '<span>▶ Audition Melody + Chords</span>';
+            btnPlay.classList.remove('btn-danger');
+            this.ribbonRenderer.setActiveStep(-1);
+            this.highlightTableRow(-1);
+            if (this.visualizer) this.visualizer.clearMelodyNote();
+          } else {
+            if (audio.isPlayingProgression) {
+              audio.stopProgression();
+              const btnProg = document.getElementById('btnPlayProgression');
+              if (btnProg) btnProg.textContent = '▶ Play Progression';
+            }
+
+            const bpmInput = document.getElementById('metroBpmInput');
+            const bpm = bpmInput ? (parseInt(bpmInput.value, 10) || 113) : 113;
+            const loop = loopToggle ? loopToggle.checked : true;
+
+            btnPlay.innerHTML = '<span>⏹ Stop Audition</span>';
+            btnPlay.classList.add('btn-danger');
+
+            await audio.playProgressionWithMelody(
+              this.parsedChords,
+              () => (this.ribbonEngine ? this.ribbonEngine.activeMelodyNodes : []),
+              bpm,
+              loop,
+              (idx, chord, melodyNode) => {
+                this.ribbonRenderer.setActiveStep(idx);
+                this.highlightTableRow(idx);
+                if (chord && this.visualizer) {
+                  this.visualizer.setActiveChord(chord);
+                }
+                if (melodyNode && this.visualizer) {
+                  this.visualizer.setMelodyNote(melodyNode);
+                }
+              },
+              () => {
+                btnPlay.innerHTML = '<span>▶ Audition Melody + Chords</span>';
+                btnPlay.classList.remove('btn-danger');
+                this.ribbonRenderer.setActiveStep(-1);
+                this.highlightTableRow(-1);
+                if (this.visualizer) this.visualizer.clearMelodyNote();
+              }
+            );
+          }
+        });
+      }
+
+      // Populate with existing analysis if available
+      if (this.parsedChords && this.parsedChords.length > 0) {
+        this.ribbonEngine.setProgression(this.parsedChords, this.selectedKey);
+      }
+
+      // Initial setup
+      populatePathways();
+      this.ribbonRenderer.handleResize();
+      this.updateRibbonUI();
+    }
+
+    updateRibbonUI() {
+      if (!this.ribbonEngine || !this.ribbonRenderer) return;
+
+      // Real-time audio synchronization: if auditioning, push updated melody nodes to audio engine immediately!
+      if (window.audio && window.audio.isPlayingMelodyProgression) {
+        window.audio.updateActiveMelodyNodes(this.ribbonEngine.activeMelodyNodes, true);
+      }
+
+      // Update Quick Stats
+      const stats = this.ribbonEngine.getStatistics();
+      const statTotal = document.getElementById('statTotalMotion');
+      const statAvg = document.getElementById('statAvgMotion');
+      const statCommon = document.getElementById('statCommonPct');
+
+      if (statTotal) statTotal.textContent = stats.totalMotion;
+      if (statAvg) statAvg.textContent = stats.avgMotion;
+      if (statCommon) statCommon.textContent = `${stats.commonPct}%`;
+
+      // Update Reset Button visibility
+      const btnReset = document.getElementById('btnResetRibbonNodes');
+      if (btnReset) {
+        btnReset.style.display = this.ribbonEngine.hasCustomOverrides() ? 'inline-block' : 'none';
+      }
+
+      // Update Educational Insight Card
+      const school = window.VOICE_LEADING_SCHOOLS[this.ribbonEngine.activeSchoolId];
+      if (school) {
+        const pathway = school.pathways.find(p => p.id === this.ribbonEngine.activePathwayId) || school.pathways[0];
+        const badge = document.getElementById('insightSchoolBadge');
+        const title = document.getElementById('insightPathwayTitle');
+        const pedagogy = document.getElementById('insightPathwayPedagogy');
+        const artists = document.getElementById('insightPathwayArtists');
+
+        if (badge) badge.textContent = `${school.icon} ${school.name}`;
+        if (title) title.textContent = pathway ? pathway.name : '';
+        if (pedagogy) pedagogy.textContent = pathway ? pathway.pedagogy : '';
+        if (artists) artists.textContent = pathway ? pathway.artists : '';
+      }
+
+      this.ribbonRenderer.render();
     }
 
     // 4. Metronome & Time Signature Engine

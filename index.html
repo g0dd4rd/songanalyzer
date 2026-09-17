@@ -15,6 +15,7 @@
   <script src="js/oblique.js"></script>
   <script src="js/tuner.js"></script>
   <script src="js/accuracy.js"></script>
+  <script src="js/ribbon.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -531,6 +532,157 @@
               <!-- Dynamic Rows -->
             </tbody>
           </table>
+        </div>
+
+        <!-- Voice Leading Ribbon & 6-School Melodic Pathway Studio -->
+        <div class="ribbon-studio-card" id="voiceLeadingRibbonContainer">
+          <div class="ribbon-card-header">
+            <div class="ribbon-header-left">
+              <button type="button" class="panel-help-btn" data-panel-guide="guideRibbon" title="Click for voice leading ribbon explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Voice Leading Ribbon & Melodic Pathway Studio">ℹ</button>
+              <span class="ribbon-header-title">🧬 Voice Leading Ribbon &amp; 6-School Melodic Pathway Studio</span>
+              <span class="badge badge-gold" id="ribbonStatsSummary">18 Pathways</span>
+            </div>
+            <div class="ribbon-header-right">
+              <div class="ribbon-quick-stats" id="ribbonQuickStats">
+                <span class="stat-pill" title="Total Semitone Motion across progression"><strong id="statTotalMotion">0</strong> st Total Motion</span>
+                <span class="stat-pill" title="Average Semitone Motion per chord"><strong id="statAvgMotion">0.0</strong> st/chord</span>
+                <span class="stat-pill" title="Static Common-Tone Retention"><strong id="statCommonPct">0%</strong> Common Tones</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Student Guide Drawer: Voice Leading Ribbon -->
+          <div id="guideRibbon" class="panel-guide-box" style="display: none;">
+            <div class="guide-box-header">
+              <span class="guide-box-tag">🎓 Student Guide • Voice Leading Ribbon &amp; Melodic Pathway Studio</span>
+              <button type="button" class="guide-box-close" data-close-guide="guideRibbon" title="Close Guide" aria-label="Close Guide">&times;</button>
+            </div>
+            <div class="guide-box-content">
+              <p><strong class="label-what">What it is:</strong> A dual-layer interactive canvas that maps smooth multi-voice comping strands (SATB) underneath your chord progression, and calculates authentic melodic trajectories through those chord tones across <strong>6 major compositional schools</strong> (Classical, Jazz/Bebop, Blues &amp; Roots, Romantic/Cinema, Modern Pop, and Progressive Metal).</p>
+              <p><strong class="label-why">Why use it:</strong> Eliminates guesswork when writing melodies over chord progressions. Instead of random guessing, hear and see how master composers sequence chord tones (roots, 3rds, 5ths, 7ths, #11s) to create vocal gravity, blues grit, jazz guide-tone clarity, or cinematic triumph.</p>
+              <div>
+                <strong class="label-how">How to use it:</strong>
+                <ol class="guide-how-list">
+                  <li>Select a <strong>Compositional School</strong> tab (e.g. <em>Classical</em>, <em>Jazz &amp; Bebop</em>, <em>Blues &amp; Roots</em>, <em>Romantic</em>, <em>Modern Pop</em>, or <em>Prog Metal</em>).</li>
+                  <li>Pick a <strong>Melodic Pathway</strong> from the dropdown (e.g. <em>Law of Minimal Motion</em>, <em>3-to-7 Guide Tone Thread</em>, <em>Blue Note Curl</em>, <em>Stadium Anchor</em>, or <em>Lydian #11 Space Vector</em>).</li>
+                  <li>Click <strong>▶ Audition Melody + Chords</strong> to hear the solo lead melody soar over the Rhodes backing chords.</li>
+                  <li><strong>Interactive Node Customization:</strong> Click any circle chord-tone node on the canvas to override that chord's melodic pitch and craft your own custom pathway!</li>
+                  <li>Click <strong>📋 Copy Notes</strong> to copy the note sequence to your clipboard for notation or guitar tab.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- School Selection Tabs -->
+          <div class="ribbon-school-nav">
+            <div class="ribbon-school-tabs" id="ribbonSchoolTabs" role="tablist">
+              <button type="button" class="ribbon-school-tab active" data-school="classical">
+                <span class="tab-icon">🏛️</span> Classical
+              </button>
+              <button type="button" class="ribbon-school-tab" data-school="jazz">
+                <span class="tab-icon">🎷</span> Jazz &amp; Bebop
+              </button>
+              <button type="button" class="ribbon-school-tab" data-school="blues">
+                <span class="tab-icon">🎸</span> Blues &amp; Roots
+              </button>
+              <button type="button" class="ribbon-school-tab" data-school="romantic">
+                <span class="tab-icon">🎻</span> Romantic &amp; Cinema
+              </button>
+              <button type="button" class="ribbon-school-tab" data-school="pop">
+                <span class="tab-icon">🎤</span> Modern Pop
+              </button>
+              <button type="button" class="ribbon-school-tab" data-school="prog">
+                <span class="tab-icon">⚡</span> Prog Metal
+              </button>
+            </div>
+          </div>
+
+          <!-- Ribbon Controls Bar -->
+          <div class="ribbon-controls-bar">
+            <div class="ribbon-control-item ribbon-pathway-select-group">
+              <label for="ribbonPathwaySelect">Melodic Pathway:</label>
+              <select id="ribbonPathwaySelect" class="select-dropdown">
+                <!-- Dynamically populated based on active school -->
+              </select>
+            </div>
+
+            <div class="ribbon-control-item ribbon-lead-timbre-group">
+              <label for="ribbonLeadVoiceSelect">Solo Lead Voice:</label>
+              <select id="ribbonLeadVoiceSelect" class="select-dropdown">
+                <option value="analog">🌟 Warm Analog Lead</option>
+                <option value="rhodes">🔔 Rhodes Bell Chime</option>
+                <option value="overdrive">🎸 Overdrive / Saturation</option>
+                <option value="flute">🪈 Ambient Pure Flute</option>
+              </select>
+            </div>
+
+            <div class="ribbon-control-item ribbon-transport-group">
+              <button id="btnPlayRibbonMelody" class="btn btn-primary btn-sm" title="Audition melody path over chord progression">
+                <span>▶ Audition Melody + Chords</span>
+              </button>
+              <label class="checkbox-label ribbon-loop-toggle" title="Loop playback continuously">
+                <input type="checkbox" id="ribbonLoopToggle" checked>
+                <span>Loop</span>
+              </label>
+            </div>
+
+            <div class="ribbon-control-item ribbon-volumes-group">
+              <div class="slider-control" title="Solo Melody Volume">
+                <span class="slider-label">Melody:</span>
+                <input type="range" id="ribbonMelodyVol" min="0" max="100" value="85" class="volume-slider">
+              </div>
+              <div class="slider-control" title="Comping Chords Volume">
+                <span class="slider-label">Chords:</span>
+                <input type="range" id="ribbonChordsVol" min="0" max="100" value="55" class="volume-slider">
+              </div>
+            </div>
+
+            <div class="ribbon-control-item ribbon-actions-group">
+              <button id="btnToggleRibbonHeight" class="btn btn-secondary btn-sm" title="Toggle extra vertical stretch for maximum note separation">
+                ↕ Extra Tall
+              </button>
+              <button id="btnResetRibbonNodes" class="btn btn-secondary btn-sm" style="display: none;" title="Reset custom clicked nodes back to school algorithm default">
+                ↺ Reset Custom
+              </button>
+              <button id="btnCopyRibbonMelody" class="btn btn-secondary btn-sm" title="Copy melody note progression to clipboard (e.g. E4 -> G4 -> F#4)">
+                📋 Copy Notes
+              </button>
+            </div>
+          </div>
+
+          <!-- Interactive Canvas Container -->
+          <div class="ribbon-canvas-container" id="ribbonCanvasWrapper">
+            <canvas id="voiceLeadingCanvas" class="voice-leading-canvas" height="540"></canvas>
+          </div>
+
+          <!-- Visual Legend Bar -->
+          <div class="ribbon-legend-bar">
+            <div class="legend-items">
+              <span class="legend-item"><span class="legend-dot color-melody"></span> Solo Melodic Strand</span>
+              <span class="legend-item"><span class="legend-pill color-blue">0st</span> Common Tone</span>
+              <span class="legend-item"><span class="legend-pill color-green">±1st</span> Half-Step</span>
+              <span class="legend-item"><span class="legend-pill color-emerald">±2st</span> Whole-Step</span>
+              <span class="legend-item"><span class="legend-pill color-amber">±3-5st</span> Consonant Leap</span>
+              <span class="legend-item"><span class="legend-pill color-purple">±6st</span> Tritone</span>
+              <span class="legend-item"><span class="legend-pill color-pink">±7st+</span> Tension Leap</span>
+            </div>
+            <div class="legend-tip">
+              <span>💡 <strong>Pro Tip:</strong> Click any chord-tone circle on the canvas to customize your melody pathway in real-time!</span>
+            </div>
+          </div>
+
+          <!-- Educational Insight & Pedagogy Card -->
+          <div class="ribbon-insight-card" id="ribbonInsightCard">
+            <div class="insight-header">
+              <span class="insight-badge" id="insightSchoolBadge">🏛️ Classical</span>
+              <h4 class="insight-title" id="insightPathwayTitle">Law of Minimal Motion</h4>
+            </div>
+            <p class="insight-pedagogy" id="insightPathwayPedagogy"></p>
+            <div class="insight-footer">
+              <span class="insight-artists-label">Notable Artists &amp; Works:</span>
+              <span class="insight-artists-text" id="insightPathwayArtists"></span>
+            </div>
+          </div>
         </div>
       </section>
 

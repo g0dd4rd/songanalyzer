@@ -2492,3 +2492,294 @@ tr:hover td {
   transform: scale(1.05);
   z-index: 2;
 }
+
+/* ==========================================================================
+   Voice Leading Ribbon & 6-School Melodic Pathway Studio
+   ========================================================================== */
+.ribbon-studio-card {
+  margin-top: 24px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.ribbon-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.ribbon-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ribbon-header-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.ribbon-quick-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ribbon-quick-stats .stat-pill {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.ribbon-quick-stats .stat-pill strong {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.ribbon-school-nav {
+  margin-top: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.ribbon-school-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ribbon-school-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ribbon-school-tab:hover {
+  background: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+.ribbon-school-tab.active {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #0f172a;
+  border-color: #fbbf24;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
+.ribbon-controls-bar {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  background: #0f172a;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+}
+
+.ribbon-control-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: #cbd5e1;
+}
+
+.ribbon-pathway-select-group {
+  flex-grow: 1;
+  min-width: 240px;
+}
+
+.ribbon-pathway-select-group select {
+  width: 100%;
+  max-width: 380px;
+}
+
+.ribbon-loop-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ribbon-volumes-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ribbon-volumes-group .slider-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.ribbon-volumes-group .volume-slider {
+  width: 70px;
+  cursor: pointer;
+}
+
+.ribbon-canvas-container {
+  margin-top: 14px;
+  background: #0b101d;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  min-height: 520px;
+}
+
+.voice-leading-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ribbon-legend-bar {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  padding: 0 4px;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-dot.color-melody {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+.legend-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  font-family: monospace;
+}
+
+.legend-pill.color-blue { background: #0284c7; color: #fff; }
+.legend-pill.color-green { background: #15803d; color: #fff; }
+.legend-pill.color-emerald { background: #047857; color: #fff; }
+.legend-pill.color-amber { background: #b45309; color: #fff; }
+.legend-pill.color-purple { background: #7e22ce; color: #fff; }
+.legend-pill.color-pink { background: #be185d; color: #fff; }
+
+.legend-tip {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.legend-tip strong {
+  color: #fbbf24;
+}
+
+.ribbon-insight-card {
+  margin-top: 14px;
+  background: #151d30;
+  border: 1px solid #24304f;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.insight-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #fbbf24;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.insight-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.insight-pedagogy {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.insight-footer {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.insight-artists-label {
+  font-weight: 600;
+  color: #f59e0b;
+  margin-right: 6px;
+}
+
+.insight-artists-text {
+  color: #e2e8f0;
+  font-style: italic;
+}
+

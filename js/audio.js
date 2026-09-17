@@ -42,6 +42,21 @@
         clickBeat: null,
         clickSub: null
       };
+
+      // Melodic Voice Leading properties
+      this.chordVolumeChannel = null;
+      this.melodyVolumeChannel = null;
+      this.melodySynths = null;
+      this.activeMelodyVoice = 'analog';
+      this.isPlayingMelodyProgression = false;
+      this.activeMelodyProgression = null;
+      this.activeMelodyNodes = null;
+      this.melodyProgressionVisualTimeouts = [];
+      this.melodyProgressionInterval = null;
+      this.onMelodyStepHighlight = null;
+      this.currentPlayingChordIdx = -1;
+      this.currentChordStartTime = 0;
+      this.currentChordDuration = 0;
     }
 
     async resumeIfNeeded() {
@@ -73,6 +88,7 @@
       if (this.isMetronomeRunning) this.stopMetronome();
       if (this.isRhythmPlaying) this.stopRhythm();
       if (this.isPlayingProgression) this.stopProgression();
+      if (this.isPlayingMelodyProgression) this.stopProgressionWithMelody();
       if (typeof Tone !== 'undefined' && Tone.context && typeof Tone.context.suspend === 'function') {
         try {
           await Tone.context.suspend();
@@ -108,7 +124,11 @@
         this.masterLimiter = new Tone.Limiter(-1).toDestination();
         this.masterVolume = new Tone.Volume(-6).connect(this.masterLimiter);
 
-        // Warm FM Electric Piano Synthesizer
+        // Progression & Melody volume channels
+        this.chordVolumeChannel = new Tone.Volume(-2).connect(this.masterVolume);
+        this.melodyVolumeChannel = new Tone.Volume(0).connect(this.masterVolume);
+
+        // Warm FM Electric Piano Synthesizer (Comping)
         this.chordSynth = new Tone.PolySynth(Tone.FMSynth, {
           harmonicity: 2.0,
           modulationIndex: 1.8,
@@ -126,8 +146,37 @@
             sustain: 0.05,
             release: 0.9
           }
-        }).connect(this.masterVolume);
+        }).connect(this.chordVolumeChannel);
         this.chordSynth.maxPolyphony = 16;
+
+        // Dedicated Solo Lead Synths for Melodic Pathway Ribbon
+        this.melodySynths = {
+          analog: new Tone.MonoSynth({
+            oscillator: { type: 'sawtooth' },
+            filter: { Q: 3, type: 'lowpass', rolloff: -24 },
+            envelope: { attack: 0.02, decay: 0.4, sustain: 0.6, release: 0.7 },
+            filterEnvelope: { attack: 0.01, decay: 0.3, sustain: 0.4, release: 0.5, baseFrequency: 350, octaves: 2.8 }
+          }).connect(this.melodyVolumeChannel),
+          rhodes: new Tone.FMSynth({
+            harmonicity: 3.0,
+            modulationIndex: 1.5,
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.005, decay: 0.9, sustain: 0.2, release: 0.8 },
+            modulation: { type: 'sine' },
+            modulationEnvelope: { attack: 0.002, decay: 0.4, sustain: 0, release: 0.4 }
+          }).connect(this.melodyVolumeChannel),
+          overdrive: new Tone.MonoSynth({
+            oscillator: { type: 'square' },
+            filter: { Q: 4, type: 'lowpass', rolloff: -12 },
+            envelope: { attack: 0.01, decay: 0.5, sustain: 0.6, release: 0.6 },
+            filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.5, baseFrequency: 600, octaves: 2.2 }
+          }).connect(this.melodyVolumeChannel),
+          flute: new Tone.Synth({
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.04, decay: 0.3, sustain: 0.7, release: 0.7 }
+          }).connect(this.melodyVolumeChannel)
+        };
+        this.activeMelodyVoice = 'analog';
 
         // Single note / Arpeggio Synth (Brighter Rhodes bell)
         this.leadSynth = new Tone.FMSynth({
@@ -527,9 +576,235 @@ self.onmessage = function(e) {
     }
 
     getNextChordDownbeatTime() {
-      if (!this.isPlayingProgression) return null;
+      if (!this.isPlayingProgression && !this.isPlayingMelodyProgression) return null;
       const now = Tone.now();
       return Math.max(now + 0.03, this.nextChordAudioTime || now);
+    }
+
+    setMelodyLeadVoice(voiceType) {
+      if (this.melodySynths && this.melodySynths[voiceType]) {
+        this.activeMelodyVoice = voiceType;
+      }
+    }
+
+    setMelodyVolume(val) {
+      if (!this.melodyVolumeChannel) return;
+      if (val <= 0.01) {
+        this.melodyVolumeChannel.mute = true;
+      } else {
+        this.melodyVolumeChannel.mute = false;
+        // Map 0..1 to -36dB .. +4dB
+        this.melodyVolumeChannel.volume.value = Tone.gainToDb(val * 1.3);
+      }
+    }
+
+    setChordVolume(val) {
+      if (!this.chordVolumeChannel) return;
+      if (val <= 0.01) {
+        this.chordVolumeChannel.mute = true;
+      } else {
+        this.chordVolumeChannel.mute = false;
+        // Map 0..1 to -36dB .. 0dB
+        this.chordVolumeChannel.volume.value = Tone.gainToDb(val);
+      }
+    }
+
+    playMelodyPreviewNote(noteScientific, duration = '4n') {
+      if (!this.initialized) {
+        this.init().then(() => {
+          this.playMelodyPreviewNote(noteScientific, duration);
+        });
+        return;
+      }
+      this.resumeIfNeeded();
+      const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
+      if (leadSynth && noteScientific) {
+        leadSynth.triggerAttackRelease(noteScientific, duration);
+      }
+    }
+
+    getMelodyNodes() {
+      if (typeof this.activeMelodyNodes === 'function') {
+        return this.activeMelodyNodes();
+      }
+      return this.activeMelodyNodes;
+    }
+
+    updateActiveMelodyNodes(newNodes, playCurrentImmediately = true) {
+      this.activeMelodyNodes = newNodes;
+
+      if (!this.isPlayingMelodyProgression || !playCurrentImmediately) return;
+
+      const nodes = this.getMelodyNodes();
+      if (!nodes || nodes.length === 0) return;
+
+      const now = Tone.now();
+
+      // 1. If currently sounding a chord right now, immediately update its sounding pitch!
+      const currentIdx = this.currentPlayingChordIdx;
+      if (currentIdx >= 0 && nodes[currentIdx]) {
+        const melodyNode = nodes[currentIdx];
+        if (melodyNode && melodyNode.scientific) {
+          const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
+          const elapsed = Math.max(0, now - this.currentChordStartTime);
+          const remaining = Math.max(0.2, this.currentChordDuration - elapsed);
+
+          try {
+            leadSynth.triggerAttackRelease(melodyNode.scientific, remaining * 0.85, now);
+          } catch (e) {
+            console.warn('Lead synth note trigger error:', e);
+          }
+
+          if (this.onMelodyStepHighlight && this.activeMelodyProgression) {
+            const chord = this.activeMelodyProgression[currentIdx];
+            this.onMelodyStepHighlight(currentIdx, chord, melodyNode);
+          }
+        }
+      }
+
+      // 2. If the next chord was already queued in the lookahead (scheduled for imminent downbeat):
+      if (this.nextScheduledChordIdx >= 0 && this.nextScheduledChordIdx !== currentIdx && this.nextScheduledTime > now) {
+        const nextIdx = this.nextScheduledChordIdx;
+        if (nodes[nextIdx] && nodes[nextIdx].scientific) {
+          const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
+          const remaining = Math.max(0.2, this.currentChordDuration);
+          try {
+            leadSynth.triggerAttackRelease(nodes[nextIdx].scientific, remaining * 0.82, this.nextScheduledTime);
+          } catch (e) {
+            console.warn('Lead synth lookahead reschedule error:', e);
+          }
+        }
+      }
+    }
+
+    onNodeCustomizedDuringPlayback(chordIndex, candidate) {
+      if (!this.isPlayingMelodyProgression) return;
+      const now = Tone.now();
+      const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
+
+      // Case A: The user customized the note of the chord currently playing!
+      if (chordIndex === this.currentPlayingChordIdx) {
+        const elapsed = Math.max(0, now - this.currentChordStartTime);
+        const remaining = Math.max(0.2, this.currentChordDuration - elapsed);
+        if (leadSynth && candidate && candidate.scientific) {
+          leadSynth.triggerAttackRelease(candidate.scientific, remaining * 0.85, now);
+        }
+        if (this.onMelodyStepHighlight && this.activeMelodyProgression) {
+          const chord = this.activeMelodyProgression[chordIndex];
+          this.onMelodyStepHighlight(chordIndex, chord, candidate);
+        }
+      }
+      // Case B: The user customized the note of the upcoming chord that was already queued in lookahead!
+      else if (chordIndex === this.nextScheduledChordIdx && this.nextScheduledTime > now) {
+        if (leadSynth && candidate && candidate.scientific) {
+          leadSynth.triggerAttackRelease(candidate.scientific, this.currentChordDuration * 0.82, this.nextScheduledTime);
+        }
+      }
+    }
+
+    async playProgressionWithMelody(parsedChords, melodyNodes, bpm = 113, loop = false, onStepHighlight = null, onFinished = null, startTime = null) {
+      if (!this.initialized) await this.init();
+      if (!this.initialized || !parsedChords || parsedChords.length === 0) return;
+      await this.resumeIfNeeded();
+
+      this.stopProgression();
+      this.stopProgressionWithMelody();
+
+      this.activeMelodyProgression = parsedChords;
+      this.activeMelodyNodes = melodyNodes;
+      this.isPlayingMelodyProgression = true;
+      this.onMelodyStepHighlight = onStepHighlight;
+      this.currentPlayingChordIdx = -1;
+      this.nextScheduledChordIdx = -1;
+      this.nextScheduledTime = 0;
+
+      Tone.Transport.bpm.value = bpm;
+      const secondsPerChord = (60 / bpm) * 2;
+      let currentIdx = 0;
+      const now = Tone.now();
+      let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
+      this.nextChordAudioTime = nextChordAudioTime;
+
+      // Tight 80ms lookahead ensures immediate responsiveness when user tweaks pathways or notes
+      const scheduleAhead = 0.08;
+      const scheduleChordsAndMelody = () => {
+        if (!this.isPlayingMelodyProgression) return;
+        const currentAudioTime = Tone.now();
+
+        while (nextChordAudioTime < currentAudioTime + scheduleAhead) {
+          if (currentIdx >= this.activeMelodyProgression.length) {
+            if (loop) {
+              currentIdx = 0;
+            } else {
+              this.stopProgressionWithMelody();
+              if (onFinished) onFinished();
+              return;
+            }
+          }
+
+          const chordIdx = currentIdx;
+          const chord = this.activeMelodyProgression[chordIdx];
+          const voicing = this.generateVoicing(chord);
+          const targetTime = Math.max(currentAudioTime, nextChordAudioTime);
+
+          // 1. Play Comping Chords (FM Electric Piano)
+          if (voicing.length > 0) {
+            this.chordSynth.triggerAttackRelease(voicing, secondsPerChord * 0.9, targetTime);
+          }
+
+          // 2. Play Solo Lead Melody (Dynamic lookup ensures real-time switching)
+          this.nextScheduledChordIdx = chordIdx;
+          this.nextScheduledTime = targetTime;
+          const currentMelodyNodes = this.getMelodyNodes();
+          const melodyNode = (currentMelodyNodes && currentMelodyNodes[chordIdx]) ? currentMelodyNodes[chordIdx] : null;
+          if (melodyNode && melodyNode.scientific) {
+            const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
+            leadSynth.triggerAttackRelease(melodyNode.scientific, secondsPerChord * 0.82, targetTime);
+          }
+
+          // 3. Hardware-synchronized visual highlighting
+          if (this.onMelodyStepHighlight) {
+            const visualDelay = Math.max(0, (targetTime - Tone.now()) * 1000);
+            const tId = setTimeout(() => {
+              if (this.isPlayingMelodyProgression && this.onMelodyStepHighlight) {
+                this.currentPlayingChordIdx = chordIdx;
+                this.currentChordStartTime = targetTime;
+                this.currentChordDuration = secondsPerChord;
+                const liveMelodyNodes = this.getMelodyNodes();
+                const activeNode = (liveMelodyNodes && liveMelodyNodes[chordIdx]) ? liveMelodyNodes[chordIdx] : melodyNode;
+                this.onMelodyStepHighlight(chordIdx, chord, activeNode);
+              }
+            }, visualDelay);
+            this.melodyProgressionVisualTimeouts.push(tId);
+          }
+
+          nextChordAudioTime += secondsPerChord;
+          this.nextChordAudioTime = nextChordAudioTime;
+          currentIdx++;
+        }
+      };
+
+      this.melodyProgressionVisualTimeouts = [];
+      scheduleChordsAndMelody();
+      this.melodyProgressionInterval = setInterval(scheduleChordsAndMelody, 25);
+    }
+
+    stopProgressionWithMelody() {
+      this.isPlayingMelodyProgression = false;
+      this.currentPlayingChordIdx = -1;
+      this.nextScheduledChordIdx = -1;
+      this.nextScheduledTime = 0;
+      if (this.melodyProgressionInterval) {
+        clearInterval(this.melodyProgressionInterval);
+        this.melodyProgressionInterval = null;
+      }
+      if (this.melodyProgressionVisualTimeouts) {
+        this.melodyProgressionVisualTimeouts.forEach(tId => clearTimeout(tId));
+        this.melodyProgressionVisualTimeouts = [];
+      }
+      if (this.onMelodyStepHighlight) {
+        this.onMelodyStepHighlight(-1, null, null);
+      }
     }
 
     // Arbitrary Time Signature Metronome (X / Y e.g. 7/8, 16/15, 4/4, 9/8, 5/4)

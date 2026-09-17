@@ -12,6 +12,8 @@
       this.fretboardInstrument = 'guitar'; // 'guitar', 'bass'
       this.activeChord = null;
       this.activeScale = null;
+      this.activeMelodyNote = null;
+      this.activeMelodyPC = null;
       this.onNoteClick = null;
 
       // Guitar & Bass String Tunings (pitch classes)
@@ -73,6 +75,27 @@
 
     setActiveChord(chord) {
       this.activeChord = chord;
+      this.render();
+    }
+
+    setMelodyNote(noteObjOrName) {
+      if (!noteObjOrName) {
+        this.activeMelodyNote = null;
+        this.activeMelodyPC = null;
+      } else if (typeof noteObjOrName === 'object' && noteObjOrName.pc !== undefined) {
+        this.activeMelodyNote = noteObjOrName;
+        this.activeMelodyPC = noteObjOrName.pc;
+      } else if (typeof noteObjOrName === 'string') {
+        const pc = window.SongTheory ? window.SongTheory.parseNotePC(noteObjOrName) : null;
+        this.activeMelodyNote = { scientific: noteObjOrName, pc };
+        this.activeMelodyPC = pc;
+      }
+      this.render();
+    }
+
+    clearMelodyNote() {
+      this.activeMelodyNote = null;
+      this.activeMelodyPC = null;
       this.render();
     }
 
@@ -201,6 +224,18 @@
           this.ctx.arc(x, y, nodeRadius, 0, Math.PI * 2);
           this.ctx.fill();
           this.ctx.restore();
+
+          if (this.activeMelodyPC === pc) {
+            this.ctx.save();
+            this.ctx.shadowColor = '#fef08a';
+            this.ctx.shadowBlur = 16;
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 3.5;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, nodeRadius + 5, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.restore();
+          }
         } else {
           this.ctx.fillStyle = this.colors.cardBg;
           this.ctx.strokeStyle = this.colors.inactive;
@@ -289,6 +324,20 @@
             this.ctx.fillText(role.name, kx + whiteKeyWidth / 2, ky + whiteKeyHeight - 36);
           }
 
+          if (isActive && this.activeMelodyPC === pc) {
+            this.ctx.save();
+            this.ctx.shadowColor = '#f59e0b';
+            this.ctx.shadowBlur = 12;
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(kx + 1, ky + 1, whiteKeyWidth - 3, whiteKeyHeight - 2);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.arc(kx + whiteKeyWidth / 2, ky + 16, 5, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+          }
+
           this.pianoKeyHits.push({
             midi, pc, isBlack: false,
             x: kx, y: ky, w: whiteKeyWidth, h: whiteKeyHeight
@@ -324,6 +373,20 @@
               this.ctx.textAlign = 'center';
               this.ctx.fillText(NOTE_NAMES[nextPC], bkx + blackKeyWidth / 2, bky + blackKeyHeight - 20);
               this.ctx.fillText(role.name, bkx + blackKeyWidth / 2, bky + blackKeyHeight - 8);
+            }
+
+            if (isActive && this.activeMelodyPC === nextPC) {
+              this.ctx.save();
+              this.ctx.shadowColor = '#f59e0b';
+              this.ctx.shadowBlur = 12;
+              this.ctx.strokeStyle = '#ffffff';
+              this.ctx.lineWidth = 2.5;
+              this.ctx.strokeRect(bkx + 1, bky + 1, blackKeyWidth - 2, blackKeyHeight - 2);
+              this.ctx.fillStyle = '#ffffff';
+              this.ctx.beginPath();
+              this.ctx.arc(bkx + blackKeyWidth / 2, bky + 12, 4, 0, Math.PI * 2);
+              this.ctx.fill();
+              this.ctx.restore();
             }
 
             this.pianoKeyHits.push({
@@ -442,6 +505,18 @@
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(NOTE_NAMES[notePC], nx, sy);
+
+            if (this.activeMelodyPC === notePC) {
+              this.ctx.save();
+              this.ctx.shadowColor = '#f59e0b';
+              this.ctx.shadowBlur = 14;
+              this.ctx.strokeStyle = '#ffffff';
+              this.ctx.lineWidth = 3;
+              this.ctx.beginPath();
+              this.ctx.arc(nx, sy, nodeRadius + 4, 0, Math.PI * 2);
+              this.ctx.stroke();
+              this.ctx.restore();
+            }
           }
         }
       }
