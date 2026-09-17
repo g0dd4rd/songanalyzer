@@ -2783,3 +2783,98 @@ tr:hover td {
   font-style: italic;
 }
 
+/* ==========================================================================
+   Clock Concentric Layer Toolbar (Module 4: Enhanced Clock)
+   ========================================================================== */
+.clock-layer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.clock-layer-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.clock-layer-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clock-layer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  color: #64748b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clock-layer-btn:hover {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.clock-layer-btn .layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  opacity: 0.4;
+  transition: all 0.2s ease;
+}
+
+.clock-layer-btn.active {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.clock-layer-btn.active .layer-dot {
+  opacity: 1;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Specific Layer Colors when active */
+.clock-layer-btn[data-layer="drums"].active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+}
+.layer-dot-drums { background: #f59e0b; color: #f59e0b; }
+
+.clock-layer-btn[data-layer="bass"].active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.16);
+}
+.layer-dot-bass { background: #10b981; color: #10b981; }
+
+.clock-layer-btn[data-layer="guitar"].active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.16);
+}
+.layer-dot-guitar { background: #a855f7; color: #a855f7; }
+
+.clock-layer-btn[data-layer="harmony"].active {
+  border-color: #06b6d4;
+  background: rgba(6, 182, 212, 0.16);
+}
+.layer-dot-harmony { background: #06b6d4; color: #06b6d4; }
+
+

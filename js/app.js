@@ -229,6 +229,9 @@
             audio.stopProgression();
             btnPlayProg.textContent = '▶ Play Progression';
             btnPlayProg.classList.remove('btn-warning');
+            if (this.visualizer && (!this.beatSequencer || !this.beatSequencer.isPlaying)) {
+              this.visualizer.stopAnimation();
+            }
           } else {
             const bpm = this.getBpm();
             const loop = document.getElementById('loopProgression').checked;
@@ -242,6 +245,7 @@
               btnPlayProg.textContent = '⏹ Stop Progression';
             }
 
+            if (this.visualizer) this.visualizer.startAnimation();
             audio.playProgression(this.parsedChords, bpm, loop, (idx, chord) => {
               btnPlayProg.textContent = '⏹ Stop Progression';
               btnPlayProg.classList.remove('btn-warning');
@@ -253,6 +257,9 @@
               btnPlayProg.textContent = '▶ Play Progression';
               btnPlayProg.classList.remove('btn-warning');
               this.highlightTableRow(-1);
+              if (this.visualizer && (!this.beatSequencer || !this.beatSequencer.isPlaying)) {
+                this.visualizer.stopAnimation();
+              }
             }, syncStartTime);
           }
         });
@@ -337,6 +344,21 @@
           const fretboardControls = document.getElementById('fretboardControls');
           if (fretboardControls) {
             fretboardControls.style.display = (mode === 'fretboard') ? 'flex' : 'none';
+          }
+          const clockLayerControls = document.getElementById('clockLayerControls');
+          if (clockLayerControls) {
+            clockLayerControls.style.display = (mode === 'clock') ? 'flex' : 'none';
+          }
+        });
+      });
+
+      // Clock Concentric Layer Switchers (Option 2: Enhanced Clock)
+      document.querySelectorAll('.clock-layer-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const layer = btn.dataset.layer;
+          if (this.visualizer) {
+            const isNowActive = this.visualizer.toggleLayer(layer);
+            btn.classList.toggle('active', isNowActive);
           }
         });
       });
@@ -1979,7 +2001,12 @@
             btnPlay.classList.remove('btn-danger');
             this.ribbonRenderer.setActiveStep(-1);
             this.highlightTableRow(-1);
-            if (this.visualizer) this.visualizer.clearMelodyNote();
+            if (this.visualizer) {
+              this.visualizer.clearMelodyNote();
+              if (!this.beatSequencer || !this.beatSequencer.isPlaying) {
+                this.visualizer.stopAnimation();
+              }
+            }
           } else {
             if (audio.isPlayingProgression) {
               audio.stopProgression();
@@ -1994,6 +2021,7 @@
             btnPlay.innerHTML = '<span>⏹ Stop Audition</span>';
             btnPlay.classList.add('btn-danger');
 
+            if (this.visualizer) this.visualizer.startAnimation();
             await audio.playProgressionWithMelody(
               this.parsedChords,
               () => (this.ribbonEngine ? this.ribbonEngine.activeMelodyNodes : []),
@@ -2014,7 +2042,12 @@
                 btnPlay.classList.remove('btn-danger');
                 this.ribbonRenderer.setActiveStep(-1);
                 this.highlightTableRow(-1);
-                if (this.visualizer) this.visualizer.clearMelodyNote();
+                if (this.visualizer) {
+                  this.visualizer.clearMelodyNote();
+                  if (!this.beatSequencer || !this.beatSequencer.isPlaying) {
+                    this.visualizer.stopAnimation();
+                  }
+                }
               }
             );
           }
@@ -2628,6 +2661,7 @@
 
       this.drumSynth = new window.SongDrums.DrumSynth();
       this.beatSequencer = new window.SongDrums.BeatSequencer(this.drumSynth);
+      window.drumMachine = this.beatSequencer; // Make accessible globally to visualizer
       this.beatSequencer.setBpm(this.getBpm());
 
       // Load initial default groove (self-configures 4/4 16 steps)
@@ -2671,6 +2705,7 @@
             btnToggleBeat.classList.add('btn-success');
             if (statusIndicator) statusIndicator.textContent = 'Stopped';
             this.highlightBeatStep(-1);
+            if (this.visualizer) this.visualizer.stopAnimation();
           } else {
             // If simple metronome is running, stop it to avoid cacophony
             if (window.audio && window.audio.isMetronomeRunning) {
@@ -2692,6 +2727,7 @@
               syncStartTime = window.audio.getNextChordDownbeatTime();
             }
 
+            if (this.visualizer) this.visualizer.startAnimation();
             this.beatSequencer.start((stepIdx) => {
               this.highlightBeatStep(stepIdx);
             }, syncStartTime);
@@ -2926,6 +2962,9 @@
           pad.addEventListener('click', async () => {
             const nextState = this.beatSequencer.cycleStep(track.id, s);
             this.applyPadStateClass(pad, nextState);
+            if (this.visualizer && this.visualizer.mode === 'clock') {
+              this.visualizer.render();
+            }
             // Audition drum hit on tap
             if (nextState > 0) {
               await this.ensureDrumAudioContext();
@@ -2941,6 +2980,10 @@
 
         container.appendChild(row);
       });
+
+      if (this.visualizer && this.visualizer.mode === 'clock') {
+        this.visualizer.render();
+      }
     }
 
     applyPadStateClass(pad, state) {
@@ -2957,6 +3000,10 @@
       if (stepIdx >= 0) {
         const currentPads = document.querySelectorAll(`.beat-pad[data-step="${stepIdx}"]`);
         currentPads.forEach(p => p.classList.add('active-cursor'));
+      }
+
+      if (this.visualizer && this.visualizer.setStep) {
+        this.visualizer.setStep(stepIdx);
       }
     }
 
@@ -3041,6 +3088,10 @@
       if (btnLabel) btnLabel.textContent = 'STOP JAM';
       if (syncDot) syncDot.classList.add('is-active');
       if (syncText) syncText.textContent = 'Locked 🔒';
+
+      if (this.visualizer) {
+        this.visualizer.startAnimation();
+      }
 
       // Start all tracks locked to exact same audio timestamp
       const startTime = Tone.now() + 0.08;
@@ -3134,6 +3185,10 @@
       if (syncDot) syncDot.classList.remove('is-active');
       if (syncText) syncText.textContent = 'Jam Ready';
 
+      if (this.visualizer) {
+        this.visualizer.stopAnimation();
+      }
+
       if (window.audio) {
         window.audio.stopProgression();
         window.audio.stopRhythm();
@@ -3204,9 +3259,13 @@
       // Drums
       if (trackDrums && trackDrums.checked && this.beatSequencer && !this.beatSequencer.isPlaying) {
         this.beatSequencer.start((step) => this.highlightBeatStep(step), syncTime);
+        if (this.visualizer) this.visualizer.startAnimation();
       } else if (trackDrums && !trackDrums.checked && this.beatSequencer && this.beatSequencer.isPlaying) {
         this.beatSequencer.stop();
         this.highlightBeatStep(-1);
+        if (this.visualizer && (!window.audio || (!window.audio.isPlayingProgression && !window.audio.isPlayingMelodyProgression))) {
+          this.visualizer.stopAnimation();
+        }
       }
 
       // Clave

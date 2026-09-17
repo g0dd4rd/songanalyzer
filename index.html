@@ -835,12 +835,13 @@
             <button type="button" class="guide-box-close" data-close-guide="guideVisualizer" title="Close Guide" aria-label="Close Guide">&times;</button>
           </div>
           <div class="guide-box-content">
-            <p><strong class="label-what">What it is:</strong> A real-time geometric visualizer with three selectable perspectives: the 12-tone Chromatic Circle (<strong>Clock (Z12 Wheel)</strong>), the <strong>Piano Keyboard</strong>, and an interactive multi-string <strong>Fretboard</strong> (with <strong>6-String Guitar</strong> and <strong>4-String Bass</strong> modes).</p>
+            <p><strong class="label-what">What it is:</strong> A real-time geometric visualizer with three selectable perspectives: the 12-tone Chromatic Circle (<strong>Clock (Z12 Wheel)</strong> with multi-layer concentric groove tracks for Drums, Bass, Guitar, and Harmony Core), the <strong>Piano Keyboard</strong>, and an interactive multi-string <strong>Fretboard</strong> (with <strong>6-String Guitar</strong> and <strong>4-String Bass</strong> modes).</p>
             <p><strong class="label-why">Why use it:</strong> Music theory is geometry! Seeing chords mapped onto the chromatic circle reveals symmetrical harmonies (diminished 7ths form squares, augmented chords form equilateral triangles). The fretboard maps exact fingerings across strings.</p>
             <div>
               <strong class="label-how">How to use it:</strong>
               <ol class="guide-how-list">
                 <li>Use the top switcher buttons to toggle between <strong>Clock (Z12 Wheel)</strong>, <strong>Piano Keyboard</strong>, and <strong>Fretboard</strong>.</li>
+                <li>In <strong>Clock (Z12 Wheel)</strong> mode, toggle concentric groove layers (<strong>🥁 Drums</strong>, <strong>🎸 Bass</strong>, <strong>🎼 Guitar</strong>, <strong>🌟 Harmony</strong>) to see how rhythm locks with harmony in real time.</li>
                 <li>When <strong>Fretboard</strong> is selected, choose your instrument from the dropdown (<strong>6-String Guitar (E A D G B E)</strong> or <strong>4-String Bass (E A D G)</strong>).</li>
                 <li>Play any progression in the Analyzer, Jam Deck, or Drills — the canvas updates in real time: root notes glow in gold, while chord tones appear in cyan.</li>
               </ol>
@@ -855,6 +856,25 @@
           <button class="btn btn-sm viz-btn active" data-mode="clock">Clock (Z12 Wheel)</button>
           <button class="btn btn-sm viz-btn" data-mode="piano">Piano Keyboard</button>
           <button class="btn btn-sm viz-btn" data-mode="fretboard">Fretboard</button>
+        </div>
+
+        <!-- Clock Concentric Layer Controls (Option 2: Enhanced Clock) -->
+        <div id="clockLayerControls" class="clock-layer-toolbar">
+          <span class="clock-layer-label">Concentric Layers:</span>
+          <div class="clock-layer-buttons">
+            <button type="button" class="btn btn-xs clock-layer-btn active" data-layer="drums" title="Toggle 16-Step Drum Machine Outer Orbit (from Beat Builder)">
+              <span class="layer-dot layer-dot-drums"></span> 🥁 Drums
+            </button>
+            <button type="button" class="btn btn-xs clock-layer-btn active" data-layer="bass" title="Toggle Bassline Groove Orbit">
+              <span class="layer-dot layer-dot-bass"></span> 🎸 Bass
+            </button>
+            <button type="button" class="btn btn-xs clock-layer-btn active" data-layer="guitar" title="Toggle Guitar & Comping Chords Orbit">
+              <span class="layer-dot layer-dot-guitar"></span> 🎼 Guitar
+            </button>
+            <button type="button" class="btn btn-xs clock-layer-btn active" data-layer="harmony" title="Toggle 12-Tone Harmonic Constellation Core">
+              <span class="layer-dot layer-dot-harmony"></span> 🌟 Harmony Core
+            </button>
+          </div>
         </div>
 
         <div id="fretboardControls" class="fretboard-toolbar" style="display: none;">
