@@ -530,11 +530,52 @@
     // Curated Groove Presets (The Rhythm Code)
     // Presets self-determine their meter, subdivision, swing, and pattern
     loadPreset(presetName) {
+      if (presetName && presetName.startsWith('user_')) return null;
+
       let meter = { num: 4, den: 4 };
       let subdiv = 4;
       let swingVal = 0.0;
 
       switch (presetName) {
+        // Metal & Heavy
+        case 'metalDoubleBass': // 4/4 Double Bass Thrash
+          meter = { num: 4, den: 4 };
+          subdiv = 4; // 16 steps of 16th notes
+          swingVal = 0.0;
+          break;
+
+        case 'metalBreakdown': // 4/4 Groove Metal Breakdown
+          meter = { num: 4, den: 4 };
+          subdiv = 4; // 16 steps of 16th notes
+          swingVal = 0.0;
+          break;
+
+        // Prog Rock
+        case 'progRock78': // 7/8 Prog Rock Anthem (2 + 2 + 3)
+          meter = { num: 7, den: 8 };
+          subdiv = 2; // 14 steps of 16th notes (2 per 8th)
+          swingVal = 0.0;
+          break;
+
+        case 'progRock98': // 9/8 Prog Rock Odyssey (3 + 3 + 3)
+          meter = { num: 9, den: 8 };
+          subdiv = 2; // 18 steps of 16th notes (2 per 8th)
+          swingVal = 0.0;
+          break;
+
+        // Prog Metal & Djent
+        case 'progMetalDjent': // 4/4 Djent 3:4 Polymeter
+          meter = { num: 4, den: 4 };
+          subdiv = 4; // 16 steps of 16th notes
+          swingVal = 0.0;
+          break;
+
+        case 'progMetal54': // 5/4 Prog Metal Chug (3 + 2)
+          meter = { num: 5, den: 4 };
+          subdiv = 4; // 20 steps of 16th notes (4 per quarter)
+          swingVal = 0.0;
+          break;
+
         case 'balkan78': // 7/8 Balkan Râčenica (3 + 2 + 2)
           meter = { num: 7, den: 8 };
           subdiv = 2; // 14 steps of 16th notes (2 per 8th)
@@ -603,6 +644,86 @@
       this.clearPattern();
 
       switch (presetName) {
+        case 'metalDoubleBass':
+          // Thrash / Speed Metal double bass drive
+          this.setSteps('kick', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 1);
+          this.setSteps('kick', [0, 4, 8, 12], 2); // heavy downbeat power accents
+          this.setSteps('snare', [4, 12], 2);      // backbeats
+          this.setSteps('snare', [15], 3);         // ghost pickup
+          this.setSteps('crash', [0, 8], 2);       // crashes
+          this.setSteps('ride', [0, 2, 4, 6, 8, 10, 12, 14], 1);
+          this.setSteps('closedHat', [0, 2, 4, 6, 8, 10, 12, 14], 1);
+          this.setSteps('openHat', [14], 1);
+          break;
+
+        case 'metalBreakdown':
+          // Half-time groove metal breakdown (Pantera, Lamb of God, Gojira)
+          this.setSteps('crash', [0, 8], 2);
+          this.setSteps('ride', [0, 4, 8, 12], 1);
+          this.setSteps('snare', [8], 2);          // Half-time backbeat on Beat 3
+          this.setSteps('snare', [6, 7, 15], 3);   // Ghost rolls
+          this.setSteps('clap', [8], 1);           // Doubled snare slap
+          this.setSteps('kick', [0, 2, 3, 5, 8, 10, 11, 13, 14], 1);
+          this.setSteps('kick', [0, 3, 8, 10, 13], 2); // Heavy staccato chugs
+          this.setSteps('closedHat', [0, 2, 4, 8, 10, 12], 1);
+          this.setSteps('openHat', [7, 15], 2);    // Sizzle pickups into the slams
+          break;
+
+        case 'progRock78':
+          // 7/8 Prog Rock Anthem (Rush, Pink Floyd, Tool - 2+2+3 grouping: 14 steps)
+          this.setSteps('crash', [0], 2);
+          this.setSteps('ride', [0, 2, 4, 6, 8, 10, 12], 1);
+          this.setSteps('ride', [0, 4, 8], 2);     // Group heads bell accents
+          this.setSteps('kick', [0, 2, 6, 8, 12], 1);
+          this.setSteps('kick', [0, 8], 2);
+          this.setSteps('snare', [4, 10], 2);      // Asymmetric backbeats
+          this.setSteps('snare', [8, 13], 3);      // Ghost notes
+          this.setSteps('cowbell', [0, 4, 8, 11], 1);
+          this.setSteps('closedHat', [0, 2, 4, 6, 8, 10, 12], 1);
+          break;
+
+        case 'progRock98':
+          // 9/8 Prog Rock Odyssey (Genesis 'Apocalypse in 9/8', King Crimson - 3+3+3 grouping: 18 steps)
+          this.setSteps('crash', [0, 12], 2);
+          this.setSteps('ride', [0, 2, 4, 6, 8, 10, 12, 14, 16], 1);
+          this.setSteps('ride', [0, 6, 12], 2);    // Triple compound beat bells
+          this.setSteps('kick', [0, 4, 6, 10, 12, 14], 1);
+          this.setSteps('kick', [0, 6, 12], 2);
+          this.setSteps('snare', [6, 16], 2);      // Dynamic backbeats
+          this.setSteps('snare', [2, 10], 3);      // Ghost taps
+          this.setSteps('cowbell', [0, 6, 12, 15], 1);
+          this.setSteps('openHat', [16], 1);
+          this.setSteps('closedHat', [0, 2, 4, 6, 8, 10, 12, 14], 1);
+          break;
+
+        case 'progMetalDjent':
+          // Djent 3:4 Polymeter over 4/4 (Meshuggah, Animals As Leaders)
+          this.setSteps('crash', [0], 2);
+          this.setSteps('ride', [0, 4, 8, 12], 2); // 4/4 Quarter pulse anchor
+          this.setSteps('snare', [4, 12], 2);      // 4/4 Backbeat anchor
+          this.setSteps('snare', [7, 15], 3);      // Ghost polyrhythms
+          this.setSteps('clap', [12], 1);
+          // Kick plays repeating 3-sixteenth djent bursts across 16 steps:
+          this.setSteps('kick', [0, 1, 3, 4, 6, 7, 9, 10, 12, 14, 15], 1);
+          this.setSteps('kick', [0, 3, 6, 9, 12, 14], 2);
+          this.setSteps('closedHat', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 1);
+          this.setSteps('openHat', [11], 1);
+          break;
+
+        case 'progMetal54':
+          // 5/4 Prog Metal Chug (Tool 'The Grudge', Dream Theater - 3+2 grouping: 20 steps)
+          this.setSteps('crash', [0, 12], 2);
+          this.setSteps('ride', [0, 2, 4, 6, 8, 10, 12, 14, 16, 18], 1);
+          this.setSteps('ride', [0, 6, 12, 16], 2);
+          this.setSteps('kick', [0, 1, 4, 6, 7, 10, 12, 13, 16, 17], 1);
+          this.setSteps('kick', [0, 6, 12, 16], 2);
+          this.setSteps('snare', [4, 10, 16], 2);  // Staggered odd-meter backbeats
+          this.setSteps('snare', [9, 15, 19], 3);  // Ghost pickups
+          this.setSteps('cowbell', [0, 6, 12], 1);
+          this.setSteps('openHat', [18], 1);
+          this.setSteps('closedHat', [0, 2, 4, 6, 8, 10, 12, 14, 16, 18], 1);
+          break;
+
         case 'rock':
           this.setSteps('crash', [0], 2);
           this.setSteps('kick', [0, 8, 10], 2);
