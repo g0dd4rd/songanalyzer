@@ -16,6 +16,7 @@
   <script src="js/tuner.js"></script>
   <script src="js/accuracy.js"></script>
   <script src="js/ribbon.js"></script>
+  <script src="js/sheetmusic.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -1011,7 +1012,7 @@
                 <li>Choose a sound from <strong>metroSound</strong> (<em>Woodblock</em>, <em>Digital Click</em>, or <em>Spoken Count</em>).</li>
                 <li>Click <strong>▶ Start Metronome</strong> — the metronome starts and the <strong>Practice Session Timer</strong> begins tracking elapsed exercise time automatically!</li>
                 <li>When switching to a new drill, click <strong>⏭ Next Exercise</strong> to log your completed delta and reset for the next study.</li>
-                <li>In the <strong>Unicode Rhythm Generator</strong>, click <strong>🎲 New Rhythm</strong> and <strong>▶ Play Clave</strong> to practice playing over syncopated clave rhythms.</li>
+                <li>In the <strong>Beat Builder</strong>, tap pads to build custom drum grooves across 9 tracks (Kick, Snare, Hats, Toms, Clave, Cowbell).</li>
               </ol>
             </div>
             <div class="guide-tip-box">
@@ -1026,7 +1027,7 @@
             ⏱ Metronome Click
           </button>
           <button id="btnMetroModeBeats" class="btn btn-sm" style="flex: 1; font-weight: 600; min-width: 140px;">
-            🥁 Beat Builder (9-Track Drum Grid)
+            🥁 Beat Builder (8-Track Drum Grid)
           </button>
           <button id="btnMetroOpenPocket" class="btn btn-sm btn-outline-cyan" style="flex: 1; font-weight: 600; min-width: 140px;" title="Open Rhythmic Accuracy Analyzer & Pocket Meter [R]">
             🎯 Pocket Meter
@@ -1210,7 +1211,43 @@
             </div>
           </div>
 
-          <!-- Interactive 9-Track Step Sequencer Grid -->
+          <!-- Integrated Rhythm Generator Toolbar -->
+          <div class="beat-rhythm-toolbar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 6px 12px; background: rgba(30, 41, 59, 0.55); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.04em;">🎲 Rhythm Generator:</span>
+              <button id="btnGenerateRhythm" class="btn btn-sm btn-primary" style="font-weight: 700; padding: 3px 10px;" title="Generate new procedural rhythm replacing existing grid pattern">
+                🎲 Generate Rhythm
+              </button>
+              <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; cursor: pointer; color: var(--text-muted); margin: 0;">
+                <input type="checkbox" id="rhythmIncludeRests" checked> Include Rests
+              </label>
+              <div style="display: inline-flex; align-items: center; gap: 4px;">
+                <label for="rhythmTargetTrack" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Track:</label>
+                <select id="rhythmTargetTrack" class="form-control" style="font-size: 0.8rem; padding: 2px 6px; width: auto;">
+                  <option value="snare" selected>Snare Drum</option>
+                  <option value="cowbell">Cowbell</option>
+                  <option value="clap">Handclap</option>
+                  <option value="kick">Kick Drum</option>
+                  <option value="closedHat">Closed Hat</option>
+                  <option value="ride">Ride Cymbal</option>
+                </select>
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 4px;">
+                <label for="rhythmStyleSelect" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Style:</label>
+                <select id="rhythmStyleSelect" class="form-control" style="font-size: 0.8rem; padding: 2px 6px; width: auto;">
+                  <option value="balanced" selected>Balanced (8ths &amp; 16ths)</option>
+                  <option value="syncopated">Syncopated</option>
+                  <option value="straight">Straight Pulse (1/4 &amp; 8ths)</option>
+                  <option value="dense">Dense (16th Ostinato)</option>
+                </select>
+              </div>
+            </div>
+            <div id="rhythmSummaryBadge" class="tempo-marking-badge" style="font-size: 0.76rem; padding: 2px 8px;">
+              Single Rhythm Mode
+            </div>
+          </div>
+
+          <!-- Interactive 8-Track Step Sequencer Grid -->
           <div class="beat-grid-wrapper" id="beatGridWrapper">
             <div class="beat-grid-scroll">
               <div id="beatGridContainer" class="beat-grid-table">
@@ -1223,41 +1260,45 @@
             <span>💡 Tap pad: <strong>Normal</strong> (●) → <strong>Accent</strong> (◉) → <strong>Ghost</strong> (·) → <strong>Off</strong></span>
             <span id="beatStatusIndicator" style="font-weight: 600;">Stopped</span>
           </div>
-        </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
+          <!-- Sheet Music & Musical Notation Subpanel -->
+          <div class="beat-sheet-music-subpanel" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 0.86rem; font-weight: 700; color: #f8fafc; display: inline-flex; align-items: center; gap: 6px;">
+                  🎼 Sheet Music &amp; Notation
+                </span>
+                <div style="display: inline-flex; align-items: center; gap: 6px;">
+                  <label for="beatSheetTrackSelect" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Track:</label>
+                  <select id="beatSheetTrackSelect" class="form-control" style="font-size: 0.8rem; padding: 2px 8px; width: auto;">
+                    <option value="fullGroove">Full Groove (All Tracks)</option>
+                    <option value="snare" selected>Snare Drum</option>
+                    <option value="kick">Kick Drum</option>
+                    <option value="closedHat">Closed Hat</option>
+                    <option value="openHat">Open Hat</option>
+                    <option value="ride">Ride Cymbal</option>
+                    <option value="crash">Crash Cymbal</option>
+                    <option value="cowbell">Cowbell</option>
+                    <option value="clap">Handclap</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="beatSheetNoteBadge" class="tempo-marking-badge" style="font-size: 0.76rem; padding: 2px 8px;">
+                  Snare Drum • 4/4 • 2 Notes
+                </span>
+              </div>
+            </div>
 
-        <div class="card-title" style="font-size: 0.95rem; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-          <span>Unicode Rhythm Generator</span>
-          <span id="rhythmLoopStatus" class="tempo-marking-badge" style="display: none; font-size: 0.8rem;"></span>
-        </div>
-
-        <div class="input-row rhythm-controls-row" style="align-items: center; flex-wrap: wrap; gap: 8px;">
-          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; white-space: nowrap; margin-right: 4px;">
-            <input type="checkbox" id="rhythmIncludeRests" checked> Include Rests
-          </label>
-          <button id="btnGenerateRhythm" class="btn btn-sm">🎲 New Rhythm</button>
-
-          <div style="display: inline-flex; align-items: center; gap: 6px;">
-            <label for="rhythmLoopMode" style="font-size: 0.85rem; color: var(--text-muted); margin: 0; white-space: nowrap;">Loop:</label>
-            <select id="rhythmLoopMode" class="form-control" style="width: auto; padding: 4px 8px; font-size: 0.85rem;">
-              <option value="1">Once (1x)</option>
-              <option value="2">2 times</option>
-              <option value="4" selected>4 times</option>
-              <option value="8">8 times</option>
-              <option value="custom">Custom...</option>
-              <option value="infinite">Indefinitely (∞)</option>
-            </select>
-            <input type="number" id="rhythmCustomCount" class="form-control" min="1" max="999" value="6" 
-                   style="width: 68px; padding: 4px 6px; font-size: 0.85rem; display: none;" 
-                   title="Number of loops (1-999)" placeholder="# loops">
+            <!-- 5-Line Musical Notation Canvas -->
+            <div class="beat-grid-wrapper" id="beatSheetScroll" style="background: #0f172a; padding: 8px 4px; overflow-x: auto;">
+              <canvas id="beatSheetMusicCanvas" class="beat-sheet-canvas" height="145" style="height: 145px; display: block;"></canvas>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <span>💡 Interactive notation: Click any note to audition. Playhead needle sweeps live during beat playback.</span>
+              <span id="beatSheetSyncStatus" style="color: var(--accent-cyan); font-weight: 600;">● Live Grid Sync</span>
+            </div>
           </div>
-
-          <button id="btnPlayRhythm" class="btn btn-sm btn-success" style="min-width: 110px;">▶ Play Clave</button>
-        </div>
-
-        <div id="rhythmGlyphDisplay" class="rhythm-display">
-          <!-- Dynamic Unicode Notation -->
         </div>
       </section>
 

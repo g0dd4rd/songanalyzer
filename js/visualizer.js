@@ -48,6 +48,7 @@
       };
       this.animId = null;
       this.activeStep = -1;
+      this.lastStepTime = null;
       this.wheelMetrics = null;
       this.harmonicNodeHits = [];
 
@@ -83,6 +84,7 @@
 
     setStep(stepIndex) {
       this.activeStep = stepIndex;
+      this.lastStepTime = (stepIndex >= 0) ? performance.now() : null;
       if (this.mode === 'clock') {
         this.render();
       }
@@ -112,6 +114,7 @@
         this.animId = null;
       }
       this.activeStep = -1;
+      this.lastStepTime = null;
       this.render();
     }
 
@@ -289,24 +292,43 @@
       const isAudioPlaying = window.audio && (window.audio.isPlayingProgression || window.audio.isPlayingMelodyProgression);
       const isAnyPlaying = isDrumsPlaying || isAudioPlaying;
 
+      const stepCount = (seq && typeof seq.getStepCount === 'function')
+        ? seq.getStepCount()
+        : 16;
+      const sig = (seq && seq.timeSignature) || { num: 4, den: 4 };
+      const subdiv = (seq && seq.subdivision) || ((sig.den === 8) ? (sig.sub || 2) : 4);
+
       let currentStep = -1;
       let currentProgress = 0;
 
       if (isDrumsPlaying && seq) {
-        currentStep = seq.currentStep !== undefined ? seq.currentStep : 0;
-        const stepCount = seq.getStepCount() || 16;
-        if (typeof Tone !== 'undefined' && Tone.Transport && Tone.Transport.state === 'started' && typeof Tone.Transport.progress === 'number') {
-          currentProgress = Tone.Transport.progress;
-        } else {
-          currentProgress = (currentStep >= 0 ? currentStep : 0) / stepCount;
+        // Real-time audio-synchronized step from scheduler
+        currentStep = (this.activeStep >= 0) ? (this.activeStep % stepCount) : 0;
+
+        // Smooth sub-step interpolation using high-resolution timer
+        let fraction = 0;
+        if (this.lastStepTime && typeof this.lastStepTime === 'number') {
+          const bpm = seq.bpm || 120;
+          const beatSec = (60 / bpm) * (4 / (sig.den || 4));
+          const stepDurationMs = (beatSec / subdiv) * 1000;
+          const now = performance.now();
+          const elapsed = now - this.lastStepTime;
+          fraction = Math.min(0.999, Math.max(0, elapsed / stepDurationMs));
         }
+        currentProgress = (currentStep + fraction) / stepCount;
       } else if (this.activeStep >= 0) {
-        currentStep = this.activeStep;
-        currentProgress = currentStep / 16;
+        currentStep = this.activeStep % stepCount;
+        currentProgress = currentStep / stepCount;
+      } else if (isAudioPlaying) {
+        if (typeof Tone !== 'undefined' && Tone.Transport && Tone.Transport.state === 'started' && typeof Tone.Transport.progress === 'number') {
+          const numBars = (window.app && window.app.parsedChords && window.app.parsedChords.length) || 1;
+          currentProgress = (Tone.Transport.progress * numBars) % 1;
+          currentStep = Math.floor(currentProgress * stepCount) % stepCount;
+        }
       }
 
       // =========================================================================
-      // LAYER 1: Drum Machine Wheel (Outer Orbit: 16-Step Grid from Beat Builder)
+      // LAYER 1: Drum Machine Wheel (Outer Orbit: Dynamic Steps from Beat Builder)
       // =========================================================================
       if (showDrums) {
         // Outer track background corridor
@@ -319,12 +341,17 @@
         ctx.fill();
         ctx.stroke();
 
-        // 3 Sub-track guideline arcs (Hat, Snare, Kick)
-        const rHat = rDrumInner + 33;
-        const rSnare = rDrumInner + 21;
-        const rKick = rDrumInner + 9;
+        // 4 Sub-track guideline arcs:
+        // 1. Kick (inner)
+        // 2. Snare / Clap (mid-low)
+        // 3. Hi-Hats (mid-high)
+        // 4. Cymbals / Perc (outer)
+        const rKick = rDrumInner + 8;
+        const rSnare = rDrumInner + 18;
+        const rHat = rDrumInner + 28;
+        const rPerc = rDrumInner + 37;
 
-        [rHat, rSnare, rKick].forEach(rGuide => {
+        [rKick, rSnare, rHat, rPerc].forEach(rGuide => {
           ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
           ctx.lineWidth = 1;
           ctx.setLineDash([2, 4]);
@@ -334,24 +361,24 @@
           ctx.setLineDash([]);
         });
 
-        // 16 Step Spokes & Quarter Beat Accents
-        for (let s = 0; s < 16; s++) {
-          const theta = -Math.PI / 2 + (s / 16) * Math.PI * 2;
+        // Step Spokes & Beat Division Accents
+        for (let s = 0; s < stepCount; s++) {
+          const theta = -Math.PI / 2 + (s / stepCount) * Math.PI * 2;
           const cosT = Math.cos(theta);
           const sinT = Math.sin(theta);
-          const isQuarter = (s % 4 === 0);
+          const isDownbeat = (s % subdiv === 0);
 
-          ctx.strokeStyle = isQuarter ? 'rgba(100, 116, 139, 0.65)' : 'rgba(51, 65, 85, 0.3)';
-          ctx.lineWidth = isQuarter ? 1.5 : 0.75;
+          ctx.strokeStyle = isDownbeat ? 'rgba(100, 116, 139, 0.65)' : 'rgba(51, 65, 85, 0.3)';
+          ctx.lineWidth = isDownbeat ? 1.5 : 0.75;
           ctx.beginPath();
           ctx.moveTo(cx + rDrumInner * cosT, cy + rDrumInner * sinT);
           ctx.lineTo(cx + rDrumOuter * cosT, cy + rDrumOuter * sinT);
           ctx.stroke();
 
-          // Quarter Beat Numbers outside perimeter
-          if (isQuarter) {
-            const beatNum = Math.floor(s / 4) + 1;
-            const bDist = rDrumOuter + 10;
+          // Beat Numbers outside perimeter
+          if (isDownbeat) {
+            const beatNum = Math.floor(s / subdiv) + 1;
+            const bDist = rDrumOuter + 11;
             ctx.fillStyle = '#94a3b8';
             ctx.font = 'bold 9px monospace';
             ctx.textAlign = 'center';
@@ -363,7 +390,7 @@
         // Sweeping Radar Playhead Sector & Needle
         if (isAnyPlaying || this.activeStep >= 0) {
           const needleAngle = -Math.PI / 2 + (currentProgress * Math.PI * 2);
-          const trailAngle = needleAngle - (Math.PI * 2 / 16) * 1.5;
+          const trailAngle = needleAngle - (Math.PI * 2 / stepCount) * 1.5;
 
           ctx.save();
           // Trailing sweep sector
@@ -386,15 +413,15 @@
           ctx.restore();
         }
 
-        // Drum Pips from Pattern
+        // Drum Pips from Pattern (All 8 Drum & Percussion Tracks)
         if (seq && seq.pattern) {
-          for (let s = 0; s < 16; s++) {
-            const theta = -Math.PI / 2 + (s / 16) * Math.PI * 2;
+          for (let s = 0; s < stepCount; s++) {
+            const theta = -Math.PI / 2 + (s / stepCount) * Math.PI * 2;
             const cosT = Math.cos(theta);
             const sinT = Math.sin(theta);
             const isStepActive = (currentStep === s);
 
-            // 1. Kick Drum Pip
+            // 1. Kick Drum (rKick)
             const kVal = (seq.pattern['kick'] && seq.pattern['kick'][s]) ? seq.pattern['kick'][s] : 0;
             const kx = cx + rKick * cosT;
             const ky = cy + rKick * sinT;
@@ -412,57 +439,120 @@
               ctx.fill();
               ctx.restore();
             } else {
-              ctx.fillStyle = 'rgba(71, 85, 105, 0.35)';
+              ctx.fillStyle = 'rgba(71, 85, 105, 0.3)';
               ctx.beginPath();
               ctx.arc(kx, ky, 1.2, 0, Math.PI * 2);
               ctx.fill();
             }
 
-            // 2. Snare / Clap Pip
-            const sVal = (seq.pattern['snare'] && seq.pattern['snare'][s]) || (seq.pattern['clap'] && seq.pattern['clap'][s]) || 0;
+            // 2. Snare & Clap Pips (rSnare)
+            const sVal = (seq.pattern['snare'] && seq.pattern['snare'][s]) ? seq.pattern['snare'][s] : 0;
+            const clpVal = (seq.pattern['clap'] && seq.pattern['clap'][s]) ? seq.pattern['clap'][s] : 0;
             const sx = cx + rSnare * cosT;
             const sy = cy + rSnare * sinT;
-            if (sVal > 0) {
+            if (sVal > 0 || clpVal > 0) {
+              const val = Math.max(sVal, clpVal);
+              const isAccent = (val === 2);
+              const isClapOnly = (clpVal > 0 && sVal === 0);
+              const color = isClapOnly ? '#10b981' : '#ec4899';
+              const activeColor = isClapOnly ? '#34d399' : '#f472b6';
               ctx.save();
               if (isStepActive) {
-                ctx.shadowColor = '#ec4899';
+                ctx.shadowColor = color;
                 ctx.shadowBlur = 14;
-                ctx.fillStyle = '#f472b6';
+                ctx.fillStyle = activeColor;
               } else {
-                ctx.fillStyle = (sVal === 2) ? '#f472b6' : '#d946ef';
+                ctx.fillStyle = isAccent ? '#f472b6' : color;
               }
               ctx.beginPath();
-              ctx.arc(sx, sy, isStepActive ? 5 : (sVal === 2 ? 4 : 3), 0, Math.PI * 2);
+              ctx.arc(sx, sy, isStepActive ? 5.2 : (isAccent ? 4.2 : 3.2), 0, Math.PI * 2);
               ctx.fill();
               ctx.restore();
             } else {
-              ctx.fillStyle = 'rgba(71, 85, 105, 0.35)';
+              ctx.fillStyle = 'rgba(71, 85, 105, 0.3)';
               ctx.beginPath();
               ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
               ctx.fill();
             }
 
-            // 3. Hi-Hat / Cymbal Pip
-            const hVal = (seq.pattern['closedHat'] && seq.pattern['closedHat'][s]) || (seq.pattern['openHat'] && seq.pattern['openHat'][s]) || (seq.pattern['ride'] && seq.pattern['ride'][s]) || 0;
+            // 3. Hi-Hats: Closed & Open (rHat)
+            const chVal = (seq.pattern['closedHat'] && seq.pattern['closedHat'][s]) ? seq.pattern['closedHat'][s] : 0;
+            const ohVal = (seq.pattern['openHat'] && seq.pattern['openHat'][s]) ? seq.pattern['openHat'][s] : 0;
             const hx = cx + rHat * cosT;
             const hy = cy + rHat * sinT;
-            if (hVal > 0) {
+            if (chVal > 0 || ohVal > 0) {
+              const isOpen = (ohVal > 0);
+              const isAccent = (chVal === 2 || ohVal === 2);
+              const baseColor = isOpen ? '#06b6d4' : '#38bdf8';
               ctx.save();
               if (isStepActive) {
                 ctx.shadowColor = '#38bdf8';
                 ctx.shadowBlur = 14;
                 ctx.fillStyle = '#38bdf8';
+                ctx.strokeStyle = '#38bdf8';
               } else {
-                ctx.fillStyle = (hVal === 2) ? '#38bdf8' : '#06b6d4';
+                ctx.fillStyle = isAccent ? '#38bdf8' : baseColor;
+                ctx.strokeStyle = baseColor;
               }
               ctx.beginPath();
-              ctx.arc(hx, hy, isStepActive ? 4.5 : (hVal === 2 ? 3.5 : 2.5), 0, Math.PI * 2);
-              ctx.fill();
+              ctx.arc(hx, hy, isStepActive ? 4.8 : (isAccent ? 3.8 : 2.8), 0, Math.PI * 2);
+              if (isOpen) {
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+              } else {
+                ctx.fill();
+              }
               ctx.restore();
             } else {
-              ctx.fillStyle = 'rgba(71, 85, 105, 0.35)';
+              ctx.fillStyle = 'rgba(71, 85, 105, 0.3)';
               ctx.beginPath();
               ctx.arc(hx, hy, 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            // 4. Cymbals & Percussion: Crash, Ride, Cowbell (rPerc)
+            const crVal = (seq.pattern['crash'] && seq.pattern['crash'][s]) ? seq.pattern['crash'][s] : 0;
+            const rdVal = (seq.pattern['ride'] && seq.pattern['ride'][s]) ? seq.pattern['ride'][s] : 0;
+            const cbVal = (seq.pattern['cowbell'] && seq.pattern['cowbell'][s]) ? seq.pattern['cowbell'][s] : 0;
+            const px = cx + rPerc * cosT;
+            const py = cy + rPerc * sinT;
+            if (crVal > 0 || rdVal > 0 || cbVal > 0) {
+              const isCrash = (crVal > 0);
+              const isCowbell = (cbVal > 0 && !isCrash);
+              const color = isCrash ? '#eab308' : (isCowbell ? '#a855f7' : '#60a5fa');
+              const activeColor = isCrash ? '#fef08a' : (isCowbell ? '#c084fc' : '#93c5fd');
+              ctx.save();
+              if (isStepActive) {
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 14;
+                ctx.fillStyle = activeColor;
+                ctx.strokeStyle = activeColor;
+              } else {
+                ctx.fillStyle = color;
+                ctx.strokeStyle = color;
+              }
+              ctx.beginPath();
+              if (isCrash) {
+                // Crash Cymbal: bright accent circle with white stroke
+                ctx.arc(px, py, isStepActive ? 5.5 : 4.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+              } else if (isCowbell) {
+                // Cowbell: purple accent pip
+                ctx.arc(px, py, isStepActive ? 5.2 : 3.8, 0, Math.PI * 2);
+                ctx.fill();
+              } else {
+                // Ride Cymbal: sky blue dot
+                ctx.arc(px, py, isStepActive ? 4.5 : 3.2, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.restore();
+            } else {
+              ctx.fillStyle = 'rgba(71, 85, 105, 0.3)';
+              ctx.beginPath();
+              ctx.arc(px, py, 1.2, 0, Math.PI * 2);
               ctx.fill();
             }
           }
@@ -487,11 +577,11 @@
         const bassName = NOTE_NAMES[bassPC];
         const rMidBass = (rBassInner + rBassOuter) / 2;
 
-        for (let s = 0; s < 16; s++) {
+        for (let s = 0; s < stepCount; s++) {
           const kHit = seq && seq.pattern && seq.pattern['kick'] && seq.pattern['kick'][s] > 0;
-          const isDownbeat = (s === 0 || s === 8);
+          const isDownbeat = (s % subdiv === 0);
           if (kHit || isDownbeat) {
-            const theta = -Math.PI / 2 + (s / 16) * Math.PI * 2;
+            const theta = -Math.PI / 2 + (s / stepCount) * Math.PI * 2;
             const bx = cx + rMidBass * Math.cos(theta);
             const by = cy + rMidBass * Math.sin(theta);
             const isStepActive = (currentStep === s);
@@ -537,9 +627,10 @@
 
         const rMidGuitar = (rGuitarInner + rGuitarOuter) / 2;
 
-        // Comping backbeat strums on steps 4, 12 (or quarters 0, 4, 8, 12)
-        [0, 4, 8, 12].forEach(s => {
-          const theta = -Math.PI / 2 + (s / 16) * Math.PI * 2;
+        // Comping backbeat strums on each beat of the meter
+        for (let b = 0; b < sig.num; b++) {
+          const s = b * subdiv;
+          const theta = -Math.PI / 2 + (s / stepCount) * Math.PI * 2;
           const gx = cx + rMidGuitar * Math.cos(theta);
           const gy = cy + rMidGuitar * Math.sin(theta);
           const isStepActive = (currentStep === s);
@@ -564,9 +655,9 @@
           ctx.font = 'bold 7px monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(isStepActive ? '🎸' : (s === 4 || s === 12 ? 'St' : '•'), gx, gy);
+          ctx.fillText(isStepActive ? '🎸' : ((b === 1 || b === 3) ? 'St' : '•'), gx, gy);
           ctx.restore();
-        });
+        }
       }
 
       // =========================================================================

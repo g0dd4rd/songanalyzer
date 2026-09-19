@@ -12,6 +12,7 @@
       this.visualizer = null;
       this.ribbonEngine = null;
       this.ribbonRenderer = null;
+      this.sheetMusicRenderer = null;
       this.jamCards = [];
       this.lockedCards = new Set();
       this.currentRhythmItems = [];
@@ -62,7 +63,6 @@
       this.initRibbonModule();   // Initialize Voice Leading Ribbon & 6-School Melodic Pathway Studio
       this.analyzeProgression(); // Run default analysis on load
       this.dealJamCards();       // Deal initial jam cards
-      this.generateRhythm();     // Generate initial rhythm
       this.initPracticeTimer();  // Initialize practice timer
       this.initBeatBuilder();    // Initialize adaptive grid drum machine
       this.initMasterJamTransport(); // Initialize master transport (Spacebar, Jam sync)
@@ -554,6 +554,52 @@
         });
       }
 
+      const rhythmTargetTrack = document.getElementById('rhythmTargetTrack');
+      if (rhythmTargetTrack) {
+        rhythmTargetTrack.addEventListener('change', () => {
+          if (this.currentRhythmItems && this.currentRhythmItems.length > 0) {
+            this.applyRhythmToGrid(this.currentRhythmItems, rhythmTargetTrack.value);
+            this.renderBeatGrid();
+          } else {
+            this.generateRhythm();
+          }
+        });
+      }
+
+      const rhythmStyleSelect = document.getElementById('rhythmStyleSelect');
+      if (rhythmStyleSelect) {
+        rhythmStyleSelect.addEventListener('change', () => {
+          this.generateRhythm();
+        });
+      }
+
+      const btnCopyUnicode = document.getElementById('btnCopyUnicodeRhythm');
+      if (btnCopyUnicode) {
+        btnCopyUnicode.addEventListener('click', async () => {
+          if (!this.currentRhythmItems || this.currentRhythmItems.length === 0) return;
+          const text = this.currentRhythmItems.map(i => i.glyph).join(' ');
+          try {
+            await navigator.clipboard.writeText(text);
+            const orig = btnCopyUnicode.textContent;
+            btnCopyUnicode.textContent = '✓ Copied!';
+            setTimeout(() => { btnCopyUnicode.textContent = orig; }, 1800);
+          } catch {
+            prompt('Copy Unicode Rhythm:', text);
+          }
+        });
+      }
+
+      const btnMetroGo = document.getElementById('btnMetroGoToRhythm');
+      if (btnMetroGo) {
+        btnMetroGo.addEventListener('click', () => {
+          const btnBeats = document.getElementById('btnMetroModeBeats');
+          if (btnBeats) btnBeats.click();
+          this.generateRhythm();
+          const target = document.getElementById('beatSheetMusicContainer');
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+
       const rhythmLoopMode = document.getElementById('rhythmLoopMode');
       const rhythmCustomCount = document.getElementById('rhythmCustomCount');
       if (rhythmLoopMode && rhythmCustomCount) {
@@ -578,6 +624,7 @@
             audio.stopRhythm();
             this.updateRhythmPlayButtonState(false);
             this.highlightRhythmGlyph(-1);
+            if (this.sheetMusicRenderer) this.sheetMusicRenderer.setActiveStep(-1);
             return;
           }
 
@@ -619,6 +666,7 @@
               (idx) => {
                 this.updateRhythmPlayButtonState(true);
                 this.highlightRhythmGlyph(idx);
+                if (this.sheetMusicRenderer) this.sheetMusicRenderer.setActiveNoteIndex(idx);
               },
               (currentLoop, maxLoops) => {
                 if (statusBadge) {
@@ -630,6 +678,7 @@
               () => {
                 this.updateRhythmPlayButtonState(false);
                 this.highlightRhythmGlyph(-1);
+                if (this.sheetMusicRenderer) this.sheetMusicRenderer.setActiveStep(-1);
               },
               syncStartTime
             );
@@ -637,6 +686,7 @@
             console.error('Error starting rhythm playback:', err);
             this.updateRhythmPlayButtonState(false);
             this.highlightRhythmGlyph(-1);
+            if (this.sheetMusicRenderer) this.sheetMusicRenderer.setActiveStep(-1);
           }
         });
       }
@@ -2424,7 +2474,7 @@
       });
     }
 
-    // 5. Rhythm Studio
+    // 5. Rhythm Studio & Beat Builder Notation Engine
     generateRhythm() {
       if (window.audio && window.audio.isRhythmPlaying) {
         window.audio.stopRhythm();
@@ -2434,21 +2484,65 @@
 
       const restsEl = document.getElementById('rhythmIncludeRests');
       const includeRests = restsEl ? restsEl.checked : true;
-      const beats = 4;
-      const targetTicks = beats * 32;
+      const targetTrackSelect = document.getElementById('rhythmTargetTrack');
+      const targetTrack = targetTrackSelect ? targetTrackSelect.value : 'snare';
+      const styleSelect = document.getElementById('rhythmStyleSelect');
+      const rhythmStyle = styleSelect ? styleSelect.value : 'balanced';
 
-      const notePool = [
-        { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, isRest: false },
-        { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, isRest: false },
-        { glyph: '𝅘𝅥𝅯', name: '16th Note', value: 8, isRest: false },
-        { glyph: '𝅗𝅥', name: 'Half Note', value: 64, isRest: false }
+      // Step count & time signature from beat sequencer
+      const stepCount = this.beatSequencer ? this.beatSequencer.getStepCount() : 16;
+      const timeSig = (this.beatSequencer && this.beatSequencer.timeSignature) || { num: 4, den: 4 };
+      const targetTicks = stepCount * 8; // 1 step = 1 sixteenth note = 8 ticks
+
+      // Define note & rest pools
+      let notePool = [
+        { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, stepCount: 4, isRest: false },
+        { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, stepCount: 2, isRest: false },
+        { glyph: '𝅘𝅥𝅯', name: '16th Note', value: 8, stepCount: 1, isRest: false },
+        { glyph: '𝅗𝅥', name: 'Half Note', value: 64, stepCount: 8, isRest: false }
       ];
 
-      const restPool = [
-        { glyph: '𝄽', name: 'Quarter Rest', value: 32, isRest: true },
-        { glyph: '𝄾', name: 'Eighth Rest', value: 16, isRest: true },
-        { glyph: '𝄿', name: '16th Rest', value: 8, isRest: true }
+      let restPool = [
+        { glyph: '𝄽', name: 'Quarter Rest', value: 32, stepCount: 4, isRest: true },
+        { glyph: '𝄾', name: 'Eighth Rest', value: 16, stepCount: 2, isRest: true },
+        { glyph: '𝄿', name: '16th Rest', value: 8, stepCount: 1, isRest: true }
       ];
+
+      if (rhythmStyle === 'straight') {
+        notePool = [
+          { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, stepCount: 4, isRest: false },
+          { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, stepCount: 4, isRest: false },
+          { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, stepCount: 2, isRest: false },
+          { glyph: '𝅗𝅥', name: 'Half Note', value: 64, stepCount: 8, isRest: false }
+        ];
+        restPool = [
+          { glyph: '𝄽', name: 'Quarter Rest', value: 32, stepCount: 4, isRest: true },
+          { glyph: '𝄾', name: 'Eighth Rest', value: 16, stepCount: 2, isRest: true }
+        ];
+      } else if (rhythmStyle === 'dense') {
+        notePool = [
+          { glyph: '𝅘𝅥𝅯', name: '16th Note', value: 8, stepCount: 1, isRest: false },
+          { glyph: '𝅘𝅥𝅯', name: '16th Note', value: 8, stepCount: 1, isRest: false },
+          { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, stepCount: 2, isRest: false },
+          { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, stepCount: 4, isRest: false }
+        ];
+        restPool = [
+          { glyph: '𝄿', name: '16th Rest', value: 8, stepCount: 1, isRest: true },
+          { glyph: '𝄾', name: 'Eighth Rest', value: 16, stepCount: 2, isRest: true }
+        ];
+      } else if (rhythmStyle === 'syncopated') {
+        notePool = [
+          { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, stepCount: 2, isRest: false, isAccent: true },
+          { glyph: '𝅘𝅥', name: 'Quarter Note', value: 32, stepCount: 4, isRest: false },
+          { glyph: '𝅘𝅥𝅯', name: '16th Note', value: 8, stepCount: 1, isRest: false },
+          { glyph: '𝅘𝅥𝅮', name: 'Eighth Note', value: 16, stepCount: 2, isRest: false }
+        ];
+        restPool = [
+          { glyph: '𝄾', name: 'Eighth Rest', value: 16, stepCount: 2, isRest: true },
+          { glyph: '𝄿', name: '16th Rest', value: 8, stepCount: 1, isRest: true },
+          { glyph: '𝄽', name: 'Quarter Rest', value: 32, stepCount: 4, isRest: true }
+        ];
+      }
 
       const pool = includeRests ? [...notePool, ...restPool] : notePool;
       const items = [];
@@ -2459,12 +2553,77 @@
         const validOptions = pool.filter(p => p.value <= remaining);
         if (validOptions.length === 0) break;
 
-        const pick = validOptions[Math.floor(Math.random() * validOptions.length)];
+        const pick = { ...validOptions[Math.floor(Math.random() * validOptions.length)] };
         items.push(pick);
         currentTicks += pick.value;
       }
 
       this.currentRhythmItems = items;
+
+      // 1. Map generated rhythm alone onto Beat Builder grid (replacing any existing rhythm)
+      this.applyRhythmToGrid(items, targetTrack);
+
+      // Sync Sheet Music track selector with target track
+      const sheetTrackSelect = document.getElementById('beatSheetTrackSelect');
+      if (sheetTrackSelect) {
+        sheetTrackSelect.value = targetTrack;
+      }
+
+      // 3. Render Unicode Glyph Strip (if present)
+      this.renderRhythmGlyphs(items);
+
+      // 4. Update Summary Badge
+      const summaryBadge = document.getElementById('rhythmSummaryBadge');
+      if (summaryBadge) {
+        const notesCount = items.filter(i => !i.isRest).length;
+        const restsCount = items.filter(i => i.isRest).length;
+        const trackDef = this.drumSynth?.trackDefs?.find(t => t.id === targetTrack);
+        const trackName = trackDef ? trackDef.name : targetTrack;
+        summaryBadge.textContent = `${notesCount} Notes, ${restsCount} Rests (${trackName})`;
+      }
+
+      // 5. Update Grid DOM & Visualizer Concentric Groove Wheel
+      this.renderBeatGrid();
+      if (this.visualizer && this.visualizer.mode === 'clock') {
+        this.visualizer.render();
+      }
+    }
+
+    applyRhythmToGrid(items, targetTrack = 'snare') {
+      if (!this.beatSequencer) return;
+
+      // The rhythm appears alone, replacing any existing rhythm on the grid
+      this.beatSequencer.clearPattern();
+
+      // Ensure target track exists in pattern, default to 'snare'
+      const trackId = (this.beatSequencer.pattern && this.beatSequencer.pattern[targetTrack])
+        ? targetTrack
+        : (this.beatSequencer.pattern && this.beatSequencer.pattern['snare'] ? 'snare' : Object.keys(this.beatSequencer.pattern)[0]);
+
+      this.mapItemsToTrack(items, trackId);
+    }
+
+    mapItemsToTrack(items, trackId) {
+      if (!this.beatSequencer || !this.beatSequencer.pattern[trackId]) return;
+      const stepCount = this.beatSequencer.getStepCount();
+      const arr = new Array(stepCount).fill(0);
+
+      let curStep = 0;
+      items.forEach((item) => {
+        const stepLen = item.stepCount || Math.max(1, Math.round((item.value || 32) / 8));
+        if (curStep < stepCount) {
+          if (!item.isRest) {
+            const isDownbeat = (curStep % 4 === 0);
+            arr[curStep] = (item.isAccent || isDownbeat) ? 2 : 1;
+          }
+        }
+        curStep += stepLen;
+      });
+
+      this.beatSequencer.pattern[trackId] = arr;
+    }
+
+    renderRhythmGlyphs(items) {
       const container = document.getElementById('rhythmGlyphDisplay');
       if (!container) return;
       container.innerHTML = '';
@@ -2474,7 +2633,24 @@
         span.className = 'rhythm-glyph';
         span.dataset.index = idx;
         span.textContent = item.glyph;
-        span.title = item.name;
+        span.title = `${item.name} (${item.isRest ? 'Rest' : (item.stepCount === 4 ? '1/4' : item.stepCount === 2 ? '1/8' : item.stepCount === 1 ? '1/16' : '1/2')})`;
+        span.style.cursor = 'pointer';
+
+        span.addEventListener('click', async () => {
+          if (!item.isRest) {
+            await this.ensureDrumAudioContext();
+            if (this.drumSynth && this.drumSynth.ctx) {
+              const trackSelect = document.getElementById('rhythmTargetTrack');
+              const trackId = (trackSelect && trackSelect.value !== 'fullGroove') ? trackSelect.value : 'clave';
+              this.drumSynth.playVoice(trackId, this.drumSynth.ctx.currentTime, 1.1);
+            }
+          }
+          this.highlightRhythmGlyph(idx);
+          if (this.sheetMusicRenderer) {
+            this.sheetMusicRenderer.setActiveNoteIndex(idx);
+          }
+        });
+
         container.appendChild(span);
       });
     }
@@ -2485,12 +2661,12 @@
       if (btn) {
         if (isPlaying) {
           btn.textContent = '⏹ Stop';
-          btn.classList.remove('btn-success');
+          btn.classList.remove('btn-outline-cyan');
           btn.classList.add('btn-danger');
         } else {
           btn.textContent = '▶ Play Clave';
           btn.classList.remove('btn-danger');
-          btn.classList.add('btn-success');
+          btn.classList.add('btn-outline-cyan');
         }
       }
       if (!isPlaying && statusBadge) {
@@ -2503,6 +2679,24 @@
         if (i === idx) el.classList.add('active');
         else el.classList.remove('active');
       });
+    }
+
+    highlightRhythmGlyphByStep(stepIdx) {
+      if (stepIdx < 0 || !this.currentRhythmItems || this.currentRhythmItems.length === 0) {
+        this.highlightRhythmGlyph(-1);
+        return;
+      }
+      let cur = 0;
+      for (let i = 0; i < this.currentRhythmItems.length; i++) {
+        const it = this.currentRhythmItems[i];
+        const len = it.stepCount || Math.max(1, Math.round((it.value || 32) / 8));
+        if (stepIdx >= cur && stepIdx < cur + len) {
+          this.highlightRhythmGlyph(i);
+          return;
+        }
+        cur += len;
+      }
+      this.highlightRhythmGlyph(-1);
     }
 
     // 6. Ear Training Quiz Drill
@@ -2667,6 +2861,55 @@
       // Load initial default groove (self-configures 4/4 16 steps)
       this.beatSequencer.loadPreset('rock');
 
+      // Initialize Sheet Music Notation Renderer
+      const sheetCanvas = document.getElementById('beatSheetMusicCanvas');
+      if (sheetCanvas && window.SheetMusicRenderer) {
+        this.sheetMusicRenderer = new window.SheetMusicRenderer(sheetCanvas);
+        this.sheetMusicRenderer.onNoteClick = async (item, index) => {
+          if (!item.isRest) {
+            await this.ensureDrumAudioContext();
+            if (this.drumSynth && this.drumSynth.ctx) {
+              const trackSelect = document.getElementById('beatSheetTrackSelect');
+              let trackId = trackSelect ? trackSelect.value : 'snare';
+              if (trackId === 'fullGroove') {
+                trackId = item.trackId || 'snare';
+              }
+              const vel = item.isAccent ? 1.35 : (item.isGhost ? 0.35 : 1.0);
+              this.drumSynth.playVoice(trackId, this.drumSynth.ctx.currentTime, vel);
+            }
+          }
+        };
+
+        const sheetTrackSelect = document.getElementById('beatSheetTrackSelect');
+        if (sheetTrackSelect) {
+          sheetTrackSelect.addEventListener('change', () => {
+            this.updateSheetMusicFromGrid();
+          });
+        }
+
+        // Synchronize horizontal scrolling between Beat Grid and Sheet Music
+        const gridWrapper = document.getElementById('beatGridWrapper');
+        const sheetScroll = document.getElementById('beatSheetScroll');
+        if (gridWrapper && sheetScroll) {
+          let isSyncingGrid = false;
+          let isSyncingSheet = false;
+
+          gridWrapper.addEventListener('scroll', () => {
+            if (isSyncingSheet) return;
+            isSyncingGrid = true;
+            sheetScroll.scrollLeft = gridWrapper.scrollLeft;
+            isSyncingGrid = false;
+          }, { passive: true });
+
+          sheetScroll.addEventListener('scroll', () => {
+            if (isSyncingGrid) return;
+            isSyncingSheet = true;
+            gridWrapper.scrollLeft = sheetScroll.scrollLeft;
+            isSyncingSheet = false;
+          }, { passive: true });
+        }
+      }
+
       // Bind mode tabs
       const btnModeClick = document.getElementById('btnMetroModeClick');
       const btnModeBeats = document.getElementById('btnMetroModeBeats');
@@ -2688,6 +2931,12 @@
           if (beatContainer) beatContainer.style.display = 'block';
           this.ensureDrumAudioContext();
           this.renderBeatGrid();
+          if (this.sheetMusicRenderer) {
+            setTimeout(() => {
+              this.sheetMusicRenderer.handleResize();
+              this.updateSheetMusicFromGrid();
+            }, 50);
+          }
         });
       }
 
@@ -2864,15 +3113,15 @@
       const sig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
       const subdiv = this.beatSequencer.subdivision || 4;
 
-      // Update Grouping Badge (e.g. "7/8 • 14 Steps")
+      // Update Grouping Badge (e.g. "3/4 • 1 Bar • 3 Beats • 12 Steps")
       const badge = document.getElementById('beatGroupingBadge');
       if (badge) {
-        badge.textContent = `${sig.num}/${sig.den} • ${stepCount} Steps`;
+        badge.textContent = `${sig.num}/${sig.den} • 1 Bar • ${sig.num} Beats • ${stepCount} Steps`;
       }
 
       container.innerHTML = '';
 
-      // 1. Header row with step numbers and downbeats
+      // 1. Header row with step numbers, musical subdivision ticks, and downbeats
       const headerRow = document.createElement('div');
       headerRow.className = 'beat-step-header-row';
 
@@ -2880,21 +3129,42 @@
       headerSpacer.className = 'beat-step-header-spacer';
       headerRow.appendChild(headerSpacer);
 
+      const subLabels4 = ['1', 'e', '&', 'a'];
+      const subLabels2 = ['1', '&'];
+      const subLabels3 = ['1', '&', 'a'];
+
       for (let s = 0; s < stepCount; s++) {
         const numEl = document.createElement('span');
         numEl.className = 'beat-step-num';
         const isDownbeat = (s % subdiv === 0);
+        const beatIndex = Math.floor(s / subdiv) + 1;
+        const subIndex = s % subdiv;
+
+        if (isDownbeat && s > 0) {
+          numEl.classList.add('bar-boundary');
+        }
+
         if (isDownbeat) {
           numEl.classList.add('is-downbeat');
-          numEl.textContent = `${Math.floor(s / subdiv) + 1}`;
+          numEl.textContent = `${beatIndex}`;
+          numEl.title = `Beat ${beatIndex} (Step ${s + 1} of ${stepCount})`;
         } else {
-          numEl.textContent = `${s + 1}`;
+          if (subdiv === 4) {
+            numEl.textContent = subLabels4[subIndex];
+          } else if (subdiv === 2) {
+            numEl.textContent = subLabels2[subIndex];
+          } else if (subdiv === 3) {
+            numEl.textContent = subLabels3[subIndex];
+          } else {
+            numEl.textContent = `${subIndex + 1}`;
+          }
+          numEl.title = `Beat ${beatIndex}, Sub ${numEl.textContent} (Step ${s + 1} of ${stepCount})`;
         }
         headerRow.appendChild(numEl);
       }
       container.appendChild(headerRow);
 
-      // 2. Tracks rows (Kick, Snare, Closed Hat, Open Hat, Ride, Crash, Cowbell, Clap, Clave)
+      // 2. Tracks rows (Kick, Snare, Closed Hat, Open Hat, Ride, Crash, Cowbell, Clap)
       this.drumSynth.trackDefs.forEach(track => {
         const row = document.createElement('div');
         row.className = 'beat-track-row';
@@ -2913,6 +3183,11 @@
           await this.ensureDrumAudioContext();
           if (this.drumSynth && this.drumSynth.ctx) {
             this.drumSynth.playVoice(track.id, this.drumSynth.ctx.currentTime, 1.1);
+          }
+          const sheetTrackSelect = document.getElementById('beatSheetTrackSelect');
+          if (sheetTrackSelect) {
+            sheetTrackSelect.value = track.id;
+            this.updateSheetMusicFromGrid();
           }
         });
 
@@ -2956,12 +3231,18 @@
             pad.classList.add('bar-boundary');
           }
 
+          const beatIdx = Math.floor(s / subdiv) + 1;
+          const subIdx = s % subdiv;
+          const subText = (subdiv === 4) ? subLabels4[subIdx] : ((subdiv === 2) ? subLabels2[subIdx] : `${subIdx + 1}`);
+          pad.title = `${track.name}: Beat ${beatIdx}${subIdx === 0 ? '' : ' (' + subText + ')'}, Step ${s + 1}`;
+
           const state = this.beatSequencer.pattern[track.id] ? this.beatSequencer.pattern[track.id][s] : 0;
           this.applyPadStateClass(pad, state);
 
           pad.addEventListener('click', async () => {
             const nextState = this.beatSequencer.cycleStep(track.id, s);
             this.applyPadStateClass(pad, nextState);
+            this.updateSheetMusicFromGrid();
             if (this.visualizer && this.visualizer.mode === 'clock') {
               this.visualizer.render();
             }
@@ -2984,6 +3265,8 @@
       if (this.visualizer && this.visualizer.mode === 'clock') {
         this.visualizer.render();
       }
+
+      this.updateSheetMusicFromGrid();
     }
 
     applyPadStateClass(pad, state) {
@@ -3004,6 +3287,179 @@
 
       if (this.visualizer && this.visualizer.setStep) {
         this.visualizer.setStep(stepIdx);
+      }
+
+      if (this.sheetMusicRenderer) {
+        this.sheetMusicRenderer.setActiveStep(stepIdx);
+      }
+
+      this.highlightRhythmGlyphByStep(stepIdx);
+    }
+
+    convertGridPatternToRhythmItems(targetTrackId = 'snare') {
+      if (!this.beatSequencer) return [];
+      const stepCount = this.beatSequencer.getStepCount();
+      const sig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
+      const subdiv = this.beatSequencer.subdivision || 4;
+      const pattern = this.beatSequencer.pattern || {};
+
+      // 1. Build an array of states for the selected track (or composite across all tracks)
+      const states = new Array(stepCount).fill(0);
+      const trackSource = new Array(stepCount).fill(null);
+
+      if (targetTrackId === 'fullGroove') {
+        for (let s = 0; s < stepCount; s++) {
+          for (const track of this.drumSynth.trackDefs) {
+            const val = pattern[track.id] ? pattern[track.id][s] : 0;
+            if (val > 0) {
+              if (val === 2 || states[s] === 0) {
+                states[s] = val;
+                trackSource[s] = track.id;
+              } else if (val === 1 && states[s] === 3) {
+                states[s] = 1;
+                trackSource[s] = track.id;
+              }
+            }
+          }
+        }
+      } else {
+        const trackArr = pattern[targetTrackId] || [];
+        for (let s = 0; s < stepCount; s++) {
+          states[s] = trackArr[s] || 0;
+          if (states[s] > 0) trackSource[s] = targetTrackId;
+        }
+      }
+
+      const makeNote = (count, state, sourceTrack) => {
+        let name = '16th Note';
+        let glyph = '𝅘𝅥𝅯';
+        let value = 8;
+        if (count >= 8) {
+          name = 'Half Note';
+          glyph = '𝅗𝅥';
+          value = 64;
+        } else if (count >= 4) {
+          name = 'Quarter Note';
+          glyph = '𝅘𝅥';
+          value = 32;
+        } else if (count >= 2) {
+          name = 'Eighth Note';
+          glyph = '𝅘𝅥𝅮';
+          value = 16;
+        }
+        return {
+          glyph,
+          name,
+          value,
+          stepCount: count,
+          isRest: false,
+          isAccent: state === 2,
+          isGhost: state === 3,
+          trackId: sourceTrack
+        };
+      };
+
+      const makeRests = (count) => {
+        const rests = [];
+        let remaining = count;
+        while (remaining > 0) {
+          if (remaining >= 8) {
+            rests.push({ glyph: '𝄼', name: 'Half Rest', value: 64, stepCount: 8, isRest: true });
+            remaining -= 8;
+          } else if (remaining >= 4) {
+            rests.push({ glyph: '𝄽', name: 'Quarter Rest', value: 32, stepCount: 4, isRest: true });
+            remaining -= 4;
+          } else if (remaining >= 2) {
+            rests.push({ glyph: '𝄾', name: 'Eighth Rest', value: 16, stepCount: 2, isRest: true });
+            remaining -= 2;
+          } else {
+            rests.push({ glyph: '𝄿', name: '16th Rest', value: 8, stepCount: 1, isRest: true });
+            remaining -= 1;
+          }
+        }
+        return rests;
+      };
+
+      const items = [];
+      const numBeats = sig.num;
+
+      for (let b = 0; b < numBeats; b++) {
+        const beatStart = b * subdiv;
+        const beatEnd = Math.min(stepCount, beatStart + subdiv);
+        const beatLen = beatEnd - beatStart;
+        if (beatLen <= 0) break;
+
+        const subStates = states.slice(beatStart, beatEnd);
+        const subSources = trackSource.slice(beatStart, beatEnd);
+
+        const hitIndices = [];
+        subStates.forEach((v, idx) => {
+          if (v > 0) hitIndices.push(idx);
+        });
+
+        // 1. All rests in this beat
+        if (hitIndices.length === 0) {
+          items.push(...makeRests(beatLen));
+          continue;
+        }
+
+        // 2. Rest before the first hit
+        if (hitIndices[0] > 0) {
+          items.push(...makeRests(hitIndices[0]));
+        }
+
+        // 3. Notes within the beat
+        for (let i = 0; i < hitIndices.length; i++) {
+          const curIdx = hitIndices[i];
+          const state = subStates[curIdx];
+          const source = subSources[curIdx];
+
+          if (i < hitIndices.length - 1) {
+            const nextIdx = hitIndices[i + 1];
+            const dur = nextIdx - curIdx;
+            items.push(makeNote(dur, state, source));
+          } else {
+            // Last hit in beat
+            const remaining = beatLen - curIdx;
+            if (curIdx === 0) {
+              items.push(makeNote(beatLen, state, source));
+            } else if (remaining === 2) {
+              items.push(makeNote(2, state, source));
+            } else if (remaining === 1) {
+              items.push(makeNote(1, state, source));
+            } else {
+              items.push(makeNote(1, state, source));
+              items.push(...makeRests(remaining - 1));
+            }
+          }
+        }
+      }
+
+      return items;
+    }
+
+    updateSheetMusicFromGrid() {
+      if (!this.sheetMusicRenderer || !this.beatSequencer) return;
+
+      const trackSelect = document.getElementById('beatSheetTrackSelect');
+      const targetTrackId = trackSelect ? trackSelect.value : 'snare';
+      const items = this.convertGridPatternToRhythmItems(targetTrackId);
+      const timeSig = this.beatSequencer.timeSignature || { num: 4, den: 4 };
+      const stepCount = this.beatSequencer.getStepCount();
+
+      this.sheetMusicRenderer.setRhythm(items, timeSig, stepCount);
+
+      // Update badge
+      const badge = document.getElementById('beatSheetNoteBadge');
+      if (badge) {
+        const noteCount = items.filter(it => !it.isRest).length;
+        const restCount = items.filter(it => it.isRest).length;
+        const trackName = (targetTrackId === 'fullGroove')
+          ? 'Full Groove'
+          : (this.drumSynth?.trackDefs?.find(t => t.id === targetTrackId)?.name || targetTrackId);
+        const noteStr = `${noteCount} Note${noteCount === 1 ? '' : 's'}`;
+        const restStr = restCount > 0 ? `, ${restCount} Rest${restCount === 1 ? '' : 's'}` : '';
+        badge.textContent = `${trackName} • ${timeSig.num}/${timeSig.den} • ${noteStr}${restStr}`;
       }
     }
 

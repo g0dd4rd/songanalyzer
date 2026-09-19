@@ -34,8 +34,7 @@
         { id: 'ride', name: 'Ride Cymbal', short: 'RD', category: 'cymbals', defaultGain: 0.82, color: 'amber' },
         { id: 'crash', name: 'Crash Cymbal', short: 'CR', category: 'cymbals', defaultGain: 0.88, color: 'amber' },
         { id: 'cowbell', name: 'Cowbell', short: 'CB', category: 'perc', defaultGain: 0.85, color: 'purple' },
-        { id: 'clap', name: 'Handclap', short: 'CLP', category: 'perc', defaultGain: 0.85, color: 'emerald' },
-        { id: 'clave', name: 'Clave', short: 'CLV', category: 'perc', defaultGain: 0.85, color: 'emerald' }
+        { id: 'clap', name: 'Handclap', short: 'CLP', category: 'perc', defaultGain: 0.85, color: 'emerald' }
       ];
 
       // Track channel states (volume, mute, solo)

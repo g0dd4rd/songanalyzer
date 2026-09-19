@@ -2339,10 +2339,12 @@ tr:hover td {
   font-weight: 700;
   color: var(--text-muted);
   user-select: none;
+  border-left: 2px solid transparent;
 }
 
 .beat-step-num.is-downbeat {
   color: #38bdf8;
+  font-weight: 800;
   border-bottom: 2px solid #38bdf8;
 }
 
@@ -2431,8 +2433,9 @@ tr:hover td {
   background: rgba(30, 41, 59, 0.6);
 }
 
-.beat-pad.bar-boundary {
-  border-left: 2px solid rgba(255, 255, 255, 0.28);
+.beat-pad.bar-boundary,
+.beat-step-num.bar-boundary {
+  border-left: 2px solid rgba(255, 255, 255, 0.28) !important;
 }
 
 .beat-pad.color-cyan.state-normal {
@@ -2876,5 +2879,20 @@ tr:hover td {
   background: rgba(6, 182, 212, 0.16);
 }
 .layer-dot-harmony { background: #06b6d4; color: #06b6d4; }
+
+.beat-sheet-music-subpanel {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.beat-sheet-canvas {
+  height: 145px;
+  display: block;
+  background: #0f172a;
+  border-radius: 6px;
+}
+
+
 
 
