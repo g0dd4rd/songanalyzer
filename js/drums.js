@@ -59,23 +59,12 @@
       this.ctx = audioContext || this.ctx;
       if (!this.ctx) return;
 
-      // Master drum bus: use Tone.Gain when available to bridge cleanly to Tone audio graph
+      // Master drum bus: native GainNode connected to masterDestinationNode or ctx.destination
       if (!this.masterNode) {
-        if (typeof Tone !== 'undefined' && Tone.Gain) {
-          this.masterToneGain = new Tone.Gain(0.92);
-          const dest = masterDestinationNode || (window.audio && window.audio.masterVolume) || Tone.getDestination();
-          this.masterToneGain.connect(dest);
-          this.masterNode = this.masterToneGain.input || this.masterToneGain;
-        } else {
-          this.masterNode = this.ctx.createGain();
-          this.masterNode.gain.value = 0.92;
-          const dest = masterDestinationNode || this.ctx.destination;
-          if (typeof Tone !== 'undefined' && typeof Tone.connect === 'function') {
-            Tone.connect(this.masterNode, dest);
-          } else {
-            this.masterNode.connect(dest);
-          }
-        }
+        this.masterNode = this.ctx.createGain();
+        this.masterNode.gain.value = 0.92;
+        const dest = masterDestinationNode || (window.audio && window.audio.masterVolume) || this.ctx.destination;
+        this.masterNode.connect(dest);
       }
 
       // Generate 2.5s looping noise buffer
@@ -272,8 +261,8 @@
       if (!this.ctx) {
         if (window.audio && window.audio.rawAudioContext) {
           this.init(window.audio.rawAudioContext);
-        } else if (typeof Tone !== 'undefined' && Tone.context) {
-          this.init(Tone.context.rawContext || Tone.context);
+        } else if (typeof AudioContext !== 'undefined') {
+          this.init(new AudioContext());
         }
       }
       if (this.ctx && !this.nodesInitialized) {

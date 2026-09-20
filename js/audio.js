@@ -470,14 +470,6 @@
           } catch (e) {}
         }
 
-        // Bridge Tone.js compatibility if loaded in global
-        if (typeof Tone !== 'undefined') {
-          try {
-            if (typeof Tone.setContext === 'function') Tone.setContext(this.ctx);
-            Tone.now = () => this.ctx.currentTime;
-          } catch (e) {}
-        }
-
         // 1. Master Output Chain with Brickwall Limiter
         this.masterLimiter = this.ctx.createDynamicsCompressor();
         this.masterLimiter.threshold.setValueAtTime(-1.0, 0);
@@ -1386,11 +1378,5 @@ self.onmessage = function(e) {
   const audio = new AudioEngine();
   window.SongAudio = AudioEngine;
   window.audio = audio;
-
-  // Global helper bridge for any external scripts
-  if (typeof window.Tone === 'undefined') {
-    window.Tone = {};
-  }
-  window.Tone.now = () => (window.audio ? window.audio.getAudioCurrentTime() : 0);
 
 })(typeof window !== 'undefined' ? window : globalThis);

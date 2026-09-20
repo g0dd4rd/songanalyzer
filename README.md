@@ -1,6 +1,6 @@
 # Song Analyzer
 
-An all-in-one, responsive, single-page music theory companion and practice studio for musicians, composers, and students. Built with vanilla HTML5, CSS3, and JavaScript, powered by Tone.js (v15) for warm FM audio synthesis, running **100% locally and offline** with zero external network dependencies.
+An all-in-one, responsive, single-page music theory companion and practice studio for musicians, composers, and students. Built with vanilla HTML5, CSS3, and JavaScript, powered by a custom zero-allocation native Web Audio synthesis engine for warm FM and subtractive audio synthesis, running **100% locally and offline** with zero external network dependencies.
 
 ## Key Features
 
@@ -25,7 +25,7 @@ An all-in-one, responsive, single-page music theory companion and practice studi
    - Built-in practice prompts (voice leading, pedal points, tritone subs, shell voicings).
 
 5. **Metronome & Rhythm Studio**:
-   - Web Audio / Tone.js lookahead timing with subdivisions (quarter, 8ths, 16ths, triplets).
+   - High-precision native Web Audio lookahead timing with subdivisions (quarter, 8ths, 16ths, triplets).
    - Woodblock, digital click, and spoken counting modes.
    - Dynamic Italian tempo marking display (Larghissimo to Prestissimo, 15 to 240 BPM).
    - **Practice Session Timer**: Tracks both Total Practice Time and current Exercise Delta Time; automatically synchronizes starting/stopping with the metronome, with exercise lap history breakdown and target exercise duration chime.

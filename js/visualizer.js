@@ -392,9 +392,9 @@
         currentStep = this.activeStep % stepCount;
         currentProgress = currentStep / stepCount;
       } else if (isAudioPlaying) {
-        if (typeof Tone !== 'undefined' && Tone.Transport && Tone.Transport.state === 'started' && typeof Tone.Transport.progress === 'number') {
-          const numBars = (window.app && window.app.parsedChords && window.app.parsedChords.length) || 1;
-          currentProgress = (Tone.Transport.progress * numBars) % 1;
+        if (window.audio && window.audio.currentChordDuration > 0 && window.audio.currentChordStartTime > 0) {
+          const elapsed = (window.audio.ctx ? window.audio.ctx.currentTime : 0) - window.audio.currentChordStartTime;
+          currentProgress = Math.min(0.999, Math.max(0, elapsed / window.audio.currentChordDuration));
           currentStep = Math.floor(currentProgress * stepCount) % stepCount;
         }
       }
@@ -1153,8 +1153,8 @@
 
                 const nextVal = seq.cycleStep(trackId, step);
                 if (seq.synth && nextVal > 0) {
-                  const toneNow = (typeof Tone !== 'undefined') ? Tone.now() : 0;
-                  seq.synth.playVoice(trackId, toneNow, nextVal === 2 ? 1.35 : 1.0);
+                  const audioNow = (window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (seq.synth.ctx ? seq.synth.ctx.currentTime : 0);
+                  seq.synth.playVoice(trackId, audioNow, nextVal === 2 ? 1.35 : 1.0);
                 }
                 this.render();
                 if (window.app && window.app.renderBeatGrid) {

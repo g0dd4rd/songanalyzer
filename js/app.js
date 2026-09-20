@@ -101,7 +101,7 @@
 
       // Seamless user gesture wakeup (resumes audio context if suspended when clicking/tapping anywhere)
       const resumeOnGesture = async () => {
-        if (audio && audio.initialized && ((audio.ctx && audio.ctx.state !== 'running') || (typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running'))) {
+        if (audio && audio.initialized && audio.ctx && audio.ctx.state !== 'running') {
           await audio.resumeIfNeeded();
         }
       };
@@ -2912,7 +2912,7 @@
       const audio = window.audio;
       if (audio && audio.initialized && audio.leadSynth) {
         try {
-          const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0);
+          const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (audio && audio.ctx ? audio.ctx.currentTime : 0);
           audio.leadSynth.triggerAttackRelease('E5', '8n', now, 0.4);
           audio.leadSynth.triggerAttackRelease('A5', '4n', now + 0.18, 0.5);
         } catch (e) {
@@ -3200,7 +3200,7 @@
       const note1 = `${sharpNames[baseMidi % 12]}4`;
       const note2 = `${sharpNames[(baseMidi + intervalSemitones) % 12]}${Math.floor((baseMidi + intervalSemitones) / 12) - 1}`;
 
-      const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0);
+      const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (audio && audio.ctx ? audio.ctx.currentTime : 0);
       audio.leadSynth.triggerAttackRelease(note1, '4n', now);
       audio.leadSynth.triggerAttackRelease(note2, '4n', now + 0.6);
 
@@ -3564,12 +3564,6 @@
         await window.audio.init();
         await window.audio.resumeIfNeeded();
       }
-      if (typeof Tone !== 'undefined') {
-        if (typeof Tone.start === 'function') await Tone.start();
-        if (Tone.context && typeof Tone.context.resume === 'function' && Tone.context.state !== 'running') {
-          await Tone.context.resume();
-        }
-      }
       if (this.drumSynth.ctx && this.drumSynth.masterNode && this.drumSynth.noiseBuffer) {
         if (this.drumSynth.ctx.state !== 'running' && typeof this.drumSynth.ctx.resume === 'function') {
           await this.drumSynth.ctx.resume();
@@ -3579,8 +3573,6 @@
       let ctx = null;
       if (window.audio && window.audio.rawAudioContext && typeof window.audio.rawAudioContext.createGain === 'function') {
         ctx = window.audio.rawAudioContext;
-      } else if (typeof Tone !== 'undefined' && Tone.context) {
-        ctx = Tone.context.rawContext || Tone.context;
       } else if (typeof AudioContext !== 'undefined') {
         ctx = new AudioContext();
       }
@@ -3588,7 +3580,7 @@
       if (ctx) {
         const dest = (window.audio && window.audio.masterVolume)
           ? window.audio.masterVolume
-          : (typeof Tone !== 'undefined' && Tone.getDestination ? Tone.getDestination() : ctx.destination);
+          : ctx.destination;
         this.drumSynth.init(ctx, dest);
       }
     }
@@ -4052,7 +4044,7 @@
       }
 
       // Start all tracks locked to exact same audio timestamp
-      const startTime = ((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0)) + 0.08;
+      const startTime = ((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (window.audio && window.audio.ctx ? window.audio.ctx.currentTime : 0)) + 0.08;
 
       const trackChords = document.getElementById('jamTrackChords');
       const trackDrums = document.getElementById('jamTrackDrums');
@@ -4208,7 +4200,7 @@
       // Quantize to next downbeat
       const syncTime = (this.beatSequencer && this.beatSequencer.isPlaying)
         ? this.beatSequencer.getNextDownbeatAudioTime()
-        : (((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0)) + 0.05);
+        : (((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (window.audio && window.audio.ctx ? window.audio.ctx.currentTime : 0)) + 0.05);
 
       // Chords
       if (trackChords && trackChords.checked && !window.audio.isPlayingProgression) {
