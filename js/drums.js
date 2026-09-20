@@ -49,32 +49,38 @@
 
       // Pre-rendered white noise buffer for crisp snares, claps, and cymbals
       this.noiseBuffer = null;
+      this.nodesInitialized = false;
     }
 
     init(audioContext, masterDestinationNode) {
-      if (this.ctx && this.masterNode && this.noiseBuffer) return;
-      this.ctx = audioContext;
+      if (this.ctx && audioContext && this.ctx !== audioContext) {
+        this.destroyNodes();
+      }
+      this.ctx = audioContext || this.ctx;
       if (!this.ctx) return;
 
       // Master drum bus: use Tone.Gain when available to bridge cleanly to Tone audio graph
-      if (typeof Tone !== 'undefined' && Tone.Gain) {
-        this.masterToneGain = new Tone.Gain(0.92);
-        const dest = masterDestinationNode || (window.audio && window.audio.masterVolume) || Tone.getDestination();
-        this.masterToneGain.connect(dest);
-        this.masterNode = this.masterToneGain.input || this.masterToneGain;
-      } else {
-        this.masterNode = this.ctx.createGain();
-        this.masterNode.gain.value = 0.92;
-        const dest = masterDestinationNode || this.ctx.destination;
-        if (typeof Tone !== 'undefined' && typeof Tone.connect === 'function') {
-          Tone.connect(this.masterNode, dest);
+      if (!this.masterNode) {
+        if (typeof Tone !== 'undefined' && Tone.Gain) {
+          this.masterToneGain = new Tone.Gain(0.92);
+          const dest = masterDestinationNode || (window.audio && window.audio.masterVolume) || Tone.getDestination();
+          this.masterToneGain.connect(dest);
+          this.masterNode = this.masterToneGain.input || this.masterToneGain;
         } else {
-          this.masterNode.connect(dest);
+          this.masterNode = this.ctx.createGain();
+          this.masterNode.gain.value = 0.92;
+          const dest = masterDestinationNode || this.ctx.destination;
+          if (typeof Tone !== 'undefined' && typeof Tone.connect === 'function') {
+            Tone.connect(this.masterNode, dest);
+          } else {
+            this.masterNode.connect(dest);
+          }
         }
       }
 
       // Generate 2.5s looping noise buffer
       this.initNoiseBuffer();
+      this.initPersistentNodes();
     }
 
     initNoiseBuffer() {
@@ -87,6 +93,248 @@
         data[i] = Math.random() * 2 - 1;
       }
       this.noiseBuffer = buffer;
+    }
+
+    initPersistentNodes() {
+      if (!this.ctx || !this.masterNode || !this.noiseBuffer) return;
+      if (this.nodesInitialized) return;
+
+      try {
+        // 1. Single looping white noise source (eliminates disposable BufferSourceNode allocations)
+        this.noiseSource = this.ctx.createBufferSource();
+        this.noiseSource.buffer = this.noiseBuffer;
+        this.noiseSource.loop = true;
+        this.noiseSource.start(0);
+
+        // 2. Kick Drum persistent oscillators & gains
+        this.kickOsc = this.ctx.createOscillator();
+        this.kickOsc.type = 'sine';
+        this.kickOsc.frequency.setValueAtTime(38, 0);
+        this.kickGain = this.ctx.createGain();
+        this.kickGain.gain.setValueAtTime(0, 0);
+        this.kickOsc.connect(this.kickGain);
+        this.kickGain.connect(this.masterNode);
+        this.kickOsc.start(0);
+
+        this.kickClickOsc = this.ctx.createOscillator();
+        this.kickClickOsc.type = 'triangle';
+        this.kickClickOsc.frequency.setValueAtTime(60, 0);
+        this.kickClickGain = this.ctx.createGain();
+        this.kickClickGain.gain.setValueAtTime(0, 0);
+        this.kickClickOsc.connect(this.kickClickGain);
+        this.kickClickGain.connect(this.masterNode);
+        this.kickClickOsc.start(0);
+
+        // 3. Snare Drum persistent body tone & filtered noise
+        this.snareToneOsc = this.ctx.createOscillator();
+        this.snareToneOsc.type = 'triangle';
+        this.snareToneOsc.frequency.setValueAtTime(80, 0);
+        this.snareToneGain = this.ctx.createGain();
+        this.snareToneGain.gain.setValueAtTime(0, 0);
+        this.snareToneOsc.connect(this.snareToneGain);
+        this.snareToneGain.connect(this.masterNode);
+        this.snareToneOsc.start(0);
+
+        this.snareNoiseFilter = this.ctx.createBiquadFilter();
+        this.snareNoiseFilter.type = 'highpass';
+        this.snareNoiseFilter.frequency.setValueAtTime(1100, 0);
+        this.snareNoiseGain = this.ctx.createGain();
+        this.snareNoiseGain.gain.setValueAtTime(0, 0);
+        this.noiseSource.connect(this.snareNoiseFilter);
+        this.snareNoiseFilter.connect(this.snareNoiseGain);
+        this.snareNoiseGain.connect(this.masterNode);
+
+        // 4. Closed Hi-Hat persistent bandpass filter & gain
+        this.closedHatFilter = this.ctx.createBiquadFilter();
+        this.closedHatFilter.type = 'bandpass';
+        this.closedHatFilter.frequency.setValueAtTime(8500, 0);
+        this.closedHatFilter.Q.value = 4.0;
+        this.closedHatGain = this.ctx.createGain();
+        this.closedHatGain.gain.setValueAtTime(0, 0);
+        this.noiseSource.connect(this.closedHatFilter);
+        this.closedHatFilter.connect(this.closedHatGain);
+        this.closedHatGain.connect(this.masterNode);
+
+        // 5. Open Hi-Hat persistent bandpass filter & gain
+        this.openHatFilter = this.ctx.createBiquadFilter();
+        this.openHatFilter.type = 'bandpass';
+        this.openHatFilter.frequency.setValueAtTime(7500, 0);
+        this.openHatFilter.Q.value = 3.2;
+        this.openHatGain = this.ctx.createGain();
+        this.openHatGain.gain.setValueAtTime(0, 0);
+        this.noiseSource.connect(this.openHatFilter);
+        this.openHatFilter.connect(this.openHatGain);
+        this.openHatGain.connect(this.masterNode);
+
+        // 6. Ride Cymbal (2-voice pool for natural shimmering decays without node churn)
+        this.rideVoiceIndex = 0;
+        this.rideVoices = [];
+        for (let i = 0; i < 2; i++) {
+          const osc1 = this.ctx.createOscillator();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(520, 0);
+          const g1 = this.ctx.createGain();
+          g1.gain.setValueAtTime(0, 0);
+          osc1.connect(g1);
+          g1.connect(this.masterNode);
+          osc1.start(0);
+
+          const osc2 = this.ctx.createOscillator();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(840, 0);
+          const g2 = this.ctx.createGain();
+          g2.gain.setValueAtTime(0, 0);
+          osc2.connect(g2);
+          g2.connect(this.masterNode);
+          osc2.start(0);
+
+          const filt = this.ctx.createBiquadFilter();
+          filt.type = 'bandpass';
+          filt.frequency.setValueAtTime(9200, 0);
+          filt.Q.value = 2.5;
+          const ng = this.ctx.createGain();
+          ng.gain.setValueAtTime(0, 0);
+          this.noiseSource.connect(filt);
+          filt.connect(ng);
+          ng.connect(this.masterNode);
+
+          this.rideVoices.push({ osc1, g1, osc2, g2, filt, ng });
+        }
+
+        // 7. Crash Cymbal (2-voice pool for explosive overlapping washes)
+        this.crashVoiceIndex = 0;
+        this.crashVoices = [];
+        for (let i = 0; i < 2; i++) {
+          const filt = this.ctx.createBiquadFilter();
+          filt.type = 'bandpass';
+          filt.frequency.setValueAtTime(4500, 0);
+          filt.Q.value = 1.8;
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0, 0);
+          this.noiseSource.connect(filt);
+          filt.connect(g);
+          g.connect(this.masterNode);
+
+          this.crashVoices.push({ filt, g });
+        }
+
+        // 8. Cowbell persistent dual square waves & bandpass filter
+        this.cowbellFilter = this.ctx.createBiquadFilter();
+        this.cowbellFilter.type = 'bandpass';
+        this.cowbellFilter.frequency.setValueAtTime(820, 0);
+        this.cowbellFilter.Q.value = 3.6;
+        this.cowbellGain = this.ctx.createGain();
+        this.cowbellGain.gain.setValueAtTime(0, 0);
+        this.cowbellFilter.connect(this.cowbellGain);
+        this.cowbellGain.connect(this.masterNode);
+
+        this.cowbellOsc1 = this.ctx.createOscillator();
+        this.cowbellOsc1.type = 'square';
+        this.cowbellOsc1.frequency.setValueAtTime(540, 0);
+        this.cowbellOsc1.connect(this.cowbellFilter);
+        this.cowbellOsc1.start(0);
+
+        this.cowbellOsc2 = this.ctx.createOscillator();
+        this.cowbellOsc2.type = 'square';
+        this.cowbellOsc2.frequency.setValueAtTime(800, 0);
+        this.cowbellOsc2.connect(this.cowbellFilter);
+        this.cowbellOsc2.start(0);
+
+        // 9. Handclap persistent bandpass filter & gain
+        this.clapFilter = this.ctx.createBiquadFilter();
+        this.clapFilter.type = 'bandpass';
+        this.clapFilter.frequency.setValueAtTime(1300, 0);
+        this.clapFilter.Q.value = 2.0;
+        this.clapGain = this.ctx.createGain();
+        this.clapGain.gain.setValueAtTime(0, 0);
+        this.noiseSource.connect(this.clapFilter);
+        this.clapFilter.connect(this.clapGain);
+        this.clapGain.connect(this.masterNode);
+
+        // 10. Clave / Woodblock persistent sine oscillator & gain
+        this.claveOsc = this.ctx.createOscillator();
+        this.claveOsc.type = 'sine';
+        this.claveOsc.frequency.setValueAtTime(620, 0);
+        this.claveGain = this.ctx.createGain();
+        this.claveGain.gain.setValueAtTime(0, 0);
+        this.claveOsc.connect(this.claveGain);
+        this.claveGain.connect(this.masterNode);
+        this.claveOsc.start(0);
+
+        this.nodesInitialized = true;
+      } catch (err) {
+        console.warn('initPersistentNodes error:', err);
+      }
+    }
+
+    ensureNodes() {
+      if (this.nodesInitialized) return true;
+      if (!this.ctx) {
+        if (window.audio && window.audio.rawAudioContext) {
+          this.init(window.audio.rawAudioContext);
+        } else if (typeof Tone !== 'undefined' && Tone.context) {
+          this.init(Tone.context.rawContext || Tone.context);
+        }
+      }
+      if (this.ctx && !this.nodesInitialized) {
+        if (!this.noiseBuffer) this.initNoiseBuffer();
+        this.initPersistentNodes();
+      }
+      return this.nodesInitialized;
+    }
+
+    silenceAll() {
+      if (!this.nodesInitialized || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      const gains = [
+        this.kickGain, this.kickClickGain,
+        this.snareToneGain, this.snareNoiseGain,
+        this.closedHatGain, this.openHatGain,
+        this.cowbellGain, this.clapGain, this.claveGain
+      ];
+      if (this.rideVoices) {
+        this.rideVoices.forEach(v => gains.push(v.g1, v.g2, v.ng));
+      }
+      if (this.crashVoices) {
+        this.crashVoices.forEach(v => gains.push(v.g));
+      }
+
+      gains.forEach(g => {
+        if (g && g.gain) {
+          try {
+            g.gain.cancelScheduledValues(now);
+            g.gain.setValueAtTime(0, now);
+          } catch (e) {}
+        }
+      });
+    }
+
+    destroyNodes() {
+      if (!this.nodesInitialized) return;
+      try {
+        if (this.noiseSource) {
+          try { this.noiseSource.stop(); this.noiseSource.disconnect(); } catch (e) {}
+          this.noiseSource = null;
+        }
+        const oscs = [
+          this.kickOsc, this.kickClickOsc,
+          this.snareToneOsc,
+          this.cowbellOsc1, this.cowbellOsc2,
+          this.claveOsc
+        ];
+        if (this.rideVoices) {
+          this.rideVoices.forEach(v => {
+            if (v.osc1) { try { v.osc1.stop(); v.osc1.disconnect(); } catch (e) {} }
+            if (v.osc2) { try { v.osc2.stop(); v.osc2.disconnect(); } catch (e) {} }
+          });
+        }
+        oscs.forEach(osc => {
+          if (osc) {
+            try { osc.stop(); osc.disconnect(); } catch (e) {}
+          }
+        });
+      } catch (e) {}
+      this.nodesInitialized = false;
     }
 
     isAudible(trackId) {
@@ -112,329 +360,201 @@
     playKick(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('kick', velocity);
       if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
       // Sub-bass pitch sweep oscillator
-      const osc = this.ctx.createOscillator();
-      const oscGain = this.ctx.createGain();
+      this.kickOsc.frequency.cancelScheduledValues(t);
+      this.kickOsc.frequency.setValueAtTime(145, t);
+      this.kickOsc.frequency.exponentialRampToValueAtTime(38, t + 0.065);
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(145, t);
-      osc.frequency.exponentialRampToValueAtTime(38, t + 0.065);
-
-      oscGain.gain.setValueAtTime(gainVal * 1.1, t);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
-
-      osc.connect(oscGain);
-      oscGain.connect(this.masterNode);
+      this.kickGain.gain.cancelScheduledValues(t);
+      this.kickGain.gain.setValueAtTime(gainVal * 1.1, t);
+      this.kickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      this.kickGain.gain.setValueAtTime(0, t + 0.285);
 
       // Transient attack click for punch through speakers
-      const clickOsc = this.ctx.createOscillator();
-      const clickGain = this.ctx.createGain();
+      this.kickClickOsc.frequency.cancelScheduledValues(t);
+      this.kickClickOsc.frequency.setValueAtTime(260, t);
+      this.kickClickOsc.frequency.exponentialRampToValueAtTime(60, t + 0.015);
 
-      clickOsc.type = 'triangle';
-      clickOsc.frequency.setValueAtTime(260, t);
-      clickOsc.frequency.exponentialRampToValueAtTime(60, t + 0.015);
-
-      clickGain.gain.setValueAtTime(gainVal * 0.7, t);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
-
-      clickOsc.connect(clickGain);
-      clickGain.connect(this.masterNode);
-
-      osc.start(t);
-      osc.stop(t + 0.3);
-      clickOsc.start(t);
-      clickOsc.stop(t + 0.025);
+      this.kickClickGain.gain.cancelScheduledValues(t);
+      this.kickClickGain.gain.setValueAtTime(gainVal * 0.7, t);
+      this.kickClickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+      this.kickClickGain.gain.setValueAtTime(0, t + 0.022);
     }
 
     // 2. Snare Drum (185Hz body tone + high-passed noise burst)
     playSnare(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('snare', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
       // Body tone oscillator
-      const toneOsc = this.ctx.createOscillator();
-      const toneGain = this.ctx.createGain();
+      this.snareToneOsc.frequency.cancelScheduledValues(t);
+      this.snareToneOsc.frequency.setValueAtTime(185, t);
+      this.snareToneOsc.frequency.exponentialRampToValueAtTime(80, t + 0.06);
 
-      toneOsc.type = 'triangle';
-      toneOsc.frequency.setValueAtTime(185, t);
-      toneOsc.frequency.exponentialRampToValueAtTime(80, t + 0.06);
-
-      toneGain.gain.setValueAtTime(gainVal * 0.7, t);
-      toneGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-
-      toneOsc.connect(toneGain);
-      toneGain.connect(this.masterNode);
+      this.snareToneGain.gain.cancelScheduledValues(t);
+      this.snareToneGain.gain.setValueAtTime(gainVal * 0.7, t);
+      this.snareToneGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      this.snareToneGain.gain.setValueAtTime(0, t + 0.125);
 
       // Snappy noise component
-      const noiseSource = this.ctx.createBufferSource();
-      noiseSource.buffer = this.noiseBuffer;
-
-      const noiseFilter = this.ctx.createBiquadFilter();
-      noiseFilter.type = 'highpass';
-      noiseFilter.frequency.setValueAtTime(1100, t);
-
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(gainVal * 0.85, t);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-
-      noiseSource.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(this.masterNode);
-
-      toneOsc.start(t);
-      toneOsc.stop(t + 0.13);
-      noiseSource.start(t);
-      noiseSource.stop(t + 0.19);
+      this.snareNoiseGain.gain.cancelScheduledValues(t);
+      this.snareNoiseGain.gain.setValueAtTime(gainVal * 0.85, t);
+      this.snareNoiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      this.snareNoiseGain.gain.setValueAtTime(0, t + 0.185);
     }
 
     // 3. Closed Hi-Hat (Metallic cluster + choke group trigger)
     playClosedHat(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('closedHat', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
       // Choke currently ringing open hats
       this.chokeOpenHats(t);
 
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(8500, t);
-      filter.Q.value = 4.0;
-
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(gainVal * 0.75, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
-
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterNode);
-
-      noise.start(t);
-      noise.stop(t + 0.05);
+      this.closedHatGain.gain.cancelScheduledValues(t);
+      this.closedHatGain.gain.setValueAtTime(gainVal * 0.75, t);
+      this.closedHatGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      this.closedHatGain.gain.setValueAtTime(0, t + 0.05);
     }
 
     // 4. Open Hi-Hat (280ms wash with choke registration)
     playOpenHat(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('openHat', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(7500, t);
-      filter.Q.value = 3.2;
-
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(gainVal * 0.7, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
-
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterNode);
-
-      // Register for choking
-      this.activeOpenHats.push({ gainNode: gain, stopTime: t + 0.33 });
-
-      noise.start(t);
-      noise.stop(t + 0.33);
+      this.openHatGain.gain.cancelScheduledValues(t);
+      this.openHatGain.gain.setValueAtTime(gainVal * 0.7, t);
+      this.openHatGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      this.openHatGain.gain.setValueAtTime(0, t + 0.325);
     }
 
     chokeOpenHats(time) {
-      const now = time || (this.ctx ? this.ctx.currentTime : 0);
-      this.activeOpenHats = this.activeOpenHats.filter(item => {
-        if (item.stopTime > now) {
-          try {
-            item.gainNode.gain.cancelScheduledValues(now);
-            item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
-            item.gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
-          } catch (e) {}
-          return false;
-        }
-        return false;
-      });
+      if (!this.openHatGain || !this.ctx) return;
+      const t = Math.max(this.ctx.currentTime, time || 0);
+      try {
+        this.openHatGain.gain.cancelScheduledValues(t);
+        this.openHatGain.gain.setValueAtTime(Math.max(0.0001, this.openHatGain.gain.value), t);
+        this.openHatGain.gain.linearRampToValueAtTime(0, t + 0.015);
+      } catch (e) {
+        try {
+          this.openHatGain.gain.setValueAtTime(0, t);
+        } catch (e2) {}
+      }
     }
 
     // 5. Ride Cymbal (Dual-mode metallic bell ping at 520Hz & 840Hz + 1.1s shimmer)
     playRide(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('ride', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      // 1. Resonant bell ping modes
-      const bellFreqs = [520, 840];
-      bellFreqs.forEach((freq, idx) => {
-        const osc = this.ctx.createOscillator();
-        const g = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, t);
+      const v = this.rideVoices[this.rideVoiceIndex % 2];
+      this.rideVoiceIndex++;
 
-        const bellVol = gainVal * (idx === 0 ? 0.35 : 0.28);
-        g.gain.setValueAtTime(bellVol, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      v.g1.gain.cancelScheduledValues(t);
+      v.g1.gain.setValueAtTime(gainVal * 0.35, t);
+      v.g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      v.g1.gain.setValueAtTime(0, t + 0.455);
 
-        osc.connect(g);
-        g.connect(this.masterNode);
-        osc.start(t);
-        osc.stop(t + 0.5);
-      });
+      v.g2.gain.cancelScheduledValues(t);
+      v.g2.gain.setValueAtTime(gainVal * 0.28, t);
+      v.g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      v.g2.gain.setValueAtTime(0, t + 0.455);
 
-      // 2. High metallic sizzle wash
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(9200, t);
-      filter.Q.value = 2.5;
-
-      const washGain = this.ctx.createGain();
-      washGain.gain.setValueAtTime(gainVal * 0.45, t);
-      washGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
-
-      noise.connect(filter);
-      filter.connect(washGain);
-      washGain.connect(this.masterNode);
-
-      noise.start(t);
-      noise.stop(t + 1.15);
+      v.ng.gain.cancelScheduledValues(t);
+      v.ng.gain.setValueAtTime(gainVal * 0.45, t);
+      v.ng.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      v.ng.gain.setValueAtTime(0, t + 1.105);
     }
 
     // 6. Crash Cymbal (Explosive swept bandpass noise + 1.6s exponential wash)
     playCrash(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('crash', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
+      const v = this.crashVoices[this.crashVoiceIndex % 2];
+      this.crashVoiceIndex++;
 
-      // Swept resonant bandpass for initial explosion
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(4500, t);
-      filter.frequency.exponentialRampToValueAtTime(7800, t + 0.15);
-      filter.Q.value = 1.8;
+      v.filt.frequency.cancelScheduledValues(t);
+      v.filt.frequency.setValueAtTime(4500, t);
+      v.filt.frequency.exponentialRampToValueAtTime(7800, t + 0.15);
 
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(gainVal * 0.85, t);
-      gain.gain.exponentialRampToValueAtTime(gainVal * 0.25, t + 0.2);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.65);
-
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterNode);
-
-      noise.start(t);
-      noise.stop(t + 1.7);
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(gainVal * 0.85, t);
+      v.g.gain.exponentialRampToValueAtTime(gainVal * 0.25, t + 0.2);
+      v.g.gain.exponentialRampToValueAtTime(0.0001, t + 1.65);
+      v.g.gain.setValueAtTime(0, t + 1.655);
     }
 
     // 7. Cowbell (Authentic 808 dual square wave 540Hz & 800Hz + bandpass filter)
     playCowbell(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('cowbell', velocity);
       if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      const osc1 = this.ctx.createOscillator();
-      const osc2 = this.ctx.createOscillator();
-      osc1.type = 'square';
-      osc2.type = 'square';
-      osc1.frequency.setValueAtTime(540, t);
-      osc2.frequency.setValueAtTime(800, t);
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(820, t);
-      filter.Q.value = 3.6;
-
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(gainVal * 0.75, t);
-      gain.gain.exponentialRampToValueAtTime(gainVal * 0.35, t + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
-
-      osc1.connect(filter);
-      osc2.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterNode);
-
-      osc1.start(t);
-      osc2.start(t);
-      osc1.stop(t + 0.34);
-      osc2.stop(t + 0.34);
+      this.cowbellGain.gain.cancelScheduledValues(t);
+      this.cowbellGain.gain.setValueAtTime(gainVal * 0.75, t);
+      this.cowbellGain.gain.exponentialRampToValueAtTime(gainVal * 0.35, t + 0.04);
+      this.cowbellGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      this.cowbellGain.gain.setValueAtTime(0, t + 0.325);
     }
 
     // 8. Handclap (Triple-burst micro-transients at 11ms intervals + reverb tail)
     playClap(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('clap', velocity);
-      if (gainVal <= 0 || !this.ctx || !this.noiseBuffer) return;
+      if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1300, t);
-      filter.Q.value = 2.0;
-
-      const gain = this.ctx.createGain();
       const masterClapVol = gainVal * 0.8;
-
-      // 3 micro-pulses
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.setValueAtTime(masterClapVol * 0.8, t + 0.002);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.010);
-      gain.gain.setValueAtTime(masterClapVol * 0.9, t + 0.011);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.021);
-      gain.gain.setValueAtTime(masterClapVol, t + 0.022);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterNode);
-
-      noise.start(t);
-      noise.stop(t + 0.24);
+      this.clapGain.gain.cancelScheduledValues(t);
+      this.clapGain.gain.setValueAtTime(0, t);
+      this.clapGain.gain.setValueAtTime(masterClapVol * 0.8, t + 0.002);
+      this.clapGain.gain.exponentialRampToValueAtTime(0.01, t + 0.010);
+      this.clapGain.gain.setValueAtTime(masterClapVol * 0.9, t + 0.011);
+      this.clapGain.gain.exponentialRampToValueAtTime(0.01, t + 0.021);
+      this.clapGain.gain.setValueAtTime(masterClapVol, t + 0.022);
+      this.clapGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      this.clapGain.gain.setValueAtTime(0, t + 0.225);
     }
 
     // 9. Afro-Cuban Clave / High Woodblock (Dual resonant sine modes at 880Hz & 540Hz)
     playClave(time, velocity = 1.0) {
       const gainVal = this.getEffectiveGain('clave', velocity);
       if (gainVal <= 0 || !this.ctx) return;
+      if (!this.ensureNodes()) return;
 
-      const t = Math.max(this.ctx.currentTime, time);
+      const t = Math.max(this.ctx.currentTime, time || 0);
 
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      this.claveOsc.frequency.cancelScheduledValues(t);
+      this.claveOsc.frequency.setValueAtTime(880, t);
+      this.claveOsc.frequency.exponentialRampToValueAtTime(620, t + 0.025);
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, t);
-      osc.frequency.exponentialRampToValueAtTime(620, t + 0.025);
-
-      gain.gain.setValueAtTime(gainVal * 0.9, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-
-      osc.connect(gain);
-      gain.connect(this.masterNode);
-
-      osc.start(t);
-      osc.stop(t + 0.07);
+      this.claveGain.gain.cancelScheduledValues(t);
+      this.claveGain.gain.setValueAtTime(gainVal * 0.9, t);
+      this.claveGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      this.claveGain.gain.setValueAtTime(0, t + 0.065);
     }
 
     playVoice(voiceId, time, velocity = 1.0) {
@@ -922,6 +1042,9 @@
         this.animFrameId = null;
       }
       this.visualQueue = [];
+      if (this.synth && typeof this.synth.silenceAll === 'function') {
+        this.synth.silenceAll();
+      }
     }
 
     // Calculate exact audio timestamp of the next measure downbeat (step 0)

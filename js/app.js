@@ -99,7 +99,7 @@
 
       // Seamless user gesture wakeup (resumes audio context if suspended when clicking/tapping anywhere)
       const resumeOnGesture = async () => {
-        if (audio && audio.initialized && typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running') {
+        if (audio && audio.initialized && ((audio.ctx && audio.ctx.state !== 'running') || (typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running'))) {
           await audio.resumeIfNeeded();
         }
       };
@@ -915,7 +915,11 @@
     }
 
     highlightTableRow(idx) {
-      document.querySelectorAll('#harmonicTable tbody tr').forEach(tr => {
+      if (this._activeTableRowIdx === idx) return;
+      this._activeTableRowIdx = idx;
+      const table = document.getElementById('harmonicTable');
+      if (!table || table.offsetParent === null) return;
+      table.querySelectorAll('tbody tr').forEach(tr => {
         if (parseInt(tr.dataset.index, 10) === idx) {
           tr.classList.add('table-row-active');
         } else {
@@ -2011,19 +2015,51 @@
         });
       }
 
-      // Continuous animation loop for smooth needle motion and live 4-bar playhead cursor
+      // On-demand animation loop for smooth needle motion when microphone is actively listening
       let animLoopId = null;
-      const runAnimLoop = () => {
+      let lastMeterRender = 0;
+      const targetMeterInterval = 1000 / 30; // 30 FPS cap to preserve CPU & battery
+
+      const startAnimLoop = () => {
+        if (animLoopId) return;
+        const runAnimLoop = (ts) => {
+          if (!engine.isRunning) {
+            animLoopId = null;
+            if (renderer && accuracySection && accuracySection.style.display !== 'none') {
+              renderer.render(engine);
+            }
+            return;
+          }
+          if (renderer && accuracySection && accuracySection.style.display !== 'none') {
+            if (!ts || ts - lastMeterRender >= targetMeterInterval) {
+              lastMeterRender = ts || performance.now();
+              renderer.render(engine);
+            }
+          }
+          animLoopId = requestAnimationFrame(runAnimLoop);
+        };
+        animLoopId = requestAnimationFrame(runAnimLoop);
+      };
+
+      const stopAnimLoop = () => {
+        if (animLoopId) {
+          cancelAnimationFrame(animLoopId);
+          animLoopId = null;
+        }
         if (renderer && accuracySection && accuracySection.style.display !== 'none') {
           renderer.render(engine);
         }
-        animLoopId = requestAnimationFrame(runAnimLoop);
       };
-      animLoopId = requestAnimationFrame(runAnimLoop);
+
+      // Single initial static render
+      if (renderer && accuracySection && accuracySection.style.display !== 'none') {
+        renderer.render(engine);
+      }
 
       // Engine state change callback
       engine.onStateChange = (running) => {
         if (running) {
+          startAnimLoop();
           if (liveBadge) {
             liveBadge.textContent = 'Microphone: Active (Listening)';
             liveBadge.className = 'tempo-marking-badge in-pocket';
@@ -2045,6 +2081,7 @@
             statusBadge.textContent = 'LISTENING...';
           }
         } else {
+          stopAnimLoop();
           if (liveBadge) {
             liveBadge.textContent = 'Microphone: Off';
             liveBadge.className = 'tempo-marking-badge';
@@ -2836,7 +2873,7 @@
       const audio = window.audio;
       if (audio && audio.initialized && audio.leadSynth) {
         try {
-          const now = Tone.now();
+          const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0);
           audio.leadSynth.triggerAttackRelease('E5', '8n', now, 0.4);
           audio.leadSynth.triggerAttackRelease('A5', '4n', now + 0.18, 0.5);
         } catch (e) {
@@ -3082,7 +3119,12 @@
     }
 
     highlightRhythmGlyph(idx) {
-      document.querySelectorAll('.rhythm-glyph').forEach((el, i) => {
+      if (this._activeRhythmIdx === idx) return;
+      this._activeRhythmIdx = idx;
+      const glyphs = document.querySelectorAll('.rhythm-glyph');
+      if (glyphs.length === 0) return;
+      if (glyphs[0].offsetParent === null) return; // Skip DOM styling when rhythm generator tab is hidden
+      glyphs.forEach((el, i) => {
         if (i === idx) el.classList.add('active');
         else el.classList.remove('active');
       });
@@ -3119,7 +3161,7 @@
       const note1 = `${sharpNames[baseMidi % 12]}4`;
       const note2 = `${sharpNames[(baseMidi + intervalSemitones) % 12]}${Math.floor((baseMidi + intervalSemitones) / 12) - 1}`;
 
-      const now = Tone.now();
+      const now = (audio && audio.getAudioCurrentTime) ? audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0);
       audio.leadSynth.triggerAttackRelease(note1, '4n', now);
       audio.leadSynth.triggerAttackRelease(note2, '4n', now + 0.6);
 
@@ -3684,12 +3726,26 @@
     }
 
     highlightBeatStep(stepIdx) {
-      const pads = document.querySelectorAll('.beat-pad.active-cursor');
-      pads.forEach(p => p.classList.remove('active-cursor'));
+      if (this._lastBeatStep === stepIdx) return;
+      this._lastBeatStep = stepIdx;
 
-      if (stepIdx >= 0) {
-        const currentPads = document.querySelectorAll(`.beat-pad[data-step="${stepIdx}"]`);
-        currentPads.forEach(p => p.classList.add('active-cursor'));
+      const grid = document.getElementById('beatGridContainer');
+      if (grid && grid.offsetParent !== null) {
+        if (this._activeBeatPads && this._activeBeatPads.length > 0) {
+          for (let i = 0; i < this._activeBeatPads.length; i++) {
+            this._activeBeatPads[i].classList.remove('active-cursor');
+          }
+          this._activeBeatPads = [];
+        } else {
+          const pads = grid.querySelectorAll('.beat-pad.active-cursor');
+          pads.forEach(p => p.classList.remove('active-cursor'));
+        }
+
+        if (stepIdx >= 0) {
+          const currentPads = grid.querySelectorAll(`.beat-pad[data-step="${stepIdx}"]`);
+          currentPads.forEach(p => p.classList.add('active-cursor'));
+          this._activeBeatPads = Array.from(currentPads);
+        }
       }
 
       if (this.visualizer && this.visualizer.setStep) {
@@ -3957,7 +4013,7 @@
       }
 
       // Start all tracks locked to exact same audio timestamp
-      const startTime = Tone.now() + 0.08;
+      const startTime = ((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0)) + 0.08;
 
       const trackChords = document.getElementById('jamTrackChords');
       const trackDrums = document.getElementById('jamTrackDrums');
@@ -4063,6 +4119,13 @@
         this.highlightBeatStep(-1);
       }
 
+      if (this.ribbonRenderer) {
+        this.ribbonRenderer.setActiveStep(-1);
+      }
+      if (this.sheetMusicRenderer) {
+        this.sheetMusicRenderer.setActiveStep(-1);
+      }
+
       // Reset individual buttons
       const btnPlayProg = document.getElementById('btnPlayProgression');
       if (btnPlayProg) {
@@ -4106,7 +4169,7 @@
       // Quantize to next downbeat
       const syncTime = (this.beatSequencer && this.beatSequencer.isPlaying)
         ? this.beatSequencer.getNextDownbeatAudioTime()
-        : (Tone.now() + 0.05);
+        : (((window.audio && window.audio.getAudioCurrentTime) ? window.audio.getAudioCurrentTime() : (typeof Tone !== 'undefined' ? Tone.now() : 0)) + 0.05);
 
       // Chords
       if (trackChords && trackChords.checked && !window.audio.isPlayingProgression) {

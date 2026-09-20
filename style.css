@@ -128,6 +128,7 @@ body {
 }
 
 .btn-master-jam {
+  position: relative;
   background: linear-gradient(135deg, #10b981, #059669);
   color: #ffffff;
   font-weight: 700;
@@ -151,13 +152,24 @@ body {
 
 .btn-master-jam.is-playing {
   background: linear-gradient(135deg, #ef4444, #dc2626);
-  box-shadow: 0 0 14px rgba(239, 68, 68, 0.6);
-  animation: pulseJamGlow 1.8s infinite;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+.btn-master-jam.is-playing::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.85);
+  pointer-events: none;
+  opacity: 0.35;
+  animation: pulseJamGlow 1.8s ease-in-out infinite alternate;
+  will-change: opacity;
 }
 
 @keyframes pulseJamGlow {
-  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-  50% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85); }
+  from { opacity: 0.35; }
+  to { opacity: 0.95; }
 }
 
 .jam-btn-icon {

@@ -1437,9 +1437,9 @@
 
     setActiveStep(chordIdx) {
       this.activeChordIdx = chordIdx;
-      if (chordIdx >= 0 && !this.pulseAnimation) {
+      if (chordIdx >= 0 && (!this.canvas || this.canvas.offsetParent !== null) && !this.pulseAnimation) {
         this.startPulseAnimation();
-      } else if (chordIdx < 0 && this.pulseAnimation) {
+      } else if ((chordIdx < 0 || (this.canvas && this.canvas.offsetParent === null)) && this.pulseAnimation) {
         cancelAnimationFrame(this.pulseAnimation);
         this.pulseAnimation = null;
       }
@@ -1447,10 +1447,16 @@
     }
 
     startPulseAnimation() {
-      const step = () => {
-        if (this.activeChordIdx >= 0) {
-          this.pulsePhase = (this.pulsePhase + 0.08) % (Math.PI * 2);
-          this.render();
+      let lastRender = 0;
+      const targetInterval = 1000 / 30; // Cap pulse animation at ~30 FPS
+
+      const step = (ts) => {
+        if (this.activeChordIdx >= 0 && (!this.canvas || this.canvas.offsetParent !== null)) {
+          if (!ts || ts - lastRender >= targetInterval) {
+            lastRender = ts || performance.now();
+            this.pulsePhase = (this.pulsePhase + 0.08) % (Math.PI * 2);
+            this.render();
+          }
           this.pulseAnimation = requestAnimationFrame(step);
         } else {
           this.pulseAnimation = null;
@@ -1461,6 +1467,7 @@
 
     render() {
       if (!this.ctx || !this.width || !this.height) return;
+      if (this.canvas && this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
       const ctx = this.ctx;
       const w = this.width;
       const h = this.height;

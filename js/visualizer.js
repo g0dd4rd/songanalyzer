@@ -120,20 +120,28 @@
     setStep(stepIndex) {
       this.activeStep = stepIndex;
       this.lastStepTime = (stepIndex >= 0) ? performance.now() : null;
-      if (this.mode === 'clock') {
+      if (this.mode === 'clock' && !this.animId) {
         this.render();
       }
     }
 
     startAnimation() {
       if (this.animId) return;
-      const loop = () => {
+      let lastRenderTime = 0;
+      const targetInterval = 1000 / 36; // Cap canvas animation at ~36 FPS to prevent main thread starvation & save mobile battery
+
+      const loop = (timestamp) => {
         const isAudioPlaying = (window.audio && (window.audio.isPlayingProgression || window.audio.isPlayingMelodyProgression));
         const seq = (window.app && window.app.beatSequencer) || window.drumMachine;
         const isDrumsPlaying = seq && seq.isPlaying;
 
         if (isAudioPlaying || isDrumsPlaying) {
-          this.render();
+          if (!this.canvas || this.canvas.offsetParent !== null) {
+            if (!timestamp || timestamp - lastRenderTime >= targetInterval) {
+              lastRenderTime = timestamp || performance.now();
+              this.render();
+            }
+          }
           this.animId = requestAnimationFrame(loop);
         } else {
           this.animId = null;
@@ -267,6 +275,7 @@
 
     render() {
       if (!this.ctx || !this.width || !this.height) return;
+      if (this.canvas && this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
 
       this.ctx.fillStyle = this.colors.bg;
       this.ctx.fillRect(0, 0, this.width, this.height);

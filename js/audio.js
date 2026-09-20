@@ -1,33 +1,374 @@
-// Song Analyzer - Web Audio & Tone.js Audio Engine
-// Classic JS Module (works offline over file:// with zero server requirements)
+// Song Analyzer - Pure Zero-Allocation Native Web Audio Engine
+// 100% Offline Vanilla JS (Zero runtime external dependencies, file:// protocol compatible)
 
 (function(window) {
   'use strict';
 
+  // -------------------------------------------------------------
+  // 1. Static Pre-Computed Lookup Tables (Zero Allocation / O(1))
+  // -------------------------------------------------------------
+  const MIDI_TO_FREQ = new Float32Array(128);
+  for (let i = 0; i < 128; i++) {
+    MIDI_TO_FREQ[i] = 440 * Math.pow(2, (i - 69) / 12);
+  }
+
+  const NOTE_NAME_TO_MIDI = {};
+  const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  for (let oct = -1; oct <= 9; oct++) {
+    for (let s = 0; s < 12; s++) {
+      const midi = (oct + 1) * 12 + s;
+      if (midi >= 0 && midi < 128) {
+        NOTE_NAME_TO_MIDI[`${SHARP_NAMES[s]}${oct}`] = midi;
+        NOTE_NAME_TO_MIDI[`${FLAT_NAMES[s]}${oct}`] = midi;
+      }
+    }
+  }
+
+  function noteToFreq(noteStr) {
+    if (typeof noteStr === 'number') return noteStr;
+    if (!noteStr) return 440;
+    const m = NOTE_NAME_TO_MIDI[noteStr];
+    if (m !== undefined) return MIDI_TO_FREQ[m];
+    // Fallback: match scientific pitch regex
+    const match = String(noteStr).trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+    if (match) {
+      const step = match[1].toUpperCase();
+      const accidental = match[2];
+      const oct = parseInt(match[3], 10);
+      let semi = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[step] || 0;
+      if (accidental === '#') semi++;
+      else if (accidental === 'b') semi--;
+      const midi = (oct + 1) * 12 + semi;
+      if (midi >= 0 && midi < 128) return MIDI_TO_FREQ[midi];
+    }
+    return 440;
+  }
+
+  function parseDuration(dur, bpm = 113) {
+    if (typeof dur === 'number') return Math.max(0.01, dur);
+    if (!dur) return 0.5;
+    if (typeof dur === 'string') {
+      const sTrim = dur.trim();
+      if (sTrim.endsWith('s')) {
+        const val = parseFloat(sTrim);
+        return isNaN(val) ? 0.5 : Math.max(0.01, val);
+      }
+      const beatSec = 60 / (bpm || 113);
+      if (sTrim === '1n' || sTrim === '1m') return beatSec * 4;
+      if (sTrim === '2n') return beatSec * 2;
+      if (sTrim === '4n') return beatSec;
+      if (sTrim === '8n') return beatSec * 0.5;
+      if (sTrim === '16n') return beatSec * 0.25;
+      if (sTrim === '32n') return beatSec * 0.125;
+      if (sTrim === '64n') return beatSec * 0.0625;
+      const num = parseFloat(sTrim);
+      if (!isNaN(num)) return Math.max(0.01, num);
+    }
+    return 0.5;
+  }
+
+  // -------------------------------------------------------------
+  // 2. Persistent Zero-Allocation Polyphonic FM Synthesizer
+  // -------------------------------------------------------------
+  class NativePolySynth {
+    constructor(ctx, destination, polyphony = 16) {
+      this.ctx = ctx;
+      this.destination = destination;
+      this.polyphony = polyphony;
+      this.voices = [];
+      this.voiceIndex = 0;
+
+      // Master output filter for warm FM electric piano body
+      this.outputFilter = ctx.createBiquadFilter();
+      this.outputFilter.type = 'lowpass';
+      this.outputFilter.frequency.setValueAtTime(5200, 0);
+      this.outputFilter.Q.setValueAtTime(0.85, 0);
+      this.outputFilter.connect(destination);
+
+      for (let i = 0; i < polyphony; i++) {
+        const carrier = ctx.createOscillator();
+        const modulator = ctx.createOscillator();
+        const modGain = ctx.createGain();
+        const voiceGain = ctx.createGain();
+
+        carrier.type = 'sine';
+        modulator.type = 'sine';
+
+        carrier.frequency.setValueAtTime(440, 0);
+        modulator.frequency.setValueAtTime(880, 0);
+        modGain.gain.setValueAtTime(0, 0);
+        voiceGain.gain.setValueAtTime(0, 0);
+
+        // FM Modulation routing: Modulator -> modGain -> carrier.frequency
+        modulator.connect(modGain);
+        modGain.connect(carrier.frequency);
+
+        // Voice audio routing: carrier -> voiceGain -> outputFilter
+        carrier.connect(voiceGain);
+        voiceGain.connect(this.outputFilter);
+
+        carrier.start(0);
+        modulator.start(0);
+
+        this.voices.push({
+          carrier,
+          modulator,
+          modGain,
+          voiceGain,
+          busyUntil: 0,
+          currentNote: null
+        });
+      }
+    }
+
+    triggerAttackRelease(notes, durationSec, scheduledTime, velocity = 1.0) {
+      const arr = Array.isArray(notes) ? notes : [notes];
+      if (arr.length === 0) return;
+
+      const t = Math.max(this.ctx.currentTime, scheduledTime || 0);
+      const holdSec = Math.max(0.12, durationSec || 0.8);
+      const attack = 0.007;
+      const decay = 0.85;
+      const sustainLevel = 0.32;
+      const release = 0.20;
+
+      for (let n = 0; n < arr.length; n++) {
+        const note = arr[n];
+        const freq = noteToFreq(note);
+        if (!freq || freq <= 0) continue;
+
+        // Find available voice or steal oldest in release phase
+        let voice = null;
+        for (let i = 0; i < this.polyphony; i++) {
+          const idx = (this.voiceIndex + i) % this.polyphony;
+          if (this.voices[idx].busyUntil <= t) {
+            voice = this.voices[idx];
+            this.voiceIndex = (idx + 1) % this.polyphony;
+            break;
+          }
+        }
+        if (!voice) {
+          let earliest = this.voices[0];
+          let earliestIdx = 0;
+          for (let i = 1; i < this.polyphony; i++) {
+            if (this.voices[i].busyUntil < earliest.busyUntil) {
+              earliest = this.voices[i];
+              earliestIdx = i;
+            }
+          }
+          voice = earliest;
+          this.voiceIndex = (earliestIdx + 1) % this.polyphony;
+        }
+
+        voice.busyUntil = t + holdSec + release;
+        voice.currentNote = note;
+
+        // Schedule frequencies
+        voice.carrier.frequency.setValueAtTime(freq, t);
+        voice.modulator.frequency.setValueAtTime(freq * 2.0, t); // 2:1 harmonicity for Rhodes bell
+
+        // Modulator FM envelope (harmonic bell transient)
+        const modDepth = freq * 1.5 * velocity;
+        voice.modGain.gain.cancelScheduledValues(t);
+        voice.modGain.gain.setValueAtTime(0, t);
+        voice.modGain.gain.linearRampToValueAtTime(modDepth, t + attack);
+        voice.modGain.gain.exponentialRampToValueAtTime(Math.max(0.1, freq * 0.06), t + attack + 0.35);
+        voice.modGain.gain.exponentialRampToValueAtTime(0.0001, t + holdSec);
+        voice.modGain.gain.setValueAtTime(0, t + holdSec + release);
+
+        // Carrier amplitude envelope
+        const peakVol = 0.22 * Math.min(1.5, velocity);
+        const sustainVol = peakVol * sustainLevel;
+        voice.voiceGain.gain.cancelScheduledValues(t);
+        voice.voiceGain.gain.setValueAtTime(0, t);
+        voice.voiceGain.gain.linearRampToValueAtTime(peakVol, t + attack);
+        voice.voiceGain.gain.exponentialRampToValueAtTime(sustainVol, t + attack + decay);
+        voice.voiceGain.gain.setValueAtTime(sustainVol, t + holdSec);
+        voice.voiceGain.gain.exponentialRampToValueAtTime(0.0001, t + holdSec + release);
+        voice.voiceGain.gain.setValueAtTime(0, t + holdSec + release + 0.02);
+      }
+    }
+
+    releaseAll(time = 0) {
+      const t = Math.max(this.ctx.currentTime, time);
+      for (let i = 0; i < this.polyphony; i++) {
+        const v = this.voices[i];
+        v.voiceGain.gain.cancelScheduledValues(t);
+        v.voiceGain.gain.setValueAtTime(v.voiceGain.gain.value, t);
+        v.voiceGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+        v.voiceGain.gain.setValueAtTime(0, t + 0.05);
+        v.modGain.gain.cancelScheduledValues(t);
+        v.modGain.gain.setValueAtTime(0, t + 0.05);
+        v.busyUntil = t + 0.05;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 3. Persistent Zero-Allocation Monophonic Lead Synthesizer
+  // -------------------------------------------------------------
+  class NativeLeadSynth {
+    constructor(ctx, destination, voiceType = 'analog') {
+      this.ctx = ctx;
+      this.destination = destination;
+      this.activeVoiceType = voiceType;
+
+      this.osc = ctx.createOscillator();
+      this.osc.type = 'sawtooth';
+      this.osc.frequency.setValueAtTime(440, 0);
+
+      // FM modulator for Rhodes voice mode
+      this.modOsc = ctx.createOscillator();
+      this.modOsc.type = 'sine';
+      this.modOsc.frequency.setValueAtTime(1320, 0);
+      this.modGain = ctx.createGain();
+      this.modGain.gain.setValueAtTime(0, 0);
+      this.modOsc.connect(this.modGain);
+      this.modGain.connect(this.osc.frequency);
+
+      // Resonant 24dB low-pass filter
+      this.filter = ctx.createBiquadFilter();
+      this.filter.type = 'lowpass';
+      this.filter.frequency.setValueAtTime(2400, 0);
+      this.filter.Q.setValueAtTime(3.2, 0);
+
+      this.gain = ctx.createGain();
+      this.gain.gain.setValueAtTime(0, 0);
+
+      this.osc.connect(this.filter);
+      this.filter.connect(this.gain);
+      this.gain.connect(destination);
+
+      this.osc.start(0);
+      this.modOsc.start(0);
+      this.setVoiceType(voiceType);
+    }
+
+    setVoiceType(type) {
+      this.activeVoiceType = type || 'analog';
+      if (this.activeVoiceType === 'analog') {
+        this.osc.type = 'sawtooth';
+        this.filter.type = 'lowpass';
+        this.filter.Q.setValueAtTime(3.2, 0);
+      } else if (this.activeVoiceType === 'rhodes') {
+        this.osc.type = 'sine';
+        this.filter.type = 'lowpass';
+        this.filter.Q.setValueAtTime(1.2, 0);
+      } else if (this.activeVoiceType === 'overdrive') {
+        this.osc.type = 'square';
+        this.filter.type = 'lowpass';
+        this.filter.Q.setValueAtTime(4.2, 0);
+      } else if (this.activeVoiceType === 'flute') {
+        this.osc.type = 'triangle';
+        this.filter.type = 'lowpass';
+        this.filter.Q.setValueAtTime(0.8, 0);
+      }
+    }
+
+    triggerAttackRelease(note, durationSec, scheduledTime, velocity = 1.0) {
+      const freq = noteToFreq(note);
+      if (!freq || freq <= 0) return;
+
+      const t = Math.max(this.ctx.currentTime, scheduledTime || 0);
+      const dur = Math.max(0.1, durationSec || 0.45);
+
+      this.osc.frequency.setValueAtTime(freq, t);
+
+      if (this.activeVoiceType === 'rhodes') {
+        this.modOsc.frequency.setValueAtTime(freq * 3.0, t);
+        this.modGain.gain.cancelScheduledValues(t);
+        this.modGain.gain.setValueAtTime(freq * 1.4, t);
+        this.modGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        this.modGain.gain.setValueAtTime(0, t + 0.38);
+      } else {
+        this.modGain.gain.cancelScheduledValues(t);
+        this.modGain.gain.setValueAtTime(0, t);
+      }
+
+      // Filter cutoff envelope
+      const baseCutoff = (this.activeVoiceType === 'flute') ? 1600 : (this.activeVoiceType === 'overdrive' ? 3400 : 2200);
+      this.filter.frequency.cancelScheduledValues(t);
+      this.filter.frequency.setValueAtTime(baseCutoff, t);
+      this.filter.frequency.exponentialRampToValueAtTime(Math.min(11000, baseCutoff * 2.8), t + 0.04);
+      this.filter.frequency.exponentialRampToValueAtTime(baseCutoff, t + dur);
+
+      // Amplitude envelope
+      const peak = 0.26 * Math.min(1.5, velocity);
+      this.gain.gain.cancelScheduledValues(t);
+      this.gain.gain.setValueAtTime(0, t);
+      this.gain.gain.linearRampToValueAtTime(peak, t + 0.012);
+      this.gain.gain.exponentialRampToValueAtTime(peak * 0.65, t + 0.012 + 0.25);
+      this.gain.gain.setValueAtTime(peak * 0.65, t + dur);
+      this.gain.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.12);
+      this.gain.gain.setValueAtTime(0, t + dur + 0.15);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 4. Persistent Zero-Allocation Clave Percussion Synthesizer
+  // -------------------------------------------------------------
+  class NativeClaveSynth {
+    constructor(ctx, destination) {
+      this.ctx = ctx;
+      this.osc = ctx.createOscillator();
+      this.gain = ctx.createGain();
+
+      this.osc.type = 'triangle';
+      this.osc.frequency.setValueAtTime(600, 0);
+      this.gain.gain.setValueAtTime(0, 0);
+
+      this.osc.connect(this.gain);
+      this.gain.connect(destination);
+
+      this.osc.start(0);
+    }
+
+    triggerAttackRelease(note = 'C4', durationSec = 0.08, scheduledTime = 0, velocity = 1.0) {
+      const t = Math.max(this.ctx.currentTime, scheduledTime || 0);
+
+      this.osc.frequency.cancelScheduledValues(t);
+      this.osc.frequency.setValueAtTime(650, t);
+      this.osc.frequency.exponentialRampToValueAtTime(75, t + 0.022);
+
+      const peak = 0.35 * velocity;
+      this.gain.gain.cancelScheduledValues(t);
+      this.gain.gain.setValueAtTime(0, t);
+      this.gain.gain.linearRampToValueAtTime(peak, t + 0.002);
+      this.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+      this.gain.gain.setValueAtTime(0, t + 0.075);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 5. Main AudioEngine (Clean Native Web Audio Replacement)
+  // -------------------------------------------------------------
   class AudioEngine {
     constructor() {
       this.initialized = false;
+      this.ctx = null;
+      this.rawAudioContext = null;
       this.isPlayingProgression = false;
       this.isMetronomeRunning = false;
-      this.progressionLoop = null;
-      this.metronomeLoop = null;
       this.currentChordIndex = 0;
       this.activeProgression = [];
       this.onChordHighlight = null;
+      this.currentBpm = 113;
 
-      // Speech synthesis for vocal counting
-      this.speechSynth = window.speechSynthesis || null;
-      // Metronome and rhythm properties
+      // Speech synthesis
+      this.speechSynth = (typeof window !== 'undefined') ? (window.speechSynthesis || null) : null;
       this.spokenCountingEnabled = false;
-      this.subdivision = 'quarter'; // quarter, eighth, sixteenth, triplet
-      this.metronomeSoundMode = 'woodblock'; // woodblock, synth, spoken
+      this.subdivision = 1;
+      this.metronomeSoundMode = 'woodblock';
       this.isRhythmPlaying = false;
       this.rhythmLoopTimeout = null;
       this.rhythmTimeouts = [];
 
-      // High-precision Web Audio lookahead scheduler properties (zero memory leak / zero drift)
-      this.rawAudioContext = null;
+      // Metronome worker and persistent nodes
       this.metroWorker = null;
+      this.metroNodesInitialized = false;
+      this.metroOsc = null;
+      this.metroGain = null;
       this.metroTimerId = null;
       this.metroAnimFrameId = null;
       this.metroVisualQueue = [];
@@ -43,11 +384,21 @@
         clickSub: null
       };
 
-      // Melodic Voice Leading properties
+      // Channels and synths
+      this.masterLimiter = null;
+      this.masterVolumeGain = null;
+      this.masterVolume = null;
+      this.chordVolumeGain = null;
       this.chordVolumeChannel = null;
+      this.melodyVolumeGain = null;
       this.melodyVolumeChannel = null;
+      this.chordSynth = null;
       this.melodySynths = null;
+      this.leadSynth = null;
+      this.percussionSynth = null;
       this.activeMelodyVoice = 'analog';
+
+      // Melody progression
       this.isPlayingMelodyProgression = false;
       this.activeMelodyProgression = null;
       this.activeMelodyNodes = null;
@@ -57,19 +408,17 @@
       this.currentPlayingChordIdx = -1;
       this.currentChordStartTime = 0;
       this.currentChordDuration = 0;
+      this.nextScheduledChordIdx = -1;
+      this.nextScheduledTime = 0;
     }
 
     async resumeIfNeeded() {
-      if (typeof Tone === 'undefined' || !Tone.context) return false;
+      if (!this.ctx) return false;
       try {
-        if (Tone.context.state !== 'running') {
-          if (Tone.context.rawContext && typeof Tone.context.rawContext.resume === 'function') {
-            await Tone.context.rawContext.resume();
-          }
-          await Tone.context.resume();
-          await Tone.start();
+        if (this.ctx.state !== 'running') {
+          await this.ctx.resume();
         }
-        return Tone.context.state === 'running';
+        return this.ctx.state === 'running';
       } catch (e) {
         console.warn('AudioContext resume failed:', e);
         return false;
@@ -77,11 +426,7 @@
     }
 
     isAudioRunning() {
-      if (!this.initialized) return false;
-      if (typeof Tone !== 'undefined' && Tone.context) {
-        return Tone.context.state === 'running';
-      }
-      return false;
+      return this.initialized && this.ctx && this.ctx.state === 'running';
     }
 
     async suspend() {
@@ -89,9 +434,9 @@
       if (this.isRhythmPlaying) this.stopRhythm();
       if (this.isPlayingProgression) this.stopProgression();
       if (this.isPlayingMelodyProgression) this.stopProgressionWithMelody();
-      if (typeof Tone !== 'undefined' && Tone.context && typeof Tone.context.suspend === 'function') {
+      if (this.ctx && typeof this.ctx.suspend === 'function') {
         try {
-          await Tone.context.suspend();
+          await this.ctx.suspend();
         } catch (e) {
           console.warn('AudioContext suspend failed:', e);
         }
@@ -108,182 +453,134 @@
         await this.resumeIfNeeded();
         return true;
       }
-      if (typeof Tone === 'undefined') {
-        console.error('Tone.js is not loaded.');
-        return false;
-      }
 
       try {
-        await Tone.start();
-        if (Tone.context && Tone.context.rawContext && typeof Tone.context.rawContext.resume === 'function') {
-          await Tone.context.rawContext.resume();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) {
+          console.error('Web Audio API is not supported in this browser.');
+          return false;
         }
-        console.log('Tone.js AudioContext started.');
 
-        // Master audio output chain
-        this.masterLimiter = new Tone.Limiter(-1).toDestination();
-        this.masterVolume = new Tone.Volume(-6).connect(this.masterLimiter);
+        this.rawAudioContext = new AudioCtx({ latencyHint: 'playback' });
+        this.ctx = this.rawAudioContext;
 
-        // Progression & Melody volume channels
-        this.chordVolumeChannel = new Tone.Volume(-2).connect(this.masterVolume);
-        this.melodyVolumeChannel = new Tone.Volume(0).connect(this.masterVolume);
+        if (this.ctx.state === 'suspended') {
+          try {
+            await this.ctx.resume();
+          } catch (e) {}
+        }
 
-        // Warm FM Electric Piano Synthesizer (Comping)
-        this.chordSynth = new Tone.PolySynth(Tone.FMSynth, {
-          harmonicity: 2.0,
-          modulationIndex: 1.8,
-          oscillator: { type: 'sine' },
-          envelope: {
-            attack: 0.005,
-            decay: 1.8,
-            sustain: 0.25,
-            release: 1.4
-          },
-          modulation: { type: 'triangle' },
-          modulationEnvelope: {
-            attack: 0.002,
-            decay: 0.5,
-            sustain: 0.05,
-            release: 0.9
-          }
-        }).connect(this.chordVolumeChannel);
-        this.chordSynth.maxPolyphony = 16;
+        // Bridge Tone.js compatibility if loaded in global
+        if (typeof Tone !== 'undefined') {
+          try {
+            if (typeof Tone.setContext === 'function') Tone.setContext(this.ctx);
+            Tone.now = () => this.ctx.currentTime;
+          } catch (e) {}
+        }
 
-        // Dedicated Solo Lead Synths for Melodic Pathway Ribbon
+        // 1. Master Output Chain with Brickwall Limiter
+        this.masterLimiter = this.ctx.createDynamicsCompressor();
+        this.masterLimiter.threshold.setValueAtTime(-1.0, 0);
+        this.masterLimiter.knee.setValueAtTime(0, 0);
+        this.masterLimiter.ratio.setValueAtTime(20, 0);
+        this.masterLimiter.attack.setValueAtTime(0.001, 0);
+        this.masterLimiter.release.setValueAtTime(0.05, 0);
+        this.masterLimiter.connect(this.ctx.destination);
+
+        this.masterVolumeGain = this.ctx.createGain();
+        this.masterVolumeGain.gain.setValueAtTime(0.65, 0);
+        this.masterVolumeGain.connect(this.masterLimiter);
+
+        // Native GainNode with legacy Tone.Volume property shim
+        const self = this;
+        this.masterVolume = this.masterVolumeGain;
+        Object.defineProperty(this.masterVolume, 'volume', {
+          configurable: true,
+          get: () => ({
+            set value(db) {
+              const g = Math.pow(10, Math.max(-40, Math.min(6, db)) / 20);
+              self.masterVolumeGain.gain.setValueAtTime(g, self.ctx ? self.ctx.currentTime : 0);
+            },
+            get value() {
+              return 20 * Math.log10(self.masterVolumeGain.gain.value || 0.0001);
+            }
+          })
+        });
+
+        // 2. Progression & Melody Volume Channels (genuine GainNodes)
+        this.chordVolumeGain = this.ctx.createGain();
+        this.chordVolumeGain.gain.setValueAtTime(0.85, 0);
+        this.chordVolumeGain.connect(this.masterVolumeGain);
+        this.chordVolumeChannel = this.chordVolumeGain;
+        Object.defineProperty(this.chordVolumeChannel, 'volume', {
+          configurable: true,
+          get: () => ({
+            set value(db) {
+              const g = Math.pow(10, db / 20);
+              self.chordVolumeGain.gain.setValueAtTime(g, self.ctx ? self.ctx.currentTime : 0);
+            }
+          })
+        });
+
+        this.melodyVolumeGain = this.ctx.createGain();
+        this.melodyVolumeGain.gain.setValueAtTime(1.0, 0);
+        this.melodyVolumeGain.connect(this.masterVolumeGain);
+        this.melodyVolumeChannel = this.melodyVolumeGain;
+        Object.defineProperty(this.melodyVolumeChannel, 'volume', {
+          configurable: true,
+          get: () => ({
+            set value(db) {
+              const g = Math.pow(10, db / 20);
+              self.melodyVolumeGain.gain.setValueAtTime(g, self.ctx ? self.ctx.currentTime : 0);
+            }
+          })
+        });
+
+        // 3. Persistent 16-Voice FM Polyphonic Synthesizer
+        this.chordSynth = new NativePolySynth(this.ctx, this.chordVolumeGain, 16);
+
+        // 4. Dedicated Solo Lead Synths for Melodic Ribbon
         this.melodySynths = {
-          analog: new Tone.MonoSynth({
-            oscillator: { type: 'sawtooth' },
-            filter: { Q: 3, type: 'lowpass', rolloff: -24 },
-            envelope: { attack: 0.02, decay: 0.4, sustain: 0.6, release: 0.7 },
-            filterEnvelope: { attack: 0.01, decay: 0.3, sustain: 0.4, release: 0.5, baseFrequency: 350, octaves: 2.8 }
-          }).connect(this.melodyVolumeChannel),
-          rhodes: new Tone.FMSynth({
-            harmonicity: 3.0,
-            modulationIndex: 1.5,
-            oscillator: { type: 'sine' },
-            envelope: { attack: 0.005, decay: 0.9, sustain: 0.2, release: 0.8 },
-            modulation: { type: 'sine' },
-            modulationEnvelope: { attack: 0.002, decay: 0.4, sustain: 0, release: 0.4 }
-          }).connect(this.melodyVolumeChannel),
-          overdrive: new Tone.MonoSynth({
-            oscillator: { type: 'square' },
-            filter: { Q: 4, type: 'lowpass', rolloff: -12 },
-            envelope: { attack: 0.01, decay: 0.5, sustain: 0.6, release: 0.6 },
-            filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.5, baseFrequency: 600, octaves: 2.2 }
-          }).connect(this.melodyVolumeChannel),
-          flute: new Tone.Synth({
-            oscillator: { type: 'triangle' },
-            envelope: { attack: 0.04, decay: 0.3, sustain: 0.7, release: 0.7 }
-          }).connect(this.melodyVolumeChannel)
+          analog: new NativeLeadSynth(this.ctx, this.melodyVolumeGain, 'analog'),
+          rhodes: new NativeLeadSynth(this.ctx, this.melodyVolumeGain, 'rhodes'),
+          overdrive: new NativeLeadSynth(this.ctx, this.melodyVolumeGain, 'overdrive'),
+          flute: new NativeLeadSynth(this.ctx, this.melodyVolumeGain, 'flute')
         };
+        this.leadSynth = new NativeLeadSynth(this.ctx, this.masterVolumeGain, 'rhodes');
         this.activeMelodyVoice = 'analog';
 
-        // Single note / Arpeggio Synth (Brighter Rhodes bell)
-        this.leadSynth = new Tone.FMSynth({
-          harmonicity: 3.0,
-          modulationIndex: 1.2,
-          oscillator: { type: 'sine' },
-          envelope: {
-            attack: 0.004,
-            decay: 0.8,
-            sustain: 0.1,
-            release: 0.8
-          },
-          modulation: { type: 'sine' },
-          modulationEnvelope: {
-            attack: 0.002,
-            decay: 0.3,
-            sustain: 0,
-            release: 0.4
-          }
-        }).connect(this.masterVolume);
-
-        // Metronome Click Synth (Woodblock / Membrane)
-        this.woodblockSynth = new Tone.MembraneSynth({
-          pitchDecay: 0.008,
-          octaves: 2.5,
-          oscillator: { type: 'sine' },
-          envelope: {
-            attack: 0.001,
-            decay: 0.06,
-            sustain: 0,
-            release: 0.05
-          }
-        }).connect(this.masterVolume);
-
-        // Digital Click Synth
-        this.clickSynth = new Tone.Synth({
-          oscillator: { type: 'triangle' },
-          envelope: {
-            attack: 0.001,
-            decay: 0.03,
-            sustain: 0,
-            release: 0.02
-          }
-        }).connect(this.masterVolume);
-
-        // Rhythm Clave Synth
-        this.percussionSynth = new Tone.MembraneSynth({
-          pitchDecay: 0.01,
-          octaves: 3,
-          oscillator: { type: 'triangle' },
-          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.06 }
-        }).connect(this.masterVolume);
+        // 5. Rhythm Clave Synth
+        this.percussionSynth = new NativeClaveSynth(this.ctx, this.masterVolumeGain);
 
         this.initialized = true;
 
-        // Forward AudioContext state changes to window for UI updates
-        if (typeof Tone !== 'undefined' && Tone.context && Tone.context.rawContext) {
-          const raw = Tone.context.rawContext;
-          const notifyState = () => {
-            if (typeof window !== 'undefined' && window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('songaudio-statechange', {
-                detail: { state: Tone.context.state }
-              }));
-            }
-          };
-          if (typeof raw.addEventListener === 'function') {
-            raw.addEventListener('statechange', notifyState);
-          } else {
-            raw.onstatechange = notifyState;
+        // Forward AudioContext state changes to window
+        const notifyState = () => {
+          if (typeof window !== 'undefined' && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent('songaudio-statechange', {
+              detail: { state: this.ctx ? this.ctx.state : 'closed' }
+            }));
           }
+        };
+        if (this.ctx.addEventListener) {
+          this.ctx.addEventListener('statechange', notifyState);
+        } else {
+          this.ctx.onstatechange = notifyState;
         }
 
-        try {
-          this.rawAudioContext = (typeof Tone !== 'undefined' && Tone.context)
-              ? (Tone.context.rawContext || Tone.context._context || Tone.context)
-              : null;
-        } catch (ctxErr) {
-          this.rawAudioContext = null;
-        }
-
-        try {
-          this.initBuffers();
-        } catch (bufErr) {
-          console.warn('Metronome pre-rendered buffer init skipped, falling back to synths:', bufErr);
-        }
-
-        try {
-          this.initMetroWorker();
-        } catch (wrkErr) {
-          console.warn('Metronome worker init skipped, falling back to timer:', wrkErr);
-        }
+        // Initialize metronome pre-rendered buffers and nodes
+        this.initBuffers();
+        this.initMetroAudioNodes();
 
         return true;
       } catch (e) {
-        console.error('Failed to initialize audio:', e);
+        console.error('Native AudioEngine init error:', e);
         return false;
       }
     }
 
     getAudioCurrentTime() {
-      if (typeof Tone !== 'undefined' && Tone.context && typeof Tone.now === 'function') {
-        return Tone.now();
-      }
-      if (this.rawAudioContext && typeof this.rawAudioContext.currentTime === 'number') {
-        return this.rawAudioContext.currentTime;
-      }
-      return 0;
+      return this.ctx ? this.ctx.currentTime : 0;
     }
 
     initMetroWorker() {
@@ -294,7 +591,7 @@
 self.onmessage = function(e) {
   if (e.data === 'start') {
     if (timerId) clearInterval(timerId);
-    timerId = setInterval(function() { self.postMessage('tick'); }, 25);
+    timerId = setInterval(function() { self.postMessage('tick'); }, 50);
   } else if (e.data === 'stop') {
     if (timerId) { clearInterval(timerId); timerId = null; }
   }
@@ -314,14 +611,8 @@ self.onmessage = function(e) {
     }
 
     initBuffers() {
-      let ctx = null;
-      if (this.rawAudioContext && typeof this.rawAudioContext.createBuffer === 'function') {
-        ctx = this.rawAudioContext;
-      } else if (typeof Tone !== 'undefined' && Tone.context && typeof Tone.context.createBuffer === 'function') {
-        ctx = Tone.context;
-      }
-      if (!ctx) return;
-
+      const ctx = this.ctx;
+      if (!ctx || typeof ctx.createBuffer !== 'function') return;
       const sr = ctx.sampleRate || 44100;
 
       const createSyntheticBuffer = (durationSec, synthFn) => {
@@ -337,7 +628,6 @@ self.onmessage = function(e) {
       };
 
       try {
-        // 1. Woodblock Downbeat (A5 sweep ~880Hz to ~600Hz, resonant knock)
         this.preRenderedBuffers.woodblockDownbeat = createSyntheticBuffer(0.045, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -348,7 +638,6 @@ self.onmessage = function(e) {
           }
         });
 
-        // 2. Woodblock Beat (E5 sweep ~659Hz to ~450Hz)
         this.preRenderedBuffers.woodblockBeat = createSyntheticBuffer(0.035, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -359,7 +648,6 @@ self.onmessage = function(e) {
           }
         });
 
-        // 3. Woodblock Sub (C5 sweep ~523Hz to ~360Hz)
         this.preRenderedBuffers.woodblockSub = createSyntheticBuffer(0.025, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -370,7 +658,6 @@ self.onmessage = function(e) {
           }
         });
 
-        // 4. Digital Click Downbeat (high-pass transient 2400Hz + noise burst)
         this.preRenderedBuffers.clickDownbeat = createSyntheticBuffer(0.012, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -381,7 +668,6 @@ self.onmessage = function(e) {
           }
         });
 
-        // 5. Digital Click Beat (1700Hz + small noise)
         this.preRenderedBuffers.clickBeat = createSyntheticBuffer(0.010, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -392,7 +678,6 @@ self.onmessage = function(e) {
           }
         });
 
-        // 6. Digital Click Sub (1200Hz soft transient)
         this.preRenderedBuffers.clickSub = createSyntheticBuffer(0.008, (d, n, sr) => {
           for (let i = 0; i < n; i++) {
             const t = i / sr;
@@ -401,56 +686,90 @@ self.onmessage = function(e) {
           }
         });
       } catch (e) {
-        console.warn('initBuffers caught error:', e);
+        console.warn('initBuffers error:', e);
       }
     }
 
-    playMetronomeBuffer(buffer, scheduledTime) {
-      if (!buffer || !this.rawAudioContext || typeof this.rawAudioContext.createBufferSource !== 'function') return false;
+    initMetroAudioNodes() {
+      if (this.metroNodesInitialized || !this.ctx) return;
       try {
-        const source = this.rawAudioContext.createBufferSource();
-        source.buffer = buffer;
-        if (typeof Tone !== 'undefined' && typeof Tone.connect === 'function' && this.masterVolume) {
-          Tone.connect(source, this.masterVolume);
-        } else {
-          const dest = (this.masterVolume && this.masterVolume.input && this.masterVolume.input.input)
-            ? this.masterVolume.input.input
-            : this.rawAudioContext.destination;
-          source.connect(dest);
-        }
-        source.start(scheduledTime);
-        return true;
+        this.metroOsc = this.ctx.createOscillator();
+        this.metroOsc.type = 'sine';
+        this.metroOsc.frequency.setValueAtTime(880, 0);
+
+        this.metroGain = this.ctx.createGain();
+        this.metroGain.gain.setValueAtTime(0, 0);
+
+        this.metroOsc.connect(this.metroGain);
+        this.metroGain.connect(this.masterVolumeGain || this.ctx.destination);
+        this.metroOsc.start(0);
+        this.metroNodesInitialized = true;
       } catch (e) {
-        console.warn('Error scheduling metronome buffer:', e);
-        return false;
+        console.warn('initMetroAudioNodes error:', e);
       }
+    }
+
+    playMetronomeTick(isDownbeat, isBeatHead, scheduledTime) {
+      if (!this.metroNodesInitialized) this.initMetroAudioNodes();
+      if (!this.metroOsc || !this.metroGain || !this.ctx) return false;
+
+      const t = Math.max(this.ctx.currentTime, scheduledTime || 0);
+
+      let startFreq, endFreq, vol, decaySec;
+      if (this.metronomeSoundMode === 'woodblock') {
+        if (isDownbeat) {
+          startFreq = 880; endFreq = 580; vol = 0.95; decaySec = 0.045;
+        } else if (isBeatHead) {
+          startFreq = 660; endFreq = 440; vol = 0.72; decaySec = 0.035;
+        } else {
+          startFreq = 520; endFreq = 360; vol = 0.42; decaySec = 0.025;
+        }
+      } else {
+        if (isDownbeat) {
+          startFreq = 2400; endFreq = 1800; vol = 0.90; decaySec = 0.020;
+        } else if (isBeatHead) {
+          startFreq = 1700; endFreq = 1200; vol = 0.65; decaySec = 0.015;
+        } else {
+          startFreq = 1200; endFreq = 900; vol = 0.35; decaySec = 0.010;
+        }
+      }
+
+      this.metroOsc.frequency.cancelScheduledValues(t);
+      this.metroOsc.frequency.setValueAtTime(startFreq, t);
+      this.metroOsc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + decaySec);
+
+      this.metroGain.gain.cancelScheduledValues(t);
+      this.metroGain.gain.setValueAtTime(0, t);
+      this.metroGain.gain.linearRampToValueAtTime(vol * 0.45, t + 0.001);
+      this.metroGain.gain.exponentialRampToValueAtTime(0.0001, t + decaySec);
+      this.metroGain.gain.setValueAtTime(0, t + decaySec + 0.005);
+
+      return true;
     }
 
     playTestTone() {
-      if (!this.initialized || !this.leadSynth) return;
-      try {
-        const now = Tone.now();
-        this.leadSynth.triggerAttackRelease('C5', '16n', now);
-      } catch (e) {
-        console.warn('Test tone error:', e);
+      if (!this.initialized) {
+        this.init().then(() => this.playTestTone());
+        return;
+      }
+      this.resumeIfNeeded();
+      if (this.leadSynth) {
+        this.leadSynth.triggerAttackRelease('C5', 0.25, this.ctx.currentTime);
       }
     }
 
     setMasterVolume(valDb) {
-      if (this.masterVolume) {
-        this.masterVolume.volume.value = Math.max(-40, Math.min(6, valDb));
+      if (this.masterVolumeGain && this.ctx) {
+        const g = Math.pow(10, Math.max(-40, Math.min(6, valDb)) / 20);
+        this.masterVolumeGain.gain.setValueAtTime(g, this.ctx.currentTime);
       }
     }
 
     setBpm(bpm) {
       const val = Math.max(15, Math.min(240, parseInt(bpm, 10) || 113));
       this.currentBpm = val;
-      if (typeof Tone !== 'undefined' && Tone.Transport) {
-        Tone.Transport.bpm.value = val;
-      }
     }
 
-    // Convert chord pitch classes into voiced scientific pitch notes (e.g. C3, E4, G4, B4)
     generateVoicing(chord, baseOctave = 4) {
       if (!chord || !chord.pitchClasses) return [];
 
@@ -458,14 +777,13 @@ self.onmessage = function(e) {
       const rootPC = chord.rootPC;
       const bassPC = (chord.bassPC !== undefined && chord.bassPC !== null) ? chord.bassPC : rootPC;
 
-      const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const bassNote = `${sharpNames[bassPC]}3`;
+      const bassNote = `${SHARP_NAMES[bassPC]}3`;
       notes.push(bassNote);
 
       chord.intervals.forEach((interval) => {
         const pc = (rootPC + interval) % 12;
         const octave = baseOctave + Math.floor((rootPC + interval) / 12);
-        const noteName = `${sharpNames[pc]}${octave}`;
+        const noteName = `${SHARP_NAMES[pc]}${octave}`;
         if (!notes.includes(noteName)) {
           notes.push(noteName);
         }
@@ -474,27 +792,28 @@ self.onmessage = function(e) {
       return notes;
     }
 
-    async playChord(chord, duration = '1.2s') {
-      if (!this.initialized) return;
+    async playChord(chord, duration = 1.2) {
+      if (!this.initialized) await this.init();
       await this.resumeIfNeeded();
       const voicing = this.generateVoicing(chord);
-      if (voicing.length > 0) {
-        this.chordSynth.triggerAttackRelease(voicing, duration);
+      if (voicing.length > 0 && this.chordSynth) {
+        const durSec = parseDuration(duration, this.currentBpm || 113);
+        this.chordSynth.triggerAttackRelease(voicing, durSec, this.ctx.currentTime);
       }
     }
 
     async playArpeggio(chord, noteDurationSeconds = 0.2) {
-      if (!this.initialized) return;
+      if (!this.initialized) await this.init();
       await this.resumeIfNeeded();
       const voicing = this.generateVoicing(chord);
-      const now = Tone.now();
+      const now = this.ctx.currentTime;
       voicing.forEach((note, idx) => {
-        this.leadSynth.triggerAttackRelease(note, '8n', now + (idx * noteDurationSeconds));
+        this.leadSynth.triggerAttackRelease(note, noteDurationSeconds, now + (idx * noteDurationSeconds));
       });
     }
 
     async playScale(intervals, rootTonic = 'C', noteDurationSeconds = 0.22) {
-      if (!this.initialized) return;
+      if (!this.initialized) await this.init();
       await this.resumeIfNeeded();
       const Theory = window.SongTheory;
       const rootPC = Theory ? (Theory.noteToPitchClass(rootTonic) || 0) : 0;
@@ -505,17 +824,17 @@ self.onmessage = function(e) {
         const octave = (rootPC + iv >= 12) ? 5 : 4;
         return `${noteName}${octave}`;
       });
-      // Complete octave resolution
       const topRootName = Theory ? Theory.pitchClassToNote(rootPC) : 'C';
       notes.push(`${topRootName}5`);
 
-      const now = Tone.now();
+      const now = this.ctx.currentTime;
       notes.forEach((note, idx) => {
-        this.leadSynth.triggerAttackRelease(note, '8n', now + (idx * noteDurationSeconds));
+        this.leadSynth.triggerAttackRelease(note, noteDurationSeconds, now + (idx * noteDurationSeconds));
       });
     }
 
     async playProgression(parsedChords, bpm = 113, loop = false, onChordHighlight = null, onFinished = null, startTime = null) {
+      if (!this.initialized) await this.init();
       if (!this.initialized || !parsedChords || parsedChords.length === 0) return;
       await this.resumeIfNeeded();
 
@@ -524,18 +843,18 @@ self.onmessage = function(e) {
       this.isPlayingProgression = true;
       this.onChordHighlight = onChordHighlight;
 
-      Tone.Transport.bpm.value = bpm;
+      this.currentBpm = bpm;
       const secondsPerChord = (60 / bpm) * 2;
       let currentIdx = 0;
-      const now = Tone.now();
+      const now = this.ctx.currentTime;
       let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
       this.nextChordAudioTime = nextChordAudioTime;
 
-      // Lookahead scheduling loop for chords with sample-accurate Web Audio timing
-      const scheduleAhead = 0.3; // 300ms lookahead
+      // Resilient 250ms lookahead scheduling buffer
+      const scheduleAhead = 0.25;
       const scheduleChords = () => {
         if (!this.isPlayingProgression) return;
-        const currentAudioTime = Tone.now();
+        const currentAudioTime = this.ctx.currentTime;
 
         while (nextChordAudioTime < currentAudioTime + scheduleAhead) {
           if (currentIdx >= this.activeProgression.length) {
@@ -552,13 +871,14 @@ self.onmessage = function(e) {
           const chord = this.activeProgression[chordIdx];
           const voicing = this.generateVoicing(chord);
           const targetTime = Math.max(currentAudioTime, nextChordAudioTime);
+          const chordHoldDuration = Math.max(0.18, secondsPerChord - 0.10);
 
-          // Audio attack scheduled with hardware precision
-          this.chordSynth.triggerAttackRelease(voicing, secondsPerChord * 0.9, targetTime);
+          if (this.chordSynth) {
+            this.chordSynth.triggerAttackRelease(voicing, chordHoldDuration, targetTime);
+          }
 
-          // Visual highlight synchronized to audio time
           if (this.onChordHighlight) {
-            const visualDelay = Math.max(0, (targetTime - Tone.now()) * 1000);
+            const visualDelay = Math.max(0, (targetTime - this.ctx.currentTime) * 1000);
             const tId = setTimeout(() => {
               if (this.isPlayingProgression && this.onChordHighlight) {
                 this.onChordHighlight(chordIdx, chord);
@@ -585,21 +905,20 @@ self.onmessage = function(e) {
         this.progressionInterval = null;
       }
       if (this.progressionVisualTimeouts) {
-        this.progressionVisualTimeouts.forEach(tId => clearTimeout(tId));
+        this.progressionVisualTimeouts.forEach(t => clearTimeout(t));
         this.progressionVisualTimeouts = [];
       }
-      if (this.progressionTimeout) {
-        clearTimeout(this.progressionTimeout);
-        this.progressionTimeout = null;
+      if (this.chordSynth && typeof this.chordSynth.releaseAll === 'function') {
+        try {
+          this.chordSynth.releaseAll();
+        } catch (e) {}
       }
-      if (this.onChordHighlight) {
-        this.onChordHighlight(-1, null);
-      }
+      this.nextChordAudioTime = 0;
     }
 
     getNextChordDownbeatTime() {
       if (!this.isPlayingProgression && !this.isPlayingMelodyProgression) return null;
-      const now = Tone.now();
+      const now = this.getAudioCurrentTime();
       return Math.max(now + 0.03, this.nextChordAudioTime || now);
     }
 
@@ -610,38 +929,27 @@ self.onmessage = function(e) {
     }
 
     setMelodyVolume(val) {
-      if (!this.melodyVolumeChannel) return;
-      if (val <= 0.01) {
-        this.melodyVolumeChannel.mute = true;
-      } else {
-        this.melodyVolumeChannel.mute = false;
-        // Map 0..1 to -36dB .. +4dB
-        this.melodyVolumeChannel.volume.value = Tone.gainToDb(val * 1.3);
+      if (this.melodyVolumeGain && this.ctx) {
+        this.melodyVolumeGain.gain.setValueAtTime(Math.max(0, val * 1.3), this.ctx.currentTime);
       }
     }
 
     setChordVolume(val) {
-      if (!this.chordVolumeChannel) return;
-      if (val <= 0.01) {
-        this.chordVolumeChannel.mute = true;
-      } else {
-        this.chordVolumeChannel.mute = false;
-        // Map 0..1 to -36dB .. 0dB
-        this.chordVolumeChannel.volume.value = Tone.gainToDb(val);
+      if (this.chordVolumeGain && this.ctx) {
+        this.chordVolumeGain.gain.setValueAtTime(Math.max(0, val), this.ctx.currentTime);
       }
     }
 
-    playMelodyPreviewNote(noteScientific, duration = '4n') {
+    playMelodyPreviewNote(noteScientific, duration = 0.5) {
       if (!this.initialized) {
-        this.init().then(() => {
-          this.playMelodyPreviewNote(noteScientific, duration);
-        });
+        this.init().then(() => this.playMelodyPreviewNote(noteScientific, duration));
         return;
       }
       this.resumeIfNeeded();
       const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
       if (leadSynth && noteScientific) {
-        leadSynth.triggerAttackRelease(noteScientific, duration);
+        const durSec = parseDuration(duration, this.currentBpm || 113);
+        leadSynth.triggerAttackRelease(noteScientific, durSec, this.ctx.currentTime);
       }
     }
 
@@ -657,14 +965,12 @@ self.onmessage = function(e) {
 
       if (!this.isPlayingMelodyProgression || !playCurrentImmediately) return;
 
-      const nodes = this.getMelodyNodes();
+      const now = this.getAudioCurrentTime();
+      const nodes = (typeof newNodes === 'function') ? newNodes() : newNodes;
       if (!nodes || nodes.length === 0) return;
 
-      const now = Tone.now();
-
-      // 1. If currently sounding a chord right now, immediately update its sounding pitch!
       const currentIdx = this.currentPlayingChordIdx;
-      if (currentIdx >= 0 && nodes[currentIdx]) {
+      if (currentIdx >= 0 && currentIdx < nodes.length) {
         const melodyNode = nodes[currentIdx];
         if (melodyNode && melodyNode.scientific) {
           const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
@@ -684,7 +990,6 @@ self.onmessage = function(e) {
         }
       }
 
-      // 2. If the next chord was already queued in the lookahead (scheduled for imminent downbeat):
       if (this.nextScheduledChordIdx >= 0 && this.nextScheduledChordIdx !== currentIdx && this.nextScheduledTime > now) {
         const nextIdx = this.nextScheduledChordIdx;
         if (nodes[nextIdx] && nodes[nextIdx].scientific) {
@@ -701,10 +1006,9 @@ self.onmessage = function(e) {
 
     onNodeCustomizedDuringPlayback(chordIndex, candidate) {
       if (!this.isPlayingMelodyProgression) return;
-      const now = Tone.now();
+      const now = this.getAudioCurrentTime();
       const leadSynth = (this.melodySynths && this.melodySynths[this.activeMelodyVoice]) ? this.melodySynths[this.activeMelodyVoice] : this.leadSynth;
 
-      // Case A: The user customized the note of the chord currently playing!
       if (chordIndex === this.currentPlayingChordIdx) {
         const elapsed = Math.max(0, now - this.currentChordStartTime);
         const remaining = Math.max(0.2, this.currentChordDuration - elapsed);
@@ -715,9 +1019,7 @@ self.onmessage = function(e) {
           const chord = this.activeMelodyProgression[chordIndex];
           this.onMelodyStepHighlight(chordIndex, chord, candidate);
         }
-      }
-      // Case B: The user customized the note of the upcoming chord that was already queued in lookahead!
-      else if (chordIndex === this.nextScheduledChordIdx && this.nextScheduledTime > now) {
+      } else if (chordIndex === this.nextScheduledChordIdx && this.nextScheduledTime > now) {
         if (leadSynth && candidate && candidate.scientific) {
           leadSynth.triggerAttackRelease(candidate.scientific, this.currentChordDuration * 0.82, this.nextScheduledTime);
         }
@@ -740,18 +1042,17 @@ self.onmessage = function(e) {
       this.nextScheduledChordIdx = -1;
       this.nextScheduledTime = 0;
 
-      Tone.Transport.bpm.value = bpm;
+      this.currentBpm = bpm;
       const secondsPerChord = (60 / bpm) * 2;
       let currentIdx = 0;
-      const now = Tone.now();
+      const now = this.ctx.currentTime;
       let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
       this.nextChordAudioTime = nextChordAudioTime;
 
-      // Tight 80ms lookahead ensures immediate responsiveness when user tweaks pathways or notes
-      const scheduleAhead = 0.08;
+      const scheduleAhead = 0.25;
       const scheduleChordsAndMelody = () => {
         if (!this.isPlayingMelodyProgression) return;
-        const currentAudioTime = Tone.now();
+        const currentAudioTime = this.ctx.currentTime;
 
         while (nextChordAudioTime < currentAudioTime + scheduleAhead) {
           if (currentIdx >= this.activeMelodyProgression.length) {
@@ -768,13 +1069,12 @@ self.onmessage = function(e) {
           const chord = this.activeMelodyProgression[chordIdx];
           const voicing = this.generateVoicing(chord);
           const targetTime = Math.max(currentAudioTime, nextChordAudioTime);
+          const chordHoldDuration = Math.max(0.18, secondsPerChord - 0.10);
 
-          // 1. Play Comping Chords (FM Electric Piano)
-          if (voicing.length > 0) {
-            this.chordSynth.triggerAttackRelease(voicing, secondsPerChord * 0.9, targetTime);
+          if (voicing.length > 0 && this.chordSynth) {
+            this.chordSynth.triggerAttackRelease(voicing, chordHoldDuration, targetTime);
           }
 
-          // 2. Play Solo Lead Melody (Dynamic lookup ensures real-time switching)
           this.nextScheduledChordIdx = chordIdx;
           this.nextScheduledTime = targetTime;
           const currentMelodyNodes = this.getMelodyNodes();
@@ -784,9 +1084,8 @@ self.onmessage = function(e) {
             leadSynth.triggerAttackRelease(melodyNode.scientific, secondsPerChord * 0.82, targetTime);
           }
 
-          // 3. Hardware-synchronized visual highlighting
           if (this.onMelodyStepHighlight) {
-            const visualDelay = Math.max(0, (targetTime - Tone.now()) * 1000);
+            const visualDelay = Math.max(0, (targetTime - this.ctx.currentTime) * 1000);
             const tId = setTimeout(() => {
               if (this.isPlayingMelodyProgression && this.onMelodyStepHighlight) {
                 this.currentPlayingChordIdx = chordIdx;
@@ -808,7 +1107,7 @@ self.onmessage = function(e) {
 
       this.melodyProgressionVisualTimeouts = [];
       scheduleChordsAndMelody();
-      this.melodyProgressionInterval = setInterval(scheduleChordsAndMelody, 25);
+      this.melodyProgressionInterval = setInterval(scheduleChordsAndMelody, 35);
     }
 
     stopProgressionWithMelody() {
@@ -821,21 +1120,21 @@ self.onmessage = function(e) {
         this.melodyProgressionInterval = null;
       }
       if (this.melodyProgressionVisualTimeouts) {
-        this.melodyProgressionVisualTimeouts.forEach(tId => clearTimeout(tId));
+        this.melodyProgressionVisualTimeouts.forEach(t => clearTimeout(t));
         this.melodyProgressionVisualTimeouts = [];
+      }
+      if (this.chordSynth && typeof this.chordSynth.releaseAll === 'function') {
+        try {
+          this.chordSynth.releaseAll();
+        } catch (e) {}
       }
       if (this.onMelodyStepHighlight) {
         this.onMelodyStepHighlight(-1, null, null);
       }
     }
 
-    // Arbitrary Time Signature Metronome (X / Y e.g. 7/8, 16/15, 4/4, 9/8, 5/4)
-    // High-precision Web Audio lookahead scheduler (W3C/Chris Wilson architecture)
-    // Runs directly on hardware audio time with 0ms drift and zero memory leak
     async startMetronome(bpm, timeSignature = { num: 4, den: 4 }, subdivision = 1, soundMode = 'woodblock', onTick = null) {
-      if (!this.initialized) {
-        await this.init();
-      }
+      if (!this.initialized) await this.init();
       await this.resumeIfNeeded();
       this.stopMetronome();
 
@@ -850,26 +1149,20 @@ self.onmessage = function(e) {
       this.onTickCallback = onTick;
       this.currentBpm = safeBpm;
 
-      if (typeof Tone !== 'undefined' && Tone.Transport) {
-        Tone.Transport.bpm.value = safeBpm;
-      }
-
       this.metroVisualQueue = [];
       this.metroTickCount = 0;
       const now = this.getAudioCurrentTime();
       this.nextMetroTickAudioTime = now + 0.04;
 
-      const scheduleAheadSec = 0.25; // 250ms resilient lookahead buffer
+      const scheduleAheadSec = 0.25;
 
       this.scheduleMetroLoop = () => {
         if (!this.isMetronomeRunning) return;
         const currentTime = this.getAudioCurrentTime();
 
-        // Calculate tick interval dynamically based on current dynamic BPM:
         const activeBpm = this.currentBpm || safeBpm;
         const tickInterval = 240 / (this.timeSignature.den * activeBpm * this.subdivision);
 
-        // If thread was deeply suspended (e.g. phone lock screen for > 500ms), advance cleanly in full bar increments
         if (this.nextMetroTickAudioTime < currentTime - 0.5) {
           const elapsed = currentTime - this.nextMetroTickAudioTime;
           const ticksMissed = Math.ceil(elapsed / tickInterval);
@@ -888,26 +1181,8 @@ self.onmessage = function(e) {
           const isBeatHead = (subIdx === 0);
           const scheduledTime = Math.max(currentTime, this.nextMetroTickAudioTime);
 
-          if (this.metronomeSoundMode === 'woodblock') {
-            const buf = isDownbeat
-              ? this.preRenderedBuffers.woodblockDownbeat
-              : (isBeatHead ? this.preRenderedBuffers.woodblockBeat : this.preRenderedBuffers.woodblockSub);
-            const played = buf ? this.playMetronomeBuffer(buf, scheduledTime) : false;
-            if (!played) {
-              const pitch = isDownbeat ? 'A5' : (isBeatHead ? 'E5' : 'C5');
-              const velocity = isDownbeat ? 1.0 : (isBeatHead ? 0.75 : 0.4);
-              this.woodblockSynth.triggerAttackRelease(pitch, '32n', scheduledTime, velocity);
-            }
-          } else if (this.metronomeSoundMode === 'synth') {
-            const buf = isDownbeat
-              ? this.preRenderedBuffers.clickDownbeat
-              : (isBeatHead ? this.preRenderedBuffers.clickBeat : this.preRenderedBuffers.clickSub);
-            const played = buf ? this.playMetronomeBuffer(buf, scheduledTime) : false;
-            if (!played) {
-              const pitch = isDownbeat ? 'C6' : (isBeatHead ? 'G5' : 'D5');
-              const velocity = isDownbeat ? 0.95 : (isBeatHead ? 0.65 : 0.35);
-              this.clickSynth.triggerAttackRelease(pitch, '64n', scheduledTime, velocity);
-            }
+          if (this.metronomeSoundMode === 'woodblock' || this.metronomeSoundMode === 'synth') {
+            this.playMetronomeTick(isDownbeat, isBeatHead, scheduledTime);
           } else if (this.metronomeSoundMode === 'spoken' && this.speechSynth) {
             const delayMs = Math.max(0, (scheduledTime - this.getAudioCurrentTime()) * 1000);
             setTimeout(() => {
@@ -946,28 +1221,23 @@ self.onmessage = function(e) {
         }
       };
 
-      // Run immediate initial schedule burst
       this.scheduleMetroLoop();
 
-      // Start Web Worker background clock or fallback to setInterval
       if (this.metroWorker) {
         this.metroWorker.postMessage('start');
       } else {
         this.metroTimerId = setInterval(this.scheduleMetroLoop, 25);
       }
 
-      // Visual flasher loop
       if (onTick) {
         const visualLoop = () => {
           if (!this.isMetronomeRunning) return;
           const currentAudioTime = this.getAudioCurrentTime();
 
-          // Drop stale frames if frame rate dropped (> 200ms behind)
           while (this.metroVisualQueue.length > 1 && this.metroVisualQueue[0].time < currentAudioTime - 0.2) {
             this.metroVisualQueue.shift();
           }
 
-          // Fire frames that are due (within 20ms anticipation window)
           while (this.metroVisualQueue.length > 0 && this.metroVisualQueue[0].time <= currentAudioTime + 0.02) {
             const item = this.metroVisualQueue.shift();
             onTick(item.beat, item.subIdx, item.isDownbeat, item.totalBeats);
@@ -994,22 +1264,11 @@ self.onmessage = function(e) {
       }
       this.metroVisualQueue = [];
 
-      if (this.metronomeLoop) {
+      if (this.metroGain && this.ctx) {
         try {
-          this.metronomeLoop.stop();
-          this.metronomeLoop.dispose();
-        } catch (e) {}
-        this.metronomeLoop = null;
-      }
-      if (typeof Tone !== 'undefined' && Tone.Transport) {
-        try {
-          Tone.Transport.stop();
-          Tone.Transport.cancel();
-        } catch (e) {}
-      }
-      if (typeof Tone !== 'undefined' && Tone.Draw && typeof Tone.Draw.cancel === 'function') {
-        try {
-          Tone.Draw.cancel();
+          const now = this.ctx.currentTime;
+          this.metroGain.gain.cancelScheduledValues(now);
+          this.metroGain.gain.setValueAtTime(0, now);
         } catch (e) {}
       }
     }
@@ -1024,9 +1283,7 @@ self.onmessage = function(e) {
         utterance.pitch = 1.2;
         utterance.volume = 0.8;
         this.speechSynth.speak(utterance);
-      } catch (e) {
-        // speech synthesis error protection
-      }
+      } catch (e) {}
     }
 
     speakWord(word) {
@@ -1039,15 +1296,11 @@ self.onmessage = function(e) {
         utterance.pitch = 1.0;
         utterance.volume = 0.7;
         this.speechSynth.speak(utterance);
-      } catch (e) {
-        // speech synthesis error protection
-      }
+      } catch (e) {}
     }
 
     async playRhythmSequence(rhythmItems, bpmOrFn = 100, loopCount = 1, onStep = null, onIteration = null, onFinished = null, startTime = null) {
-      if (!this.initialized) {
-        await this.init();
-      }
+      if (!this.initialized) await this.init();
       if (!rhythmItems || rhythmItems.length === 0) return;
       await this.resumeIfNeeded();
 
@@ -1060,13 +1313,13 @@ self.onmessage = function(e) {
       const isInfinite = (loopCount === Infinity || loopCount === 'infinite');
       const maxLoops = isInfinite ? Infinity : Math.max(1, parseInt(loopCount, 10) || 1);
 
-      let nextIterationAudioTime = (typeof startTime === 'number' && startTime >= Tone.now()) ? startTime : (Tone.now() + 0.05);
+      let nextIterationAudioTime = (typeof startTime === 'number' && startTime >= this.ctx.currentTime) ? startTime : (this.ctx.currentTime + 0.05);
 
       const scheduleIteration = () => {
         if (!this.isRhythmPlaying) return;
 
         if (currentLoop >= maxLoops) {
-          const remainingSec = Math.max(0, nextIterationAudioTime - Tone.now());
+          const remainingSec = Math.max(0, nextIterationAudioTime - this.ctx.currentTime);
           this.rhythmLoopTimeout = setTimeout(() => {
             this.stopRhythm();
             if (onFinished) onFinished();
@@ -1084,7 +1337,7 @@ self.onmessage = function(e) {
         const baseDuration = (60 / safeBpm);
         const patternDurationSeconds = (totalTicks / 32) * baseDuration;
 
-        const iterAudioStart = Math.max(Tone.now() + 0.01, nextIterationAudioTime);
+        const iterAudioStart = Math.max(this.ctx.currentTime + 0.01, nextIterationAudioTime);
         let timeOffsetSec = 0;
 
         rhythmItems.forEach((item, index) => {
@@ -1092,11 +1345,11 @@ self.onmessage = function(e) {
           const triggerTime = iterAudioStart + timeOffsetSec;
 
           if (!item.isRest && this.percussionSynth) {
-            this.percussionSynth.triggerAttackRelease('C4', '16n', triggerTime);
+            this.percussionSynth.triggerAttackRelease('C4', 0.08, triggerTime);
           }
 
           if (onStep) {
-            const visualDelay = Math.max(0, (triggerTime - Tone.now()) * 1000);
+            const visualDelay = Math.max(0, (triggerTime - this.ctx.currentTime) * 1000);
             const timeoutId = setTimeout(() => {
               if (this.isRhythmPlaying) {
                 onStep(index, currentLoop, item);
@@ -1109,8 +1362,7 @@ self.onmessage = function(e) {
         });
 
         nextIterationAudioTime = iterAudioStart + patternDurationSeconds;
-        // Schedule next iteration ~80ms before it plays for seamless Web Audio queueing
-        const scheduleDelay = Math.max(20, (nextIterationAudioTime - Tone.now() - 0.08) * 1000);
+        const scheduleDelay = Math.max(20, (nextIterationAudioTime - this.ctx.currentTime - 0.20) * 1000);
         this.rhythmLoopTimeout = setTimeout(scheduleIteration, scheduleDelay);
       };
 
@@ -1133,5 +1385,11 @@ self.onmessage = function(e) {
   const audio = new AudioEngine();
   window.SongAudio = AudioEngine;
   window.audio = audio;
+
+  // Global helper bridge for any external scripts
+  if (typeof window.Tone === 'undefined') {
+    window.Tone = {};
+  }
+  window.Tone.now = () => (window.audio ? window.audio.getAudioCurrentTime() : 0);
 
 })(typeof window !== 'undefined' ? window : globalThis);

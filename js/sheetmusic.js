@@ -86,10 +86,19 @@
       this.handleResize();
     }
 
+    requestRender() {
+      if (!this.canvas || this.canvas.offsetParent === null) return;
+      if (this._renderRafId) return;
+      this._renderRafId = requestAnimationFrame(() => {
+        this._renderRafId = null;
+        this.render();
+      });
+    }
+
     setActiveStep(stepIdx) {
       if (this.activeStep === stepIdx) return;
       this.activeStep = stepIdx;
-      this.render();
+      this.requestRender();
     }
 
     setActiveNoteIndex(noteIdx) {
@@ -103,7 +112,7 @@
         }
         this.activeStep = cur;
       }
-      this.render();
+      this.requestRender();
     }
 
     setupInteractivity() {
@@ -122,6 +131,7 @@
 
     render() {
       if (!this.ctx || !this.canvas) return;
+      if (this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
       const ctx = this.ctx;
       const w = this.width;
       const h = this.height;
