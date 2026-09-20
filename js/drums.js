@@ -955,7 +955,7 @@
       const now = this.synth.ctx.currentTime;
       this.nextStepAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
 
-      const scheduleAheadSec = 0.25; // 250ms lookahead buffer
+      const scheduleAheadSec = 0.40; // 400ms lookahead buffer (immune to orientation change & DOM reflow stalls)
 
       const scheduler = () => {
         if (!this.isPlaying || !this.synth.ctx) return;

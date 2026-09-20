@@ -450,8 +450,18 @@
       this.setupCanvases();
     }
 
-    setupCanvases() {
-      if (this.gaugeCanvas) {
+    setupCanvases(force = false) {
+      if (!this.gaugeCanvas && !this.heatmapCanvas) return;
+      const isGaugeVisible = this.gaugeCanvas && this.gaugeCanvas.offsetParent !== null;
+      const isHeatmapVisible = this.heatmapCanvas && this.heatmapCanvas.offsetParent !== null;
+      if (!force && !isGaugeVisible && !isHeatmapVisible) {
+        this._needsResize = true;
+        return;
+      }
+      this._needsResize = false;
+      this.dpr = window.devicePixelRatio || 1;
+
+      if (this.gaugeCanvas && (force || isGaugeVisible)) {
         const rect = this.gaugeCanvas.getBoundingClientRect();
         const w = rect.width || 340;
         const h = rect.height || 210;
@@ -463,7 +473,7 @@
         this.gaugeH = h;
       }
 
-      if (this.heatmapCanvas) {
+      if (this.heatmapCanvas && (force || isHeatmapVisible)) {
         const rect = this.heatmapCanvas.getBoundingClientRect();
         const w = rect.width || 600;
         const h = rect.height || 100;
@@ -478,6 +488,9 @@
 
     // Render both Gauge and Heatmap
     render(engine) {
+      if (this._needsResize) {
+        this.setupCanvases(true);
+      }
       const lastHit = engine.lastHit;
       const targetDelta = lastHit ? lastHit.deltaMs : 0;
 

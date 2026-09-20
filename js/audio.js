@@ -850,8 +850,8 @@ self.onmessage = function(e) {
       let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
       this.nextChordAudioTime = nextChordAudioTime;
 
-      // Resilient 250ms lookahead scheduling buffer
-      const scheduleAhead = 0.25;
+      // Resilient 400ms lookahead scheduling buffer (immune to orientation change & DOM reflow stalls)
+      const scheduleAhead = 0.40;
       const scheduleChords = () => {
         if (!this.isPlayingProgression) return;
         const currentAudioTime = this.ctx.currentTime;
@@ -1049,7 +1049,8 @@ self.onmessage = function(e) {
       let nextChordAudioTime = (typeof startTime === 'number' && startTime >= now) ? startTime : (now + 0.04);
       this.nextChordAudioTime = nextChordAudioTime;
 
-      const scheduleAhead = 0.25;
+      // Resilient 400ms lookahead scheduling buffer (immune to orientation change & DOM reflow stalls)
+      const scheduleAhead = 0.40;
       const scheduleChordsAndMelody = () => {
         if (!this.isPlayingMelodyProgression) return;
         const currentAudioTime = this.ctx.currentTime;

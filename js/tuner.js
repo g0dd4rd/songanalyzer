@@ -553,10 +553,17 @@
       this.setupCanvas();
     }
 
-    setupCanvas() {
+    setupCanvas(force = false) {
+      if (!this.canvas) return;
+      if (!force && this.canvas.offsetParent === null) {
+        this._needsResize = true;
+        return;
+      }
+      this._needsResize = false;
       const rect = this.canvas.getBoundingClientRect();
       const w = rect.width || 340;
       const h = rect.height || 220;
+      this.dpr = window.devicePixelRatio || 1;
       this.canvas.width = w * this.dpr;
       this.canvas.height = h * this.dpr;
       this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -566,6 +573,13 @@
     }
 
     render(state) {
+      if (!this.ctx || !this.canvas) return;
+      if (this.canvas.offsetParent === null) return;
+      if (this._needsResize || !this.width || !this.height) {
+        this.setupCanvas(true);
+      }
+      if (!this.width || !this.height) return;
+
       const { cents, smoothedCents, isInTune, isRunning, strobeAngle } = state;
       const ctx = this.ctx;
       const w = this.width;

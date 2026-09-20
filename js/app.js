@@ -13,6 +13,8 @@
       this.ribbonEngine = null;
       this.ribbonRenderer = null;
       this.sheetMusicRenderer = null;
+      this.tunerRenderer = null;
+      this.accuracyRenderer = null;
       this.jamCards = [];
       this.lockedCards = new Set();
       this.currentRhythmItems = [];
@@ -308,6 +310,11 @@
         if (targetId === 'all') {
           document.body.classList.remove('mobile-tab-view');
           allCards.forEach(card => card.classList.remove('mobile-active-card'));
+          if (this.visualizer) this.visualizer.handleResize(true);
+          if (this.ribbonRenderer) this.ribbonRenderer.handleResize(true);
+          if (this.sheetMusicRenderer) this.sheetMusicRenderer.handleResize(true);
+          if (this.tunerRenderer) this.tunerRenderer.setupCanvas(true);
+          if (this.accuracyRenderer) this.accuracyRenderer.setupCanvases(true);
         } else {
           document.body.classList.add('mobile-tab-view');
           allCards.forEach(card => {
@@ -320,7 +327,15 @@
           });
 
           if (targetId === 'visualizerSection' && this.visualizer) {
-            setTimeout(() => this.visualizer.handleResize(), 50);
+            setTimeout(() => this.visualizer.handleResize(true), 50);
+          } else if (targetId === 'analyzerSection' && this.ribbonRenderer) {
+            setTimeout(() => this.ribbonRenderer.handleResize(true), 50);
+          } else if (targetId === 'metroSection' && this.sheetMusicRenderer) {
+            setTimeout(() => this.sheetMusicRenderer.handleResize(true), 50);
+          } else if (targetId === 'tunerSection' && this.tunerRenderer) {
+            setTimeout(() => this.tunerRenderer.setupCanvas(true), 50);
+          } else if (targetId === 'accuracySection' && this.accuracyRenderer) {
+            setTimeout(() => this.accuracyRenderer.setupCanvases(true), 50);
           }
         }
 
@@ -1712,10 +1727,21 @@
       const btnSyncFretboard = document.getElementById('btnSyncFretboardTuning');
 
       let renderer = null;
+      let tunerResizeRafId = null;
       if (tunerCanvas && Tuner.TunerRenderer) {
         renderer = new Tuner.TunerRenderer(tunerCanvas);
+        this.tunerRenderer = renderer;
         window.addEventListener('resize', () => {
-          if (renderer) renderer.setupCanvas();
+          if (!renderer) return;
+          if (tunerCanvas.offsetParent === null) {
+            renderer._needsResize = true;
+            return;
+          }
+          if (tunerResizeRafId) cancelAnimationFrame(tunerResizeRafId);
+          tunerResizeRafId = requestAnimationFrame(() => {
+            tunerResizeRafId = null;
+            renderer.setupCanvas();
+          });
         });
       }
 
@@ -2008,10 +2034,23 @@
       const btnMetroOpen = document.getElementById('btnMetroOpenPocket');
 
       let renderer = null;
+      let pocketResizeRafId = null;
       if (gaugeCanvas && heatmapCanvas && Accuracy.PocketMeterRenderer) {
         renderer = new Accuracy.PocketMeterRenderer(gaugeCanvas, heatmapCanvas);
+        this.accuracyRenderer = renderer;
         window.addEventListener('resize', () => {
-          if (renderer) renderer.setupCanvases();
+          if (!renderer) return;
+          const isGaugeVisible = gaugeCanvas && gaugeCanvas.offsetParent !== null;
+          const isHeatmapVisible = heatmapCanvas && heatmapCanvas.offsetParent !== null;
+          if (!isGaugeVisible && !isHeatmapVisible) {
+            renderer._needsResize = true;
+            return;
+          }
+          if (pocketResizeRafId) cancelAnimationFrame(pocketResizeRafId);
+          pocketResizeRafId = requestAnimationFrame(() => {
+            pocketResizeRafId = null;
+            renderer.setupCanvases();
+          });
         });
       }
 

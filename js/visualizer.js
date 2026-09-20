@@ -54,7 +54,16 @@
       this.scaleRootTonic = 'C';
 
       this.handleResize = this.handleResize.bind(this);
-      window.addEventListener('resize', this.handleResize);
+      this._resizeRafId = null;
+      this._needsResize = false;
+      this.onWindowResize = () => {
+        if (this._resizeRafId) cancelAnimationFrame(this._resizeRafId);
+        this._resizeRafId = requestAnimationFrame(() => {
+          this._resizeRafId = null;
+          this.handleResize();
+        });
+      };
+      window.addEventListener('resize', this.onWindowResize);
       this.setupInteractivity();
       this.handleResize();
     }
@@ -210,8 +219,13 @@
       this.render();
     }
 
-    handleResize() {
+    handleResize(force = false) {
       if (!this.canvas || !this.canvas.parentElement) return;
+      if (!force && this.canvas.offsetParent === null) {
+        this._needsResize = true;
+        return;
+      }
+      this._needsResize = false;
       const rect = this.canvas.parentElement.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const width = Math.max(rect.width, 300);
@@ -274,8 +288,12 @@
     }
 
     render() {
-      if (!this.ctx || !this.width || !this.height) return;
+      if (!this.ctx) return;
       if (this.canvas && this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
+      if (this._needsResize || !this.width || !this.height) {
+        this.handleResize(true);
+      }
+      if (!this.width || !this.height) return;
 
       this.ctx.fillStyle = this.colors.bg;
       this.ctx.fillRect(0, 0, this.width, this.height);

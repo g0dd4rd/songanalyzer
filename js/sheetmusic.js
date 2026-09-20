@@ -31,13 +31,27 @@
       this.height = 145;
 
       this.handleResize = this.handleResize.bind(this);
-      window.addEventListener('resize', this.handleResize);
+      this._resizeRafId = null;
+      this._needsResize = false;
+      this.onWindowResize = () => {
+        if (this._resizeRafId) cancelAnimationFrame(this._resizeRafId);
+        this._resizeRafId = requestAnimationFrame(() => {
+          this._resizeRafId = null;
+          this.handleResize();
+        });
+      };
+      window.addEventListener('resize', this.onWindowResize);
       this.setupInteractivity();
       this.handleResize();
     }
 
-    handleResize() {
+    handleResize(force = false) {
       if (!this.canvas) return;
+      if (!force && this.canvas.offsetParent === null) {
+        this._needsResize = true;
+        return;
+      }
+      this._needsResize = false;
 
       // Measure Beat Builder Grid Pad positions if present in DOM
       const pad0 = document.querySelector('#beatGridContainer .beat-pad[data-step="0"]');
@@ -132,6 +146,9 @@
     render() {
       if (!this.ctx || !this.canvas) return;
       if (this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
+      if (this._needsResize) {
+        this.handleResize(true);
+      }
       const ctx = this.ctx;
       const w = this.width;
       const h = this.height;

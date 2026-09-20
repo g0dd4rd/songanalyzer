@@ -1347,11 +1347,25 @@
       this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
       this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
       this.canvas.addEventListener('click', (e) => this.handleClick(e));
-      window.addEventListener('resize', () => this.handleResize());
+      this._resizeRafId = null;
+      this._needsResize = false;
+      this.onWindowResize = () => {
+        if (this._resizeRafId) cancelAnimationFrame(this._resizeRafId);
+        this._resizeRafId = requestAnimationFrame(() => {
+          this._resizeRafId = null;
+          this.handleResize();
+        });
+      };
+      window.addEventListener('resize', this.onWindowResize);
     }
 
-    handleResize() {
+    handleResize(force = false) {
       if (!this.canvas || !this.canvas.parentElement) return;
+      if (!force && this.canvas.offsetParent === null) {
+        this._needsResize = true;
+        return;
+      }
+      this._needsResize = false;
       const rect = this.canvas.parentElement.getBoundingClientRect();
       const width = Math.max(rect.width, 320);
       // Stretched height so all notes under chord names have generous vertical breathing room
@@ -1466,8 +1480,12 @@
     }
 
     render() {
-      if (!this.ctx || !this.width || !this.height) return;
+      if (!this.ctx) return;
       if (this.canvas && this.canvas.offsetParent === null) return; // Skip rendering when hidden on inactive tab
+      if (this._needsResize || !this.width || !this.height) {
+        this.handleResize(true);
+      }
+      if (!this.width || !this.height) return;
       const ctx = this.ctx;
       const w = this.width;
       const h = this.height;
