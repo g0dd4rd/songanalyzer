@@ -61,6 +61,7 @@
       }
       this.updateTimeSignature(); // Initialize time signature and dots
       this.initRibbonModule();   // Initialize Voice Leading Ribbon & 6-School Melodic Pathway Studio
+      this.initModalScaleStudio(); // Initialize Base-12 Modal & Scale Studio (4-to-12 Tones)
       this.analyzeProgression(); // Run default analysis on load
       this.dealJamCards();       // Deal initial jam cards
       this.initPracticeTimer();  // Initialize practice timer
@@ -874,6 +875,7 @@
             <button class="btn-sm btn-play-chord" title="Play Chord">▶</button>
             <button class="btn-sm btn-arp-chord" title="Play Arpeggio">〰</button>
             <button class="btn-sm btn-show-chord" title="View on Canvas">👁</button>
+            <button class="btn-sm btn-scale-palette" title="Find Compatible 4-to-12 Tone Scales for this chord" style="padding: 2px 7px; font-size: 0.74rem;">🎼 Scales</button>
           </td>
         `;
 
@@ -903,6 +905,11 @@
           }
         });
 
+        row.querySelector('.btn-scale-palette').addEventListener('click', () => {
+          this.openChordScalePalette(chord);
+          this.highlightTableRow(idx);
+        });
+
         tbody.appendChild(row);
       });
     }
@@ -917,44 +924,444 @@
       });
     }
 
-    // 2. Modal Interchange Transformation
+    // -------------------------------------------------------------
+    // 2. Base-12 Modal & Scale Studio (4-to-12 Tone Harmony & Mood Engine)
+    // -------------------------------------------------------------
+    initModalScaleStudio() {
+      const scaleEngine = window.SongScales ? window.SongScales.scaleEngine : null;
+      if (!scaleEngine) return;
+
+      this.selectedScaleCardinality = 'all';
+      this.selectedScaleCategory = 'all';
+      this.selectedScaleId = 'diatonic';
+      this.currentPaletteMatches = [];
+      this.currentPaletteChord = null;
+
+      // 1. Cardinality Filter Pills (4 to 12 Tones)
+      const pillContainer = document.getElementById('scaleCardinalityFilters');
+      if (pillContainer) {
+        pillContainer.querySelectorAll('.scale-cardinality-pill').forEach(btn => {
+          btn.addEventListener('click', () => {
+            pillContainer.querySelectorAll('.scale-cardinality-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this.selectedScaleCardinality = btn.dataset.cardinality || 'all';
+            this.populateScaleFamilyDropdown();
+            this.renderModalStudio();
+          });
+        });
+      }
+
+      // 2. Category Filter Dropdown
+      const catSelect = document.getElementById('scaleCategoryFilter');
+      if (catSelect) {
+        catSelect.addEventListener('change', (e) => {
+          this.selectedScaleCategory = e.target.value;
+          this.populateScaleFamilyDropdown();
+          this.renderModalStudio();
+        });
+      }
+
+      // 3. Parent Scale Family Dropdown
+      const scaleSelect = document.getElementById('scaleFamilySelect');
+      if (scaleSelect) {
+        scaleSelect.addEventListener('change', (e) => {
+          if (e.target.value) {
+            this.selectedScaleId = e.target.value;
+            this.renderModalStudio();
+          }
+        });
+      }
+
+      // 4. Tonic & Degrees Inputs
+      const tonicInput = document.getElementById('modalTonicInput');
+      const degreesInput = document.getElementById('modalDegreesInput');
+      if (tonicInput) {
+        tonicInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') this.renderModalStudio();
+        });
+        tonicInput.addEventListener('change', () => this.renderModalStudio());
+      }
+      if (degreesInput) {
+        degreesInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') this.renderModalStudio();
+        });
+        degreesInput.addEventListener('change', () => this.renderModalStudio());
+      }
+
+      // 5. Transform Button
+      const btnTransform = document.getElementById('btnTransformModal');
+      if (btnTransform) {
+        btnTransform.addEventListener('click', () => {
+          this.renderModalStudio();
+        });
+      }
+
+      // 6. Chord-Scale Palette Drawer Close & Tabs
+      const btnClosePalette = document.getElementById('btnCloseScalePalette');
+      if (btnClosePalette) {
+        btnClosePalette.addEventListener('click', () => {
+          const drawer = document.getElementById('chordScalePaletteDrawer');
+          if (drawer) drawer.style.display = 'none';
+        });
+      }
+
+      const paletteTabs = document.getElementById('paletteCategoryTabs');
+      if (paletteTabs) {
+        paletteTabs.querySelectorAll('.palette-tab-btn').forEach(tab => {
+          tab.addEventListener('click', () => {
+            paletteTabs.querySelectorAll('.palette-tab-btn').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            this.renderPaletteCards(tab.dataset.fitCategory || 'all');
+          });
+        });
+      }
+
+      this.populateScaleFamilyDropdown();
+      this.renderModalStudio();
+    }
+
+    populateScaleFamilyDropdown() {
+      const scaleEngine = window.SongScales ? window.SongScales.scaleEngine : null;
+      const select = document.getElementById('scaleFamilySelect');
+      if (!scaleEngine || !select) return;
+
+      select.innerHTML = '';
+      let scales = scaleEngine.getAllScales();
+
+      if (this.selectedScaleCardinality && this.selectedScaleCardinality !== 'all') {
+        const n = parseInt(this.selectedScaleCardinality, 10);
+        scales = scales.filter(s => s.cardinality === n);
+      }
+
+      if (this.selectedScaleCategory && this.selectedScaleCategory !== 'all') {
+        scales = scales.filter(s => s.category === this.selectedScaleCategory);
+      }
+
+      if (scales.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No scales match this filter';
+        select.appendChild(opt);
+        return;
+      }
+
+      // Group by Cardinality & Family
+      const groups = {};
+      scales.forEach(s => {
+        const groupName = `${s.cardinality}-Tone (${s.family || 'Scale'})`;
+        if (!groups[groupName]) groups[groupName] = [];
+        groups[groupName].push(s);
+      });
+
+      let foundCurrent = false;
+      Object.keys(groups).forEach(gName => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = gName;
+        groups[gName].forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.name} [${s.formula}]`;
+          if (s.id === this.selectedScaleId) {
+            opt.selected = true;
+            foundCurrent = true;
+          }
+          optgroup.appendChild(opt);
+        });
+        select.appendChild(optgroup);
+      });
+
+      if (!foundCurrent && scales[0]) {
+        this.selectedScaleId = scales[0].id;
+        select.value = scales[0].id;
+      }
+    }
+
     transformModal() {
+      // Wrapper for backwards compatibility
+      this.renderModalStudio();
+    }
+
+    renderModalStudio() {
+      const scaleEngine = window.SongScales ? window.SongScales.scaleEngine : null;
       const Theory = window.SongTheory;
       const audio = window.audio;
-      if (!Theory) return;
+      if (!scaleEngine || !Theory) return;
 
-      const tonic = document.getElementById('modalTonicInput').value.trim() || 'C';
-      const rawDegrees = document.getElementById('modalDegreesInput').value.trim() || '1, 6, 4, 5';
+      const tonic = document.getElementById('modalTonicInput')?.value.trim() || 'C';
+      const rawDegrees = document.getElementById('modalDegreesInput')?.value.trim() || '1, 4, 5';
       const degreesList = rawDegrees.split(/[\s,]+/).map(d => parseInt(d, 10)).filter(n => !isNaN(n));
 
-      if (degreesList.length === 0) return;
+      const scale = scaleEngine.getScaleById(this.selectedScaleId) || scaleEngine.getScaleById('diatonic');
+      if (!scale) return;
 
-      const results = Theory.transformProgressionModal(tonic, degreesList);
+      // Update info banner
+      const banner = document.getElementById('modalScaleInfoBanner');
+      if (banner) {
+        banner.style.display = 'flex';
+        banner.innerHTML = `
+          <div>
+            <strong>${scale.name}</strong> • <span style="color: #38bdf8; font-weight: 700;">${scale.cardinality} Tones</span> • <code>${scale.formula}</code>
+            <div style="color: var(--text-muted); font-size: 0.74rem; margin-top: 2px;">${scale.description} (${scale.origin})</div>
+          </div>
+          <div>
+            <span class="badge badge-info">${scale.family}</span>
+          </div>
+        `;
+      }
+
       const container = document.getElementById('modalResultsContainer');
       if (!container) return;
       container.innerHTML = '';
 
-      results.forEach(item => {
+      // Compute rotational modes sorted by acoustic brightness
+      const modes = scaleEngine.getRotationalModes(scale);
+
+      modes.forEach((mode) => {
         const card = document.createElement('div');
-        card.className = 'modal-tier-card';
+        card.className = 'modal-mode-card';
+
+        // Harmonize degrees for this mode in chosen tonic
+        const harmonizedChords = scaleEngine.harmonizeMode(mode.intervals, tonic);
+        const k = mode.intervals.length;
+
+        // Note spelling
+        const rootPC = Theory.noteToPitchClass(tonic) || 0;
+        const preferFlats = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Dm', 'Gm', 'Cm', 'Fm'].includes(tonic);
+        const spelledNotes = (k === 7 && Theory.spellIntervalNote)
+          ? mode.intervals.map((iv, degIdx) => Theory.spellIntervalNote(tonic, degIdx + 1, (rootPC + iv) % 12))
+          : mode.intervals.map(iv => Theory.pitchClassToNote((rootPC + iv) % 12, preferFlats));
+
+        // Brightness badge class & icon
+        let bClass = 'moderate';
+        let bIcon = '🌤';
+        if (mode.brightness >= 5) { bClass = 'bright'; bIcon = '☀️'; }
+        else if (mode.brightness >= 1) { bClass = 'moderate'; bIcon = '🌕'; }
+        else if (mode.brightness >= -3) { bClass = 'dark'; bIcon = '🌑'; }
+        else { bClass = 'deep-dark'; bIcon = '⚡'; }
+
+        // Project progression degrees through this mode
+        let progChords = [];
+        if (degreesList.length > 0) {
+          progChords = degreesList.map(deg => {
+            const degIdx = ((deg - 1) % k + k) % k;
+            return harmonizedChords[degIdx]?.seventh || harmonizedChords[degIdx]?.triad || `${tonic}`;
+          });
+        }
+
+        const progString = progChords.length > 0 ? progChords.join(' → ') : '';
 
         card.innerHTML = `
-          <div class="modal-tier-header">
-            <strong>${item.tierLabel}</strong>
-            <button class="btn-sm btn-play-tier">▶ Audition</button>
+          <div class="modal-mode-header">
+            <div class="modal-mode-title-box">
+              <span class="modal-mode-name">${mode.name}</span>
+              <span class="modal-brightness-badge ${bClass}" title="Acoustic Brightness Score: ${mode.brightness > 0 ? '+' : ''}${mode.brightness}">
+                ${bIcon} ${mode.brightness > 0 ? '+' : ''}${mode.brightness}
+              </span>
+              <span class="modal-mood-tag">${mode.mood}</span>
+            </div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);">
+              Mode ${mode.index} of ${k}
+            </div>
           </div>
-          <div class="modal-tier-chords">${item.progressionString}</div>
+
+          <div class="modal-mode-details">
+            <div class="modal-formula-line">
+              <span style="font-weight: 700; color: #cbd5e1;">Notes (${tonic}):</span>
+              <span style="color: #38bdf8; font-family: var(--font-mono); font-weight: 600;">${spelledNotes.join(' - ')}</span>
+              <span style="color: var(--text-muted); margin-left: 8px;">• Formula: <code>${mode.formula}</code></span>
+            </div>
+
+            <div class="modal-chords-line">
+              <span style="font-weight: 700; color: #cbd5e1;">Harmonized Chords:</span>
+              <div style="display: inline-flex; gap: 4px; flex-wrap: wrap;">
+                ${harmonizedChords.map(hc => `<button type="button" class="modal-chord-pill" data-chord="${hc.seventh}" title="Audition ${hc.seventh} (Degree ${hc.degree})">${hc.degree}: ${hc.seventh}</button>`).join('')}
+              </div>
+            </div>
+
+            ${progString ? `
+              <div class="modal-progression-preview" title="Progression degrees [${degreesList.join(', ')}] projected through ${mode.name}">
+                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Modal Progression:</span>
+                <span>${progString}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="modal-mode-actions">
+            <button type="button" class="btn-sm btn-play-scale" title="Play individual scale notes ascending">▶ Play Scale</button>
+            ${progChords.length > 0 ? `<button type="button" class="btn-sm btn-play-mode-prog" title="Audition projected progression chords in time">▶ Play Chords</button>` : ''}
+            <button type="button" class="btn-sm btn-view-scale" title="View scale polygon on 12-tone clock, fretboard, and piano">👁 Show on Canvas</button>
+            ${progChords.length > 0 ? `<button type="button" class="btn-sm btn-send-prog" title="Send this progression into Module 1 for harmonic analysis">📋 Send to Analyzer</button>` : ''}
+          </div>
         `;
 
-        card.querySelector('.btn-play-tier').addEventListener('click', async () => {
+        // Clickable harmonized chord pills audition individual chords
+        card.querySelectorAll('.modal-chord-pill').forEach(pill => {
+          pill.addEventListener('click', async () => {
+            const sym = pill.dataset.chord;
+            if (sym && audio) {
+              await audio.init();
+              const parsed = Theory.parseChord(sym);
+              if (parsed) {
+                audio.playChord(parsed);
+                if (this.visualizer) this.visualizer.setActiveChord(parsed);
+              }
+            }
+          });
+        });
+
+        // Play Scale button
+        card.querySelector('.btn-play-scale')?.addEventListener('click', async () => {
           if (!audio) return;
           await audio.init();
-          const bpm = this.getBpm();
-          const parsed = item.chords.map(c => Theory.parseChord(c)).filter(Boolean);
-          audio.playProgression(parsed, bpm, false, null, null);
+          audio.playScale(mode.intervals, tonic);
+          if (this.visualizer) {
+            this.visualizer.setActiveScale({ name: mode.name, intervals: mode.intervals, mood: mode.mood }, tonic);
+          }
+        });
+
+        // Play Chords button
+        card.querySelector('.btn-play-mode-prog')?.addEventListener('click', async () => {
+          if (!audio || progChords.length === 0) return;
+          await audio.init();
+          const parsed = progChords.map(c => Theory.parseChord(c)).filter(Boolean);
+          audio.playProgression(parsed, this.getBpm(), false, (idx, c) => {
+            if (c && this.visualizer) this.visualizer.setActiveChord(c);
+          }, null);
+        });
+
+        // View on Canvas button
+        card.querySelector('.btn-view-scale')?.addEventListener('click', () => {
+          if (this.visualizer) {
+            this.visualizer.setActiveScale({ name: mode.name, intervals: mode.intervals, mood: mode.mood }, tonic);
+          }
+          if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
+            this.setMobileTab('visualizerSection');
+          }
+        });
+
+        // Send to Analyzer button
+        card.querySelector('.btn-send-prog')?.addEventListener('click', () => {
+          const input = document.getElementById('progressionInput');
+          if (input && progChords.length > 0) {
+            input.value = progChords.join(' ');
+            this.analyzeProgression();
+            document.getElementById('analyzerSection')?.scrollIntoView({ behavior: 'smooth' });
+          }
         });
 
         container.appendChild(card);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Chord-Scale Compatibility Palette Drawer
+    // -------------------------------------------------------------
+    openChordScalePalette(chord) {
+      const scaleEngine = window.SongScales ? window.SongScales.scaleEngine : null;
+      if (!scaleEngine || !chord) return;
+
+      const drawer = document.getElementById('chordScalePaletteDrawer');
+      const title = document.getElementById('paletteChordTitle');
+      const countBadge = document.getElementById('paletteMatchCount');
+      const grid = document.getElementById('paletteScalesGrid');
+      if (!drawer || !grid) return;
+
+      const chordSymbol = chord.displayName || chord.symbol || 'C';
+      const matches = scaleEngine.findCompatibleScalesForChord(chordSymbol);
+
+      this.currentPaletteMatches = matches;
+      this.currentPaletteChord = chord;
+
+      if (title) title.textContent = `Compatible Scales for ${chordSymbol} (${chord.qualityName || 'Chord'})`;
+      if (countBadge) countBadge.textContent = `${matches.length} Scales Found`;
+
+      drawer.style.display = 'block';
+      this.renderPaletteCards('all');
+
+      drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    renderPaletteCards(filterCategory = 'all') {
+      const audio = window.audio;
+      const grid = document.getElementById('paletteScalesGrid');
+      if (!grid || !this.currentPaletteMatches) return;
+      grid.innerHTML = '';
+
+      let list = this.currentPaletteMatches;
+      if (filterCategory === 'diatonic') {
+        list = list.filter(m => m.fitType.includes('Diatonic'));
+      } else if (filterCategory === 'jazz') {
+        list = list.filter(m => m.fitType.includes('Jazz'));
+      } else if (filterCategory === 'symmetrical') {
+        list = list.filter(m => m.fitType.includes('Symmetrical'));
+      } else if (filterCategory === 'world') {
+        list = list.filter(m => m.fitType.includes('World'));
+      }
+
+      if (list.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1 / -1; color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">No scales match this category for this chord.</div>`;
+        return;
+      }
+
+      list.slice(0, 36).forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'palette-scale-card';
+
+        card.innerHTML = `
+          <div class="palette-scale-top">
+            <div>
+              <span class="palette-scale-name">${item.modeName}</span>
+              <div style="font-size: 0.72rem; color: #94a3b8;">${item.scaleName}</div>
+            </div>
+            <span class="palette-scale-tag">${item.cardinality} Tones</span>
+          </div>
+
+          <div class="palette-scale-formula">
+            <code>${item.formula}</code>
+          </div>
+
+          <div class="palette-scale-mood">
+            ${item.mood}
+          </div>
+
+          <div class="palette-scale-actions">
+            <button type="button" class="btn-sm btn-play-pal-scale" title="Audition this scale ascending">▶ Play</button>
+            <button type="button" class="btn-sm btn-show-pal-scale" title="View on Clock, Fretboard, and Piano">👁 Show</button>
+            <button type="button" class="btn-sm btn-open-modal-studio" title="Open and explore this scale's full modes in Module 2">🪐 Modal Studio</button>
+          </div>
+        `;
+
+        card.querySelector('.btn-play-pal-scale')?.addEventListener('click', async () => {
+          if (!audio) return;
+          await audio.init();
+          const scaleObj = window.SongScales.scaleEngine.getScaleById(item.scaleId);
+          if (scaleObj) {
+            audio.playScale(scaleObj.intervals, item.rootNote);
+          }
+        });
+
+        card.querySelector('.btn-show-pal-scale')?.addEventListener('click', () => {
+          const scaleObj = window.SongScales.scaleEngine.getScaleById(item.scaleId);
+          if (this.visualizer && scaleObj) {
+            this.visualizer.setActiveScale({ name: item.modeName, intervals: scaleObj.intervals, mood: item.mood }, item.rootNote);
+          }
+          if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
+            this.setMobileTab('visualizerSection');
+          }
+        });
+
+        card.querySelector('.btn-open-modal-studio')?.addEventListener('click', () => {
+          this.selectedScaleId = item.scaleId;
+          this.populateScaleFamilyDropdown();
+          const familySelect = document.getElementById('scaleFamilySelect');
+          const tonicInput = document.getElementById('modalTonicInput');
+          if (familySelect) familySelect.value = item.scaleId;
+          if (tonicInput) tonicInput.value = item.rootNote;
+          this.renderModalStudio();
+          document.getElementById('modalSection')?.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        grid.appendChild(card);
       });
     }
 

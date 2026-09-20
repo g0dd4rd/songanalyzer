@@ -781,6 +781,7 @@
     MODAL_TIERS,
     noteToPitchClass,
     pitchClassToNote,
+    spellIntervalNote,
     parseChord,
     detectKeys,
     analyzeChordInKey,

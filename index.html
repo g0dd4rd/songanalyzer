@@ -8,6 +8,7 @@
   <!-- Local Scripts: 100% Offline and compatible with file:// protocol without web server -->
   <script src="lib/Tone.js"></script>
   <script src="js/theory.js"></script>
+  <script src="js/scales.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/visualizer.js"></script>
   <script src="js/drums.js"></script>
@@ -535,6 +536,28 @@
           </table>
         </div>
 
+        <!-- Chord-Scale Palette Drawer: Compatible 4-to-12 Tone Scales for Selected Chord -->
+        <div id="chordScalePaletteDrawer" class="chord-scale-palette-drawer" style="display: none;">
+          <div class="palette-drawer-header">
+            <div class="palette-header-left">
+              <span class="palette-icon">🎼</span>
+              <span class="palette-title" id="paletteChordTitle">Compatible Scales for Chord</span>
+              <span class="badge badge-info" id="paletteMatchCount">0 Scales</span>
+            </div>
+            <button type="button" class="btn-sm btn-close-palette" id="btnCloseScalePalette" title="Close Scale Palette">✕ Close</button>
+          </div>
+          <div class="palette-category-tabs" id="paletteCategoryTabs">
+            <button type="button" class="palette-tab-btn active" data-fit-category="all">All Scales</button>
+            <button type="button" class="palette-tab-btn" data-fit-category="diatonic">Standard / Diatonic</button>
+            <button type="button" class="palette-tab-btn" data-fit-category="jazz">Jazz &amp; Spice</button>
+            <button type="button" class="palette-tab-btn" data-fit-category="symmetrical">Symmetrical</button>
+            <button type="button" class="palette-tab-btn" data-fit-category="world">Exotic World</button>
+          </div>
+          <div class="palette-scales-grid" id="paletteScalesGrid">
+            <!-- Dynamically populated scale cards for the clicked chord -->
+          </div>
+        </div>
+
         <!-- Voice Leading Ribbon & 6-School Melodic Pathway Studio -->
         <div class="ribbon-studio-card" id="voiceLeadingRibbonContainer">
           <div class="ribbon-card-header">
@@ -687,49 +710,105 @@
         </div>
       </section>
 
-      <!-- Module 2: Base-12 Modal Interchange & Mood Engine -->
+      <!-- Module 2: Base-12 Modal & Scale Studio (4-to-12 Tone Harmony & Mood Engine) -->
       <section class="card" id="modalSection">
         <div class="card-title">
           <div class="card-title-left">
-            <button type="button" class="panel-help-btn" data-panel-guide="guideModal" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Base-12 Modal Interchange & Mood Engine">ℹ</button>
-            <span><span class="card-title-icon">🪐</span> Base-12 Modal Interchange & Mood Engine</span>
+            <button type="button" class="panel-help-btn" data-panel-guide="guideModal" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Base-12 Modal & Scale Studio">ℹ</button>
+            <span><span class="card-title-icon">🪐</span> Base-12 Modal &amp; Scale Studio (4-to-12 Tone Harmony &amp; Mood Engine)</span>
+          </div>
+          <div class="card-title-right">
+            <span class="badge badge-info" id="scaleCatalogStatsBadge">44 Parent Scales • 4–12 Tones</span>
           </div>
         </div>
 
-        <!-- Student Guide Drawer: Modal Interchange & Mood Engine -->
+        <!-- Student Guide Drawer: Modal & Scale Studio -->
         <div id="guideModal" class="panel-guide-box" style="display: none;">
           <div class="guide-box-header">
-            <span class="guide-box-tag">🎓 Student Guide • Base-12 Modal Interchange & Mood Engine</span>
+            <span class="guide-box-tag">🎓 Student Guide • Base-12 Modal &amp; Scale Studio (4-to-12 Tones)</span>
             <button type="button" class="guide-box-close" data-close-guide="guideModal" title="Close Guide" aria-label="Close Guide">&times;</button>
           </div>
           <div class="guide-box-content">
-            <p><strong class="label-what">What it is:</strong> Mathematically projects a chord progression (written as scale degrees like <code>1, 6, 4, 5</code> or <code>2, 5, 1</code>) across all 7 parallel diatonic modes (from brightest Lydian to darkest Locrian) using chromatic pitch-class offsets to borrow chords.</p>
-            <p><strong class="label-why">Why use it:</strong> Transform the emotional mood of any song without rewriting its core melody. Borrowing chords from parallel modes (like minor iv in a major key) adds cinematic color and nostalgic lift.</p>
+            <p><strong class="label-what">What it is:</strong> A universal modal and harmonic engine spanning all 4-tone (tetratonic) to 12-tone (chromatic) scale systems. It dynamically calculates rotational modes, derives chords at every scale degree through diatonic stacking, and ranks modes along an acoustic <strong>Brightness &amp; Mood Spectrum</strong>.</p>
+            <p><strong class="label-why">Why use it:</strong> Unlocks direct bidirectional harmony: discover which chords are produced by any exotic scale, or audition your chord progression projected across all modes of any parent scale to transform emotional mood.</p>
             <div>
               <strong class="label-how">How to use it:</strong>
               <ol class="guide-how-list">
-                <li>Enter your root tonic into <strong>Tonic</strong> (e.g. <code>C</code>) and scale degrees into <strong>Degrees</strong> (e.g. <code>1, 6, 4, 5</code> or <code>2, 5, 1</code>).</li>
-                <li>Click <strong>Transform Across Modes</strong> to compute the chords across all 7 parallel modes.</li>
-                <li>Explore the generated mode cards: each displays its specific mood tag (e.g., <em>Mystical / Ethereal</em>, <em>Heroic / Optimistic</em>, <em>Melancholic Jazz</em>, <em>Flamenco / Dark Spanish</em>).</li>
-                <li>Click <strong>▶ Play Mode</strong> on any card to hear that specific modal progression played in real time.</li>
+                <li>Filter scales by <strong>Cardinality</strong> (4 to 12 tones) or <strong>Tradition</strong> (Diatonic, Jazz &amp; Bebop, World &amp; Folk, Symmetrical &amp; Messiaen, Blues).</li>
+                <li>Pick a <strong>Parent Scale</strong> and set your <strong>Tonic</strong> (e.g. <code>C</code>).</li>
+                <li>Enter scale degrees into <strong>Degrees</strong> (e.g. <code>1, 4, 5</code> or <code>1, 6, 4, 5</code>) to project your progression.</li>
+                <li>Click <strong>Explore Modes &amp; Chords</strong> to generate mode cards ordered from Brightest to Darkest.</li>
+                <li>Click <strong>▶ Play Scale</strong> to audition individual notes, <strong>▶ Play Chords</strong> to hear the harmonized modal chords, <strong>👁 Show on Canvas</strong> to view the scale polygon on the Clock and Fretboard, or <strong>📋 Send to Analyzer</strong> to load into Module 1.</li>
               </ol>
             </div>
             <div class="guide-tip-box">
-              💡 <strong class="label-tip">Student Pro-Tip:</strong> Modes are arranged on a <strong>brightness spectrum</strong> by number of sharps/flats: <strong>Lydian</strong> (brightest, ♯4) → <strong>Ionian</strong> (standard major) → <strong>Mixolydian</strong> (bluesy ♭7) → <strong>Dorian</strong> (jazzy minor, ♮6) → <strong>Aeolian</strong> (natural minor) → <strong>Phrygian</strong> (dark Spanish, ♭2) → <strong>Locrian</strong> (darkest, ♭5).
+              💡 <strong class="label-tip">Student Pro-Tip:</strong> The <strong>Brightness Score</strong> is acoustically calculated from interval weights: sharp intervals (♯4, ♮3, ♮6, ♮7) yield bright, open, and euphoric moods, while flat intervals (♭2, ♭3, ♭5, ♭6, ♭7) darken into tension, melancholy, and dread.
             </div>
           </div>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-          Map any scale-degree progression mathematically across all 7 parallel diatonic modes (from darkest Locrian to brightest Lydian).
-        </p>
 
-        <div class="input-row">
-          <input type="text" id="modalTonicInput" value="C" style="max-width: 90px;" placeholder="Tonic (e.g. C)">
-          <input type="text" id="modalDegreesInput" class="input-flex" value="1, 6, 4, 5" placeholder="Degrees (e.g. 1, 6, 4, 5)">
-          <button id="btnTransformModal" class="btn">Transform Across Modes</button>
+        <!-- Cardinality Filter Bar (Pills: 4 to 12 Tones) -->
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em;">Filter by Tone Count (Cardinality):</div>
+          <div class="scale-cardinality-filters" id="scaleCardinalityFilters">
+            <button type="button" class="scale-cardinality-pill active" data-cardinality="all">All (4–12)</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="4">4-Tetra</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="5">5-Penta</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="6">6-Hexa</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="7">7-Hepta</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="8">8-Octa</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="9">9-Nona</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="10">10-Deca</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="11">11-Tone</button>
+            <button type="button" class="scale-cardinality-pill" data-cardinality="12">12-Chroma</button>
+          </div>
         </div>
 
-        <div id="modalResultsContainer">
+        <!-- Scale Selection & Transformation Controls -->
+        <div class="input-row" style="flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 14px;">
+          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 150px;">
+            <label for="scaleCategoryFilter" style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Tradition / Style:</label>
+            <select id="scaleCategoryFilter" class="form-control" style="font-size: 0.82rem; padding: 4px 8px;">
+              <option value="all" selected>All Traditions &amp; Styles</option>
+              <option value="diatonic">Diatonic &amp; Church Modes</option>
+              <option value="jazz_and_classical">Melodic Minor &amp; Classical</option>
+              <option value="classical_and_world">Harmonic Minor &amp; World</option>
+              <option value="jazz">Modern Jazz &amp; Bebop</option>
+              <option value="world">World Traditions &amp; Folk</option>
+              <option value="symmetrical">Symmetrical &amp; Messiaen</option>
+              <option value="blues">Blues &amp; Soul</option>
+              <option value="modern_classical">20th-Century Classical</option>
+              <option value="avant_garde">Avant-Garde &amp; Serial</option>
+            </select>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 220px;">
+            <label for="scaleFamilySelect" style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Parent Scale System:</label>
+            <select id="scaleFamilySelect" class="form-control" style="font-size: 0.82rem; padding: 4px 8px; font-weight: 600;">
+              <!-- Dynamically populated from SongScales catalog -->
+            </select>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 3px; max-width: 85px;">
+            <label for="modalTonicInput" style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Tonic:</label>
+            <input type="text" id="modalTonicInput" value="C" style="padding: 4px 8px; font-size: 0.85rem;" placeholder="Root (e.g. C)">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 3px; max-width: 140px;">
+            <label for="modalDegreesInput" style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Degrees:</label>
+            <input type="text" id="modalDegreesInput" value="1, 4, 5" style="padding: 4px 8px; font-size: 0.85rem;" placeholder="e.g. 1, 4, 5">
+          </div>
+
+          <button id="btnTransformModal" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.85rem; height: 32px;">Explore Modes &amp; Chords</button>
+        </div>
+
+        <!-- Scale Information Header Banner -->
+        <div id="modalScaleInfoBanner" class="modal-scale-info-banner" style="display: none;">
+          <!-- Dynamically populated scale meta summary -->
+        </div>
+
+        <!-- Mode & Mood Cards Container -->
+        <div id="modalResultsContainer" class="modal-modes-grid">
           <!-- Transformed Modes Render Here -->
         </div>
       </section>

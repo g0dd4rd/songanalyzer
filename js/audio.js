@@ -493,6 +493,28 @@ self.onmessage = function(e) {
       });
     }
 
+    async playScale(intervals, rootTonic = 'C', noteDurationSeconds = 0.22) {
+      if (!this.initialized) return;
+      await this.resumeIfNeeded();
+      const Theory = window.SongTheory;
+      const rootPC = Theory ? (Theory.noteToPitchClass(rootTonic) || 0) : 0;
+      const sortedIntervals = [...intervals].sort((a, b) => a - b);
+      const notes = sortedIntervals.map(iv => {
+        const pc = (rootPC + iv) % 12;
+        const noteName = Theory ? Theory.pitchClassToNote(pc) : 'C';
+        const octave = (rootPC + iv >= 12) ? 5 : 4;
+        return `${noteName}${octave}`;
+      });
+      // Complete octave resolution
+      const topRootName = Theory ? Theory.pitchClassToNote(rootPC) : 'C';
+      notes.push(`${topRootName}5`);
+
+      const now = Tone.now();
+      notes.forEach((note, idx) => {
+        this.leadSynth.triggerAttackRelease(note, '8n', now + (idx * noteDurationSeconds));
+      });
+    }
+
     async playProgression(parsedChords, bpm = 113, loop = false, onChordHighlight = null, onFinished = null, startTime = null) {
       if (!this.initialized || !parsedChords || parsedChords.length === 0) return;
       await this.resumeIfNeeded();

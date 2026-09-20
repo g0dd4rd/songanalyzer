@@ -51,6 +51,7 @@
       this.lastStepTime = null;
       this.wheelMetrics = null;
       this.harmonicNodeHits = [];
+      this.scaleRootTonic = 'C';
 
       this.handleResize = this.handleResize.bind(this);
       window.addEventListener('resize', this.handleResize);
@@ -61,6 +62,40 @@
     setMode(newMode) {
       this.mode = newMode;
       this.handleResize();
+      this.render();
+    }
+
+    getActivePitchClasses() {
+      if (this.activeScale && this.activeScale.pitchClasses && this.activeScale.pitchClasses.length > 0) {
+        return this.activeScale.pitchClasses;
+      }
+      return this.activeChord ? this.activeChord.pitchClasses : [];
+    }
+
+    setActiveChord(chord) {
+      this.activeScale = null;
+      this.activeChord = chord;
+      this.render();
+    }
+
+    setActiveScale(scaleObj, rootTonic = 'C') {
+      const Theory = window.SongTheory;
+      const rootPC = Theory ? (Theory.noteToPitchClass(rootTonic) || 0) : 0;
+      const intervals = scaleObj.intervals || [];
+      const pitchClasses = intervals.map(iv => (rootPC + iv) % 12);
+
+      this.activeScale = {
+        ...scaleObj,
+        rootTonic,
+        rootPC,
+        pitchClasses
+      };
+      this.activeChord = null;
+      this.render();
+    }
+
+    clearActiveScale() {
+      this.activeScale = null;
       this.render();
     }
 
@@ -198,11 +233,21 @@
     }
 
     getIntervalRole(pc) {
+      const INTERVAL_SHORT = window.SongTheory ? window.SongTheory.INTERVAL_SHORT : ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
+
+      if (this.activeScale && this.activeScale.pitchClasses && this.activeScale.pitchClasses.includes(pc)) {
+        const rootPC = this.activeScale.rootPC !== undefined ? this.activeScale.rootPC : 0;
+        const semitone = (pc - rootPC + 12) % 12;
+        if (semitone === 0) return { name: '1', color: this.colors.root, label: 'Root' };
+        if (semitone === 3 || semitone === 4) return { name: semitone === 3 ? 'b3' : '3', color: this.colors.third, label: '3rd' };
+        if (semitone === 7) return { name: '5', color: this.colors.fifth, label: '5th' };
+        if (semitone === 10 || semitone === 11) return { name: semitone === 10 ? 'b7' : '7', color: this.colors.seventh, label: '7th' };
+        return { name: INTERVAL_SHORT[semitone] || `${semitone}`, color: '#38bdf8', label: 'Scale Tone' };
+      }
+
       if (!this.activeChord) return null;
       const rootPC = this.activeChord.rootPC;
       const semitone = (pc - rootPC + 12) % 12;
-
-      const INTERVAL_SHORT = window.SongTheory ? window.SongTheory.INTERVAL_SHORT : ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
 
       if (semitone === 0) return { name: '1', color: this.colors.root, label: 'Root' };
       if (semitone === 3 || semitone === 4) return { name: semitone === 3 ? 'b3' : '3', color: this.colors.third, label: '3rd' };
@@ -679,9 +724,9 @@
         ctx.arc(cx, cy, rHarmony * 0.65, 0, Math.PI * 2);
         ctx.stroke();
 
-        const activePCs = this.activeChord ? this.activeChord.pitchClasses : [];
+        const activePCs = this.getActivePitchClasses();
 
-        // Geometric Polygon Line connecting active chord tones
+        // Geometric Polygon Line connecting active scale or chord tones
         if (activePCs.length >= 2) {
           const sortedPCs = [...new Set(activePCs)].sort((a, b) => a - b);
           ctx.beginPath();
@@ -694,11 +739,11 @@
           });
           ctx.closePath();
 
-          ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+          ctx.fillStyle = this.activeScale ? 'rgba(56, 189, 248, 0.12)' : 'rgba(245, 158, 11, 0.12)';
           ctx.fill();
 
-          ctx.strokeStyle = '#f59e0b';
-          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = this.activeScale ? '#38bdf8' : '#f59e0b';
+          ctx.lineWidth = this.activeScale ? 2.5 : 2.2;
           ctx.stroke();
         }
 
@@ -763,8 +808,20 @@
           }
         }
 
-        // Center Chord Name & Quality
-        if (this.activeChord) {
+        // Center Display: Active Scale or Chord
+        if (this.activeScale) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = isCompactCore ? 'bold 12px sans-serif' : 'bold 15px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const scaleTitle = `${this.activeScale.rootTonic || ''} ${this.activeScale.name || 'Scale'}`;
+          ctx.fillText(scaleTitle.slice(0, 24), cx, cy - 8);
+
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = isCompactCore ? '9px sans-serif' : '11px sans-serif';
+          const moodShort = (this.activeScale.mood || '').split('/')[0].trim();
+          ctx.fillText(moodShort.slice(0, 26), cx, cy + 9);
+        } else if (this.activeChord) {
           ctx.fillStyle = '#f8fafc';
           ctx.font = isCompactCore ? 'bold 13px sans-serif' : 'bold 16px sans-serif';
           ctx.textAlign = 'center';
@@ -809,7 +866,7 @@
       const startY = (this.height - whiteKeyHeight) / 2;
 
       const NOTE_NAMES = window.SongTheory ? window.SongTheory.NOTE_NAMES_SHARP : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const activePCs = this.activeChord ? this.activeChord.pitchClasses : [];
+      const activePCs = this.getActivePitchClasses();
       this.pianoKeyHits = [];
 
       let whiteIdx = 0;
@@ -993,7 +1050,7 @@
         this.ctx.fillText(stringLabels[s].substring(0, 2), marginX - 8, sy + 4);
       }
 
-      const activePCs = this.activeChord ? this.activeChord.pitchClasses : [];
+      const activePCs = this.getActivePitchClasses();
       if (activePCs.length === 0) return;
 
       const NOTE_NAMES = window.SongTheory ? window.SongTheory.NOTE_NAMES_SHARP : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
