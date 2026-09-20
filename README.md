@@ -35,15 +35,58 @@ An all-in-one, responsive, single-page music theory companion and practice studi
    - Interactive interval ear trainer with instant feedback.
    - Daily study challenges and drill prompts.
 
-## Quick Start (Offline)
+## Quick Start & Installation
 
-Simply open `index.html` in any modern web browser:
+### 1. Running Locally (Desktop & LAN)
+
+Open `index.html` directly in any modern web browser, or serve locally with any static HTTP server:
 ```bash
-# Direct browser launch (e.g. Chrome / Firefox / Edge)
+# Direct browser launch
 xdg-open index.html
-# Or serve locally with any static HTTP server if desired:
+
+# Or serve locally (recommended for mobile access & PWA Service Worker):
 python3 -m http.server 8000
 ```
+
+To access from a mobile phone or tablet on your local Wi-Fi:
+1. Find your machine's local IP address (`ip addr show` or `hostname -I`).
+2. Open `http://<YOUR-LOCAL-IP>:8000` in your mobile browser.
+*(Tip: You can also use Android USB debugging with `adb reverse tcp:8000 tcp:8000` to browse `http://localhost:8000` directly on your phone).*
+
+---
+
+### 2. Installing as a Standalone App (PWA)
+
+Installing Song Analyzer as a Progressive Web App (PWA) gives you:
+- **Full-screen standalone display**: Reclaims vertical screen space by hiding browser URL bars and navigation chrome.
+- **Screen Wake Lock**: Keeps your screen awake automatically during instrument practice.
+- **100% Offline Capability**: Assets and audio engines run with zero network reliance.
+
+#### Android (Firefox)
+1. Open the app in Firefox for Android.
+2. Tap the three-dot menu (**⋮**) $\to$ tap **Add to Home screen** (or **Install**).
+
+> [!IMPORTANT]
+> **Xiaomi / Redmi / POCO devices (MIUI & HyperOS):**
+> MIUI / HyperOS silently blocks third-party browsers from placing launcher shortcuts by default. If the icon does not appear on your home screen after confirming:
+> 1. Long-press the **Firefox** app icon on your home screen or app drawer $\to$ tap **App info** (*O aplikaci* / ⓘ icon) *(or go to phone **Settings** $\to$ **Apps** $\to$ **Manage apps** $\to$ **Firefox**)*.
+> 2. Tap **Other permissions** (*Ostatní oprávnění*).
+> 3. Set **Home screen shortcuts** (*Zástupci na domovské obrazovce*) to **"Always allow"** (*Vždy povolit*).
+> 4. *(Recommended)* Set **Display pop-up windows while running in the background** (*Zobrazovat vyskakovací okna při běhu na pozadí*) to **"Always allow"**.
+> 5. Return to Firefox, tap the menu $\to$ **Add to Home screen** again. The icon will appear immediately.
+
+#### Android (Chrome / Chromium-based browsers)
+1. Open the app in Chrome.
+2. Tap the three-dot menu (**⋮**) $\to$ tap **Install app** (or **Add to Home screen**).
+
+#### iOS / iPadOS (Safari)
+1. Open the app in Safari.
+2. Tap the **Share** button (box with an arrow pointing upward).
+3. Scroll down and tap **Add to Home Screen**, then tap **Add**.
+
+#### Desktop (Chrome / Brave / Edge)
+1. Open the app in your browser.
+2. Click the **Install** icon in the right side of the address bar (or Menu $\to$ **Install Song Analyzer**).
 
 ## License
 

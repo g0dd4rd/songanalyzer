@@ -74,6 +74,8 @@
       this.initObliquePrompts();     // Initialize Oblique Strategies non-repeating creative deck
       this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
       this.initAccuracyModule();     // Initialize Rhythmic Accuracy Analyzer & Pocket Meter
+      this.initPWA();                // Initialize PWA Service Worker
+      this.initWakeLock();           // Initialize Screen Wake Lock API
     }
 
     bindEvents() {
@@ -4025,6 +4027,7 @@
       await this.ensureDrumAudioContext();
 
       this.isMasterJamPlaying = true;
+      if (this.requestWakeLock) this.requestWakeLock();
       const bpm = this.getBpm();
 
       const btnToggle = document.getElementById('btnMasterJamToggle');
@@ -4122,6 +4125,7 @@
 
     stopMasterJam() {
       this.isMasterJamPlaying = false;
+      if (this.releaseWakeLock) this.releaseWakeLock();
 
       const btnToggle = document.getElementById('btnMasterJamToggle');
       const btnIcon = document.getElementById('masterJamBtnIcon');
@@ -4447,6 +4451,53 @@
           beatFileInput.value = '';
         });
       }
+    }
+
+    initPWA() {
+      // Register Service Worker for PWA standalone offline execution
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SongAnalyzer PWA registered, scope:', reg.scope))
+            .catch(err => console.warn('PWA registration skipped:', err));
+        });
+      }
+    }
+
+    initWakeLock() {
+      this.wakeLock = null;
+      this.requestWakeLock = async () => {
+        if ('wakeLock' in navigator && !this.wakeLock) {
+          try {
+            this.wakeLock = await navigator.wakeLock.request('screen');
+            this.wakeLock.addEventListener('release', () => {
+              this.wakeLock = null;
+            });
+          } catch (e) {}
+        }
+      };
+
+      this.releaseWakeLock = () => {
+        if (this.wakeLock) {
+          try {
+            this.wakeLock.release().catch(() => {});
+          } catch (e) {}
+          this.wakeLock = null;
+        }
+      };
+
+      // Re-acquire lock if tab was minimized and returned to foreground while playing
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          const isPlaying = (window.audio && (window.audio.isPlayingProgression || window.audio.isMetronomeRunning)) ||
+                            (this.beatSequencer && this.beatSequencer.isPlaying) ||
+                            (window.tuner && window.tuner.isRunning) ||
+                            (window.accuracyEngine && window.accuracyEngine.isRunning);
+          if (isPlaying && this.requestWakeLock) {
+            this.requestWakeLock();
+          }
+        }
+      });
     }
 
     exportJamSessionMidi() {
