@@ -90,7 +90,7 @@ Installing Song Analyzer as a Progressive Web App (PWA) gives you:
 
 ## License
 
-GPL v3
+See [LICENSE](LICENSE) for details.
 
 Author: Jiri Prajzner, dr3dwerkz@gmail.com, @dredwerkz
 
