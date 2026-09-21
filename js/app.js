@@ -3007,41 +3007,54 @@
           if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
 
           try {
-            let targetUrl = 'models/basic_pitch.onnx';
-            let fetched = false;
-            try {
-              const testResp = await fetch(targetUrl, { method: 'HEAD' });
-              if (testResp.ok) fetched = true;
-            } catch (e) {}
+            const bpUrls = [
+              'models/basic_pitch.onnx',
+              'https://songanalyzer.dredwerkz.cz/models/basic_pitch.onnx',
+              'https://raw.githubusercontent.com/spotify/basic-pitch/main/basic_pitch/saved_models/icassp_2022/nmp.onnx'
+            ];
 
-            if (!fetched) {
-              targetUrl = 'https://raw.githubusercontent.com/spotify/basic-pitch/main/basic_pitch/saved_models/icassp_2022/nmp.onnx';
-            }
+            let success = false;
+            let lastErr = null;
 
-            await engine.storage.downloadModel('basic_pitch', targetUrl, (frac, loaded, total) => {
-              const pct = Math.round(frac * 100);
-              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
-              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
-              if (neuralDownloadStatusText) {
-                neuralDownloadStatusText.textContent = `Downloading: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+            for (let i = 0; i < bpUrls.length; i++) {
+              const url = bpUrls[i];
+              try {
+                await engine.storage.downloadModel('basic_pitch', url, (frac, loaded, total) => {
+                  const pct = Math.round(frac * 100);
+                  if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+                  if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+                  if (neuralDownloadStatusText) {
+                    neuralDownloadStatusText.textContent = `Downloading Basic Pitch: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+                  }
+                });
+                success = true;
+                break;
+              } catch (err) {
+                console.warn(`Basic Pitch source ${url} failed:`, err);
+                lastErr = err;
               }
-            });
-
-            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Spotify Basic Pitch installed & cached!';
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
-            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
-
-            setTimeout(() => {
-              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
-            }, 1500);
-
-            await updateModelManagerUI();
-            updateEngineBadge();
-          } catch (err) {
-            console.error('Basic Pitch download failed:', err);
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Download failed: ${err.message}. You can load a local .onnx file below.`;
             }
+
+            if (success) {
+              if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Spotify Basic Pitch installed & cached!';
+              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+
+              setTimeout(() => {
+                if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+              }, 1500);
+
+              await updateModelManagerUI();
+              updateEngineBadge();
+            } else {
+              console.error('Basic Pitch download failed:', lastErr);
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = `Download failed: ${lastErr ? lastErr.message : 'network error'}. You can load a local .onnx file below.`;
+              }
+              btnInstallBasicPitch.disabled = false;
+            }
+          } catch (outerErr) {
+            console.error('Basic Pitch process error:', outerErr);
             btnInstallBasicPitch.disabled = false;
           }
         });
@@ -3052,31 +3065,49 @@
         btnInstallDemucs.addEventListener('click', async () => {
           btnInstallDemucs.disabled = true;
           if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
-          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository (38 MB)...';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository...';
           if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
           if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
 
-          try {
-            let targetUrl = 'models/htdemucs.onnx';
-            let fetched = false;
+          const demucsUrls = [
+            'models/htdemucs.onnx',
+            'https://songanalyzer.dredwerkz.cz/models/htdemucs.onnx',
+            'https://huggingface.co/itamiArika/htdemucs-int8-memory/resolve/main/htdemucs-dft-int8-fp16-portable.onnx',
+            'https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/main/htdemucs_6s_fp16weights.onnx'
+          ];
+
+          let success = false;
+          let lastErr = null;
+
+          for (let i = 0; i < demucsUrls.length; i++) {
+            const url = demucsUrls[i];
             try {
-              const testResp = await fetch(targetUrl, { method: 'HEAD' });
-              if (testResp.ok) fetched = true;
-            } catch (e) {}
-
-            if (!fetched) {
-              targetUrl = 'https://huggingface.co/Anjok07/ultimatevocalremover_models/resolve/main/htdemucs_ft.onnx';
-            }
-
-            await engine.storage.downloadModel('demucs', targetUrl, (frac, loaded, total) => {
-              const pct = Math.round(frac * 100);
-              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
-              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
               if (neuralDownloadStatusText) {
-                neuralDownloadStatusText.textContent = `Downloading Demucs: ${formatBytes(loaded)} / ${total ? formatBytes(total) : '38 MB'}`;
+                neuralDownloadStatusText.textContent = (i === 0)
+                  ? 'Checking local models folder (models/htdemucs.onnx)...'
+                  : (url.includes('dredwerkz.cz')
+                    ? 'Connecting to songanalyzer.dredwerkz.cz...'
+                    : `Connecting to public mirror ${i - 1}...`);
               }
-            });
 
+              await engine.storage.downloadModel('demucs', url, (frac, loaded, total) => {
+                const pct = Math.round(frac * 100);
+                if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+                if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+                if (neuralDownloadStatusText) {
+                  neuralDownloadStatusText.textContent = `Downloading Demucs: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+                }
+              });
+
+              success = true;
+              break;
+            } catch (mirrorErr) {
+              console.warn(`Demucs source ${url} failed:`, mirrorErr);
+              lastErr = mirrorErr;
+            }
+          }
+
+          if (success) {
             if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'HTDemucs installed & cached!';
             if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
             if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
@@ -3087,10 +3118,10 @@
 
             await updateModelManagerUI();
             updateEngineBadge();
-          } catch (err) {
-            console.error('Demucs download failed:', err);
+          } else {
+            console.error('All Demucs download sources failed:', lastErr);
             if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Demucs download error: ${err.message}. You can load a local htdemucs.onnx file below.`;
+              neuralDownloadStatusText.textContent = `Download failed: ${lastErr ? lastErr.message : 'network error'}. You can load a local htdemucs.onnx file below.`;
             }
             btnInstallDemucs.disabled = false;
           }
@@ -3155,14 +3186,23 @@
         });
       }
 
-      // Silently sync local basic_pitch.onnx into IndexedDB if available and not yet cached
-      engine.storage.hasModel('basic_pitch').then(async (has) => {
-        if (!has) {
+      // Silently sync local models into IndexedDB if available and not yet cached
+      engine.storage.getSummary().then(async (summary) => {
+        if (!summary.basicPitch) {
           try {
             const resp = await fetch('models/basic_pitch.onnx');
             if (resp.ok) {
               const ab = await resp.arrayBuffer();
               await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
+            }
+          } catch (e) {}
+        }
+        if (!summary.demucs) {
+          try {
+            const resp = await fetch('models/htdemucs.onnx');
+            if (resp.ok) {
+              const ab = await resp.arrayBuffer();
+              await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
             }
           } catch (e) {}
         }

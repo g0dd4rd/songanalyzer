@@ -49,3 +49,7 @@ Firefox*profile.json
 design-proposal.md
 studio_workspace_ui_*.jpg
 
+# Large neural models (>50MB) stored locally
+models/*demucs*.onnx
+
+
