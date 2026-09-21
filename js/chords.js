@@ -1259,7 +1259,7 @@
       const baseFret = Math.max(1, voicing.minFret);
       const isNut = baseFret === 1;
 
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="100%" height="auto" class="svg-chord-diagram">`;
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="100%" class="svg-chord-diagram">`;
 
       // Background card
       svg += `<rect width="${totalWidth}" height="${totalHeight}" rx="10" fill="#0f172a" />`;

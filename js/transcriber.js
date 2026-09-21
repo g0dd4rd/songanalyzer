@@ -208,6 +208,42 @@
     }
   }
 
+  async function setupWasmEnv(storage) {
+    if (typeof window === 'undefined' || !window.ort || !window.ort.env || !window.ort.env.wasm) return;
+
+    let wasmBuf = null;
+    if (storage) {
+      try {
+        wasmBuf = await storage.getModel('ort_wasm_simd');
+      } catch (e) {}
+    }
+
+    if (wasmBuf) {
+      const blobUrl = URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' }));
+      window.ort.env.wasm.wasmPaths = {
+        'ort-wasm-simd.wasm': blobUrl,
+        'ort-wasm.wasm': blobUrl,
+        'ort-wasm-simd-threaded.wasm': blobUrl,
+        'ort-wasm-threaded.wasm': blobUrl
+      };
+    } else if (window.location && window.location.protocol === 'file:') {
+      window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
+      if (storage) {
+        fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm')
+          .then(r => r.ok ? r.arrayBuffer() : null)
+          .then(buf => {
+            if (buf) storage.saveModel('ort_wasm_simd', buf, { name: 'ONNX WASM SIMD Runtime' });
+          })
+          .catch(() => {});
+      }
+    } else {
+      window.ort.env.wasm.wasmPaths = 'js/vendor/';
+    }
+
+    const hasThreads = (typeof window !== 'undefined' && Boolean(window.crossOriginIsolated));
+    window.ort.env.wasm.numThreads = hasThreads ? Math.min(4, (navigator && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 2) : 1;
+  }
+
   // -------------------------------------------------------------
   // 2C. Spotify Basic Pitch Neural Engine Runner (ONNX)
   // -------------------------------------------------------------
@@ -241,18 +277,14 @@
           throw new Error('ONNX Runtime Web (ort) is not available.');
         }
 
-        // Configure wasm paths
-        if (window.ort.env && window.ort.env.wasm) {
-          window.ort.env.wasm.wasmPaths = 'js/vendor/';
-          window.ort.env.wasm.numThreads = Math.min(4, (navigator && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 2);
-        }
+        await setupWasmEnv(this.storage);
 
         let buffer = modelBuffer;
         if (!buffer) {
           buffer = await this.storage.getModel('basic_pitch');
         }
-        if (!buffer) {
-          // Attempt loading from local models folder
+        if (!buffer && typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:') {
+          // Attempt loading from local models folder (skipped on file:// to prevent browser CORS block)
           try {
             const resp = await fetch('models/basic_pitch.onnx');
             if (resp.ok) {
@@ -428,16 +460,13 @@
           throw new Error('ONNX Runtime Web (ort) is not available.');
         }
 
-        if (window.ort.env && window.ort.env.wasm) {
-          window.ort.env.wasm.wasmPaths = 'js/vendor/';
-          window.ort.env.wasm.numThreads = Math.min(4, (navigator && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 2);
-        }
+        await setupWasmEnv(this.storage);
 
         let buffer = modelBuffer;
         if (!buffer) {
           buffer = await this.storage.getModel('demucs');
         }
-        if (!buffer) {
+        if (!buffer && typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:') {
           try {
             const resp = await fetch('models/htdemucs.onnx');
             if (resp.ok) {

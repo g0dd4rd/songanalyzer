@@ -804,10 +804,10 @@
 
             <!-- Local Model File Drop / Browse -->
             <div class="model-local-loader-box">
-              <span style="font-size: 0.8rem; color: var(--text-muted);">Have a local <code>.onnx</code> model file?</span>
-              <input type="file" id="inputLocalModelFile" accept=".onnx" style="display: none;">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Have a local <code>.onnx</code> or <code>.wasm</code> file?</span>
+              <input type="file" id="inputLocalModelFile" accept=".onnx,.wasm" style="display: none;">
               <button type="button" id="btnBrowseLocalModel" class="btn btn-sm btn-outline-gold" style="font-size: 0.78rem;">
-                📂 Load Local .ONNX File into Storage
+                📂 Load Local Model File (.onnx / .wasm)
               </button>
             </div>
 
