@@ -405,7 +405,8 @@
         }
 
         const chunkStartTime = startSample / 22050.0;
-        const inputTensor = new window.ort.Tensor('float32', chunkData, [1, CHUNK_SIZE, 1]);
+        const ortObj = (typeof window !== 'undefined' && window.ort) ? window.ort : (typeof ort !== 'undefined' ? ort : globalThis.ort);
+        const inputTensor = new ortObj.Tensor('float32', chunkData, [1, CHUNK_SIZE, 1]);
         const results = await this.session.run({ [this.inputName]: inputTensor });
 
         // Robust output extraction:
@@ -598,12 +599,13 @@
       const rightIn = stereo.right;
 
       const nChunks = Math.max(1, Math.ceil((totalSamples - this.overlap) / this.stride));
-      const window = this._makeWindow(this.chunkSize, this.overlap);
+      const fadeWin = this._makeWindow(this.chunkSize, this.overlap);
 
       // Accumulator arrays for 4 stems: 0: drums, 1: bass, 2: other, 3: vocals
       const stemAccL = [new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples)];
       const stemAccR = [new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples)];
       const weightAcc = new Float32Array(totalSamples);
+      const ortObj = (typeof window !== 'undefined' && window.ort) ? window.ort : (typeof ort !== 'undefined' ? ort : globalThis.ort);
 
       for (let c = 0; c < nChunks; c++) {
         const start = c * this.stride;
@@ -623,7 +625,7 @@
           chunkData[this.chunkSize + i] = rightIn[start + i];
         }
 
-        const inputTensor = new window.ort.Tensor('float32', chunkData, [1, 2, this.chunkSize]);
+        const inputTensor = new ortObj.Tensor('float32', chunkData, [1, 2, this.chunkSize]);
         const results = await this.session.run({ [this.inputName]: inputTensor });
 
         // Output shape [1, S, 2, 343980]
@@ -638,14 +640,14 @@
           const accR = stemAccR[s];
 
           for (let i = 0; i < clen; i++) {
-            const w = window[i];
+            const w = fadeWin[i];
             accL[start + i] += outData[leftOffset + i] * w;
             accR[start + i] += (rightOffset + i < outData.length ? outData[rightOffset + i] : outData[leftOffset + i]) * w;
           }
         }
 
         for (let i = 0; i < clen; i++) {
-          weightAcc[start + i] += window[i];
+          weightAcc[start + i] += fadeWin[i];
         }
       }
 
