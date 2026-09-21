@@ -550,9 +550,24 @@
         const inputTensor = new window.ort.Tensor('float32', chunkData, [1, CHUNK_SIZE, 1]);
         const results = await this.session.run({ [this.inputName]: inputTensor });
 
-        // Outputs: output 0 is onsets [1, 172, 88], output 1 is note activations [1, 172, 88]
-        const onsetData = results[this.outputNames[0]].data;
-        const noteData = results[this.outputNames[1]].data;
+        // Robust output extraction:
+        // StatefulPartitionedCall:2 = onset activations [1, 172, 88]
+        // StatefulPartitionedCall:1 = note sustain activations [1, 172, 88]
+        // StatefulPartitionedCall:0 = fine pitch contour [1, 172, 264]
+        let onsetData = results['StatefulPartitionedCall:2'] ? results['StatefulPartitionedCall:2'].data : null;
+        let noteData = results['StatefulPartitionedCall:1'] ? results['StatefulPartitionedCall:1'].data : null;
+
+        if (!onsetData || !noteData) {
+          const outputsWith88 = this.outputNames.filter(name => results[name] && results[name].data && results[name].data.length === 172 * 88);
+          if (outputsWith88.length >= 2) {
+            onsetData = results[outputsWith88[0]].data;
+            noteData = results[outputsWith88[1]].data;
+          } else {
+            onsetData = results[this.outputNames[0]] ? results[this.outputNames[0]].data : null;
+            noteData = results[this.outputNames[1]] ? results[this.outputNames[1]].data : null;
+          }
+        }
+        if (!onsetData || !noteData) continue;
 
         for (let k = 0; k < 88; k++) {
           const midi = k + 21;
