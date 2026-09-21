@@ -74,6 +74,7 @@
       this.initObliquePrompts();     // Initialize Oblique Strategies non-repeating creative deck
       this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
       this.initAccuracyModule();     // Initialize Rhythmic Accuracy Analyzer & Pocket Meter
+      this.initMovableChordsModule(); // Initialize Multi-Notation Movable Chord Studio
       this.initPWA();                // Initialize PWA Service Worker
       this.initWakeLock();           // Initialize Screen Wake Lock API
     }
@@ -322,7 +323,7 @@
           allCards.forEach(card => {
             if (card.id === targetId) {
               card.classList.add('mobile-active-card');
-              if (card.id === 'tunerSection' || card.id === 'accuracySection') card.style.display = 'block';
+              if (card.id === 'tunerSection' || card.id === 'accuracySection' || card.id === 'movableChordSection') card.style.display = 'block';
             } else {
               card.classList.remove('mobile-active-card');
             }
@@ -338,6 +339,8 @@
             setTimeout(() => this.tunerRenderer.setupCanvas(true), 50);
           } else if (targetId === 'accuracySection' && this.accuracyRenderer) {
             setTimeout(() => this.accuracyRenderer.setupCanvases(true), 50);
+          } else if (targetId === 'movableChordSection' && this.chordStudioRenderer) {
+            setTimeout(() => this.chordStudioRenderer(), 50);
           }
         }
 
@@ -2383,6 +2386,338 @@
       if (renderer) {
         renderer.render(engine);
       }
+    }
+
+    // 0B. Multi-Notation Movable Chord Studio (Bass 4/5/6 & Guitar 6/7/8)
+    initMovableChordsModule() {
+      const Chords = window.SongChords;
+      if (!Chords) return;
+
+      const engine = Chords.Engine;
+      const section = document.getElementById('movableChordSection');
+      const btnToggleTop = document.getElementById('btnToggleChordsTop');
+      const btnClose = document.getElementById('btnCloseChords');
+      const liveBadge = document.getElementById('chordLiveBadge');
+
+      const instSelect = document.getElementById('chordInstrumentSelect');
+      const tuningSelect = document.getElementById('chordTuningSelect');
+      const rootSelect = document.getElementById('chordRootSelect');
+      const qualitySelect = document.getElementById('chordQualitySelect');
+      const styleSelect = document.getElementById('chordStyleSelect');
+
+      const shapesList = document.getElementById('chordShapesList');
+      const svgContainer = document.getElementById('chordSvgContainer');
+      const tabContainer = document.getElementById('chordTabContainer');
+      const staffCanvas = document.getElementById('chordStaffCanvas');
+      const staffClefLabel = document.getElementById('staffClefLabel');
+
+      const btnBadgeInterval = document.getElementById('btnBadgeInterval');
+      const btnBadgeFinger = document.getElementById('btnBadgeFinger');
+
+      const fretSlider = document.getElementById('chordFretSlider');
+      const fretBadge = document.getElementById('chordFretValueBadge');
+
+      const btnStrumDown = document.getElementById('btnStrumDown');
+      const btnStrumUp = document.getElementById('btnStrumUp');
+      const btnSendToFretboard = document.getElementById('btnSendToFretboard');
+      const btnDownloadSvg = document.getElementById('btnDownloadSvg');
+      const btnCopyTabAscii = document.getElementById('btnCopyTabAscii');
+
+      let currentInst = 'guitar_6str';
+      let currentTuningKey = 'guitar_6str_std';
+      let currentRootPC = 2; // D
+      let currentQuality = 'min9';
+      let currentStyle = 'all';
+      let badgeMode = 'interval'; // 'interval' (default) or 'finger'
+      let matchingShapes = [];
+      let selectedShapeIndex = 0;
+      let targetFretOverride = null;
+      let currentVoicing = null;
+
+      // Populate Tuning Dropdown according to selected Instrument
+      const populateTunings = (instKey) => {
+        if (!tuningSelect) return;
+        tuningSelect.innerHTML = '';
+        const allTunings = Object.values(Chords.TUNINGS).filter(t => t.instrument === instKey);
+        allTunings.forEach((t, idx) => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.name;
+          if (idx === 0) opt.selected = true;
+          tuningSelect.appendChild(opt);
+        });
+        currentTuningKey = tuningSelect.value || 'guitar_6str_std';
+      };
+
+      // Recompute and Render
+      const renderCurrentChord = () => {
+        matchingShapes = engine.findShapes(currentTuningKey, currentQuality, currentStyle);
+        if (matchingShapes.length === 0) {
+          // Fallback: try finding any shape for this quality in this instrument
+          matchingShapes = engine.findShapes(currentTuningKey, 'all', 'all');
+        }
+
+        // Render Shape Pills
+        if (shapesList) {
+          shapesList.innerHTML = '';
+          if (matchingShapes.length === 0) {
+            shapesList.innerHTML = '<span style="color: #94a3b8; font-size: 0.78rem; font-style: italic;">No movable shapes found for this filter.</span>';
+          } else {
+            matchingShapes.forEach((shape, idx) => {
+              const pill = document.createElement('button');
+              pill.type = 'button';
+              pill.className = `shape-pill ${idx === selectedShapeIndex ? 'active' : ''}`;
+              pill.textContent = shape.name;
+              pill.addEventListener('click', () => {
+                selectedShapeIndex = idx;
+                targetFretOverride = null;
+                renderCurrentChord();
+              });
+              shapesList.appendChild(pill);
+            });
+          }
+        }
+
+        const activeShape = matchingShapes[selectedShapeIndex] || matchingShapes[0];
+        if (!activeShape) return;
+
+        currentVoicing = engine.computeVoicing(activeShape, currentRootPC, currentTuningKey, targetFretOverride);
+        if (!currentVoicing) return;
+
+        // 1. Render Vector SVG
+        if (svgContainer) {
+          svgContainer.innerHTML = Chords.SvgRenderer.render(currentVoicing, { badgeMode });
+        }
+
+        // 2. Render Formatted TAB
+        if (tabContainer) {
+          tabContainer.innerHTML = Chords.TabRenderer.generateHtml(currentVoicing);
+        }
+
+        // 3. Render Musical Staff Canvas
+        if (staffCanvas) {
+          Chords.StaffRenderer.renderToCanvas(staffCanvas, currentVoicing);
+        }
+
+        // 4. Update Labels & Slider
+        if (staffClefLabel) {
+          staffClefLabel.textContent = currentVoicing.clef === 'bass' ? 'Bass F8' : 'Treble G8';
+        }
+
+        const Theory = window.SongTheory;
+        const rootNoteName = Theory ? Theory.pitchClassToNote(currentRootPC) : 'D';
+        if (fretBadge) {
+          fretBadge.textContent = `Root: Fret ${currentVoicing.rootFret} (${rootNoteName})`;
+        }
+
+        if (fretSlider && targetFretOverride === null) {
+          fretSlider.value = currentVoicing.rootFret;
+        }
+
+        if (liveBadge) {
+          const tuning = Chords.TUNINGS[currentTuningKey];
+          liveBadge.textContent = `${tuning ? tuning.name.split(' (')[0] : 'Guitar'} • ${rootNoteName} ${currentQuality}`;
+        }
+      };
+
+      this.chordStudioRenderer = renderCurrentChord;
+
+      // Event Listeners
+      if (instSelect) {
+        instSelect.addEventListener('change', () => {
+          currentInst = instSelect.value;
+          populateTunings(currentInst);
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          renderCurrentChord();
+        });
+      }
+
+      if (tuningSelect) {
+        tuningSelect.addEventListener('change', () => {
+          currentTuningKey = tuningSelect.value;
+          targetFretOverride = null;
+          renderCurrentChord();
+        });
+      }
+
+      if (rootSelect) {
+        rootSelect.addEventListener('change', () => {
+          currentRootPC = parseInt(rootSelect.value, 10);
+          targetFretOverride = null;
+          renderCurrentChord();
+        });
+      }
+
+      if (qualitySelect) {
+        qualitySelect.addEventListener('change', () => {
+          currentQuality = qualitySelect.value;
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          renderCurrentChord();
+        });
+      }
+
+      if (styleSelect) {
+        styleSelect.addEventListener('change', () => {
+          currentStyle = styleSelect.value;
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          renderCurrentChord();
+        });
+      }
+
+      if (btnBadgeInterval && btnBadgeFinger) {
+        btnBadgeInterval.addEventListener('click', () => {
+          badgeMode = 'interval';
+          btnBadgeInterval.classList.add('active');
+          btnBadgeFinger.classList.remove('active');
+          renderCurrentChord();
+        });
+        btnBadgeFinger.addEventListener('click', () => {
+          badgeMode = 'finger';
+          btnBadgeFinger.classList.add('active');
+          btnBadgeInterval.classList.remove('active');
+          renderCurrentChord();
+        });
+      }
+
+      if (fretSlider) {
+        fretSlider.addEventListener('input', () => {
+          targetFretOverride = parseInt(fretSlider.value, 10);
+          renderCurrentChord();
+        });
+      }
+
+      // Audio Strum Actions
+      if (btnStrumDown) {
+        btnStrumDown.addEventListener('click', async () => {
+          if (!currentVoicing) return;
+          const midiNotes = currentVoicing.strings
+            .filter(s => !s.isMuted && s.midi !== null)
+            .map(s => s.midi);
+          if (window.audio) {
+            await window.audio.strumMovableVoicing(midiNotes, 'down');
+          }
+        });
+      }
+
+      if (btnStrumUp) {
+        btnStrumUp.addEventListener('click', async () => {
+          if (!currentVoicing) return;
+          const midiNotes = currentVoicing.strings
+            .filter(s => !s.isMuted && s.midi !== null)
+            .map(s => s.midi);
+          if (window.audio) {
+            await window.audio.strumMovableVoicing(midiNotes, 'up');
+          }
+        });
+      }
+
+      // Sync with Canvas Fretboard in Visualizer
+      if (btnSendToFretboard) {
+        btnSendToFretboard.addEventListener('click', () => {
+          if (!currentVoicing || !this.visualizer) return;
+          const tuning = Chords.TUNINGS[currentTuningKey];
+          if (tuning) {
+            this.visualizer.setCustomTuning(tuning);
+          }
+          // Highlight chord notes
+          const pcs = currentVoicing.strings
+            .filter(s => !s.isMuted && s.pc !== null)
+            .map(s => s.pc);
+          if (this.visualizer.setActiveChordPCs) {
+            this.visualizer.setActiveChordPCs(pcs);
+          }
+          // Switch to visualizer view
+          this.setMobileTab('visualizerSection');
+        });
+      }
+
+      // Download Vector SVG
+      if (btnDownloadSvg) {
+        btnDownloadSvg.addEventListener('click', () => {
+          if (!currentVoicing) return;
+          const svgMarkup = Chords.SvgRenderer.render(currentVoicing, { badgeMode });
+          const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const Theory = window.SongTheory;
+          const rootName = Theory ? Theory.pitchClassToNote(currentRootPC) : 'Chord';
+          a.href = url;
+          a.download = `${rootName}_${currentQuality}_movable_fret${currentVoicing.rootFret}.svg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      }
+
+      // Copy Plain-Text TAB to Clipboard
+      if (btnCopyTabAscii) {
+        btnCopyTabAscii.addEventListener('click', async () => {
+          if (!currentVoicing) return;
+          const ascii = Chords.TabRenderer.generateAscii(currentVoicing);
+          try {
+            await navigator.clipboard.writeText(ascii);
+            const orig = btnCopyTabAscii.textContent;
+            btnCopyTabAscii.textContent = '✓ Copied!';
+            setTimeout(() => { btnCopyTabAscii.textContent = orig; }, 1800);
+          } catch (e) {}
+        });
+      }
+
+      // Panel Toggle & Close
+      const togglePanel = () => {
+        if (!section) return;
+        const isHidden = (section.style.display === 'none' || getComputedStyle(section).display === 'none');
+        section.style.display = isHidden ? 'block' : 'none';
+        if (btnToggleTop) {
+          btnToggleTop.textContent = isHidden ? '🎸 Chords: On' : '🎸 Chords: Off';
+          if (isHidden) {
+            btnToggleTop.classList.add('btn-success');
+            btnToggleTop.classList.remove('btn-outline-cyan');
+          } else {
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+        }
+        if (isHidden) {
+          renderCurrentChord();
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+
+      if (btnToggleTop) {
+        btnToggleTop.addEventListener('click', togglePanel);
+      }
+
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (section) section.style.display = 'none';
+          if (btnToggleTop) {
+            btnToggleTop.textContent = '🎸 Chords: Off';
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+        });
+      }
+
+      // Keyboard Shortcut 'C' toggles Chord Studio
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'c' || e.key === 'C') {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            return;
+          }
+          e.preventDefault();
+          if (btnToggleTop) btnToggleTop.click();
+        }
+      });
+
+      // Initial population and render
+      populateTunings(currentInst);
+      renderCurrentChord();
     }
 
     // 0C. Voice Leading Ribbon & 6-School Melodic Pathway Studio

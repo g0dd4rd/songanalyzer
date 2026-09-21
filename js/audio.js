@@ -825,6 +825,22 @@ self.onmessage = function(e) {
       });
     }
 
+    async strumMovableVoicing(midiNotes, direction = 'down', strumDuration = 0.08, holdDuration = 1.8) {
+      if (!this.initialized) await this.init();
+      await this.resumeIfNeeded();
+      if (!Array.isArray(midiNotes) || midiNotes.length === 0 || !this.chordSynth) return;
+
+      const notes = direction === 'up' ? [...midiNotes].reverse() : [...midiNotes];
+      const now = this.ctx.currentTime;
+      const staggerSec = strumDuration / Math.max(1, notes.length - 1);
+
+      notes.forEach((midi, idx) => {
+        const freq = 440 * Math.pow(2, (midi - 69) / 12);
+        const triggerTime = now + (idx * staggerSec);
+        this.chordSynth.triggerAttackRelease(freq, holdDuration, triggerTime, 0.85);
+      });
+    }
+
     async playProgression(parsedChords, bpm = 113, loop = false, onChordHighlight = null, onFinished = null, startTime = null) {
       if (!this.initialized) await this.init();
       if (!this.initialized || !parsedChords || parsedChords.length === 0) return;

@@ -35,6 +35,16 @@ An all-in-one, responsive, single-page music theory companion and practice studi
    - Interactive interval ear trainer with instant feedback.
    - Daily study challenges and drill prompts.
 
+7. **Multi-Notation Movable Chord Studio (Bass & Guitar)**:
+   - Full support for 4, 5, and 6-string bass alongside 6, 7, and 8-string guitar.
+   - 24 tuning presets including Standard, Drop D/A/E/C/G, DADGAD, Open D/G/C, Tenor, and Half-Step Down.
+   - Movable shapes across CAGED, Drop 2 & Drop 3 jazz voicings, Jazz Shells ($R-7-3$, $R-b7-3$, $R-b7-b3$), Bass Tenths (decimas), and Heavy Power Chords with dynamic drop-tuning 1-finger barre compensation.
+   - **Triple-Notation Display**:
+     - *Vector SVG Chord Box*: Clean scalable vector graphics with barre capsules, interval or fingering badge toggling, and `.svg` export.
+     - *Formatted Tablature (TAB)*: Dynamic string count tablature with one-click clipboard copy.
+     - *Music Staff Notation*: Procedural 5-line canvas staff renderer with Treble Clef ($\text{G}_8$) for guitar and Bass Clef ($\text{F}_8$) for bass, complete with chord note stacking and accidentals.
+   - Interactive root transposition slider (Frets 0–19) and zero-allocation humanized strumming (downstroke / upstroke).
+
 ## Quick Start & Installation
 
 ### 1. Running Locally (Desktop & LAN)
