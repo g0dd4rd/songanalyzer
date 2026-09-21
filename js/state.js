@@ -147,13 +147,8 @@
           scaleId: app.selectedScaleId || 'diatonic'
         },
 
-        // Audio Transcriber & 6-Stem Studio
-        transcriber: {
-          activeTier: (app.transcriberEngine ? app.transcriberEngine.activeTier : 1),
-          targetStem: this.getSelectValue('transcribeTargetStemSelect', 'guitar'),
-          instrument: this.getSelectValue('transcribeInstrumentSelect', 'guitar_6str'),
-          tuning: this.getSelectValue('transcribeTuningSelect', 'guitar_6str_std')
-        }
+        // Neural Stem Separator
+        transcriber: {}
       };
 
       return state;
@@ -458,38 +453,9 @@
             const btnTrans = document.getElementById('btnToggleTranscriberTop');
             if (transSec) transSec.style.display = 'block';
             if (btnTrans) {
-              btnTrans.textContent = '🎧 Transcribe: On';
+              btnTrans.textContent = '🎧 Stems: On';
               btnTrans.classList.remove('btn-outline-cyan');
               btnTrans.classList.add('btn-success');
-            }
-          }
-
-          // Restore Transcriber Tier and target settings
-          if (state.transcriber) {
-            if (app.transcriberEngine && state.transcriber.activeTier) {
-              app.transcriberEngine.setTier(state.transcriber.activeTier);
-              const btnTier1 = document.getElementById('btnTier1Mode');
-              const btnTier2 = document.getElementById('btnTier2Mode');
-              const badge = document.getElementById('neuralEngineBadge');
-              const isTier2 = state.transcriber.activeTier === 2;
-              if (btnTier1) btnTier1.classList.toggle('active', !isTier2);
-              if (btnTier2) btnTier2.classList.toggle('active', isTier2);
-              if (badge) {
-                badge.textContent = isTier2 ? '🧠 Tier 2: Neural AI' : '⚡ Tier 1: Filterbank (Active)';
-                badge.className = isTier2 ? 'engine-status-badge badge-tier2' : 'engine-status-badge badge-tier1';
-              }
-            }
-            if (state.transcriber.targetStem) {
-              this.setSelectValue('transcribeTargetStemSelect', state.transcriber.targetStem);
-            }
-            if (state.transcriber.instrument) {
-              this.setSelectValue('transcribeInstrumentSelect', state.transcriber.instrument);
-              if (app.populateTranscriberTunings) {
-                app.populateTranscriberTunings(state.transcriber.instrument);
-              }
-            }
-            if (state.transcriber.tuning) {
-              this.setSelectValue('transcribeTuningSelect', state.transcriber.tuning);
             }
           }
 

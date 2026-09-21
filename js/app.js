@@ -2789,16 +2789,15 @@
       renderCurrentChord();
     }
 
-    // 0D. AI Audio Transcriber & 6-Stem Studio
+    // 0D. AI Neural Stem Separator (HTDemucs)
     initTranscriberModule() {
       const Transcriber = window.SongTranscriber;
       if (!Transcriber) return;
 
       const engine = Transcriber.engine || new Transcriber.AudioTranscriberEngine();
       this.transcriberEngine = engine;
-
-      const mixer = new Transcriber.StemMixerPlayer(window.audio);
-      this.transcriberMixer = mixer;
+      this.populateTranscriberTunings = () => {};
+      this.transcriberStaffCanvasRenderer = () => {};
 
       const section = document.getElementById('transcriberSection');
       const btnToggleTop = document.getElementById('btnToggleTranscriberTop');
@@ -2817,37 +2816,29 @@
       const bpmBadgeEl = document.getElementById('transcriberBpmBadge');
       const btnReanalyze = document.getElementById('btnReanalyzeStems');
 
+      const fileProtocolNotice = document.getElementById('fileProtocolNotice');
+      if (fileProtocolNotice && window.location.protocol === 'file:') {
+        fileProtocolNotice.style.display = 'block';
+      }
+
       const progressCard = document.getElementById('transcriberProgressCard');
       const progressText = document.getElementById('transcriberProgressText');
       const progressPercent = document.getElementById('transcriberProgressPercent');
       const progressFill = document.getElementById('transcriberProgressBarFill');
 
-      const mixerSection = document.getElementById('transcriberMixerSection');
-      const btnStemPlay = document.getElementById('btnStemPlayToggle');
-      const speedButtons = document.querySelectorAll('.btn-speed');
-      const stemFaders = document.querySelectorAll('.stem-fader');
-      const stemSoloBtns = document.querySelectorAll('.btn-stem-solo');
-      const stemMuteBtns = document.querySelectorAll('.btn-stem-mute');
-      const stemDownloadBtns = document.querySelectorAll('.btn-stem-download');
-      const btnDownloadAllStems = document.getElementById('btnDownloadAllStems');
+      // Stems Deck & Audio Player DOM Elements
+      const stemsDeck = document.getElementById('transcriberStemsDeck');
+      const btnDownloadAllStemsMaster = document.getElementById('btnDownloadAllStemsMaster');
+      const audioPreviewElements = {
+        drums: document.getElementById('audioPreview_drums'),
+        bass: document.getElementById('audioPreview_bass'),
+        other: document.getElementById('audioPreview_other'),
+        vocals: document.getElementById('audioPreview_vocals')
+      };
+      const stemDownloadBtns = document.querySelectorAll('.btn-download-stem');
 
-      const notationCard = document.getElementById('transcriberNotationCard');
-      const targetStemSelect = document.getElementById('transcribeTargetStemSelect');
-      const instSelect = document.getElementById('transcribeInstrumentSelect');
-      const tuningSelect = document.getElementById('transcribeTuningSelect');
-      const btnRunTranscription = document.getElementById('btnRunStemTranscription');
-      const btnCopyTab = document.getElementById('btnCopyTranscribedTab');
-      const btnExportMidi = document.getElementById('btnExportTranscribedMidi');
-      const btnSendChords = document.getElementById('btnSendChordsToAnalyzer');
-      const tabContainer = document.getElementById('transcribedTabContainer');
-      const staffCanvas = document.getElementById('transcribedStaffCanvas');
-
-      // Tier Switcher & Neural AI Model Manager DOM Elements
-      const btnTier1Mode = document.getElementById('btnTier1Mode');
-      const btnTier2Mode = document.getElementById('btnTier2Mode');
-      const neuralEngineBadge = document.getElementById('neuralEngineBadge');
+      // Neural AI Model Manager DOM Elements
       const btnOpenModelManager = document.getElementById('btnOpenModelManager');
-
       const modalNeuralModels = document.getElementById('modalNeuralModels');
       const btnCloseNeuralModal = document.getElementById('btnCloseNeuralModal');
 
@@ -2871,7 +2862,7 @@
       let currentAudioBuffer = null;
       let currentBpm = 113;
       let currentStems = null;
-      let currentTranscription = null;
+      let stemObjectUrls = {};
       let isRecording = false;
       let mediaRecorder = null;
       let recordInterval = null;
@@ -2883,29 +2874,11 @@
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
       };
 
-      const updateEngineBadge = async () => {
-        if (!neuralEngineBadge) return;
-        const isTier2 = engine.activeTier === 2;
-        if (btnTier1Mode) btnTier1Mode.classList.toggle('active', !isTier2);
-        if (btnTier2Mode) btnTier2Mode.classList.toggle('active', isTier2);
-
-        if (!isTier2) {
-          neuralEngineBadge.textContent = '⚡ Tier 1: Filterbank (Active)';
-          neuralEngineBadge.className = 'engine-status-badge badge-tier1';
-        } else {
-          const hasBasicPitch = await engine.storage.hasModel('basic_pitch');
-          const hasDemucs = await engine.storage.hasModel('demucs');
-          if (hasBasicPitch && hasDemucs) {
-            neuralEngineBadge.textContent = '🧠 Tier 2: Neural AI (Ready • Demucs & Basic Pitch)';
-            neuralEngineBadge.className = 'engine-status-badge badge-tier2';
-          } else if (hasBasicPitch || hasDemucs) {
-            neuralEngineBadge.textContent = `🧠 Tier 2: Neural AI (${hasDemucs ? 'Demucs' : 'Basic Pitch'} Ready)`;
-            neuralEngineBadge.className = 'engine-status-badge badge-tier2';
-          } else {
-            neuralEngineBadge.textContent = '⚠️ Tier 2: Neural AI (Click to Cache Models)';
-            neuralEngineBadge.className = 'engine-status-badge badge-tier1';
-          }
-        }
+      const revokeStemUrls = () => {
+        Object.values(stemObjectUrls).forEach(url => {
+          try { URL.revokeObjectURL(url); } catch (e) {}
+        });
+        stemObjectUrls = {};
       };
 
       const updateModelManagerUI = async () => {
@@ -2937,7 +2910,7 @@
           } else {
             badgeDemucsStatus.textContent = 'Not Cached';
             badgeDemucsStatus.className = 'model-status-pill pill-warning';
-            btnInstallDemucs.textContent = '⬇ Download & Cache (158 MB)';
+            btnInstallDemucs.textContent = '⬇ Download (158 MB)';
             btnInstallDemucs.disabled = false;
             btnInstallDemucs.className = 'btn btn-sm btn-outline-cyan';
           }
@@ -2947,392 +2920,6 @@
           neuralCacheSummaryText.textContent = `Storage: ${formatBytes(summary.totalBytes)} cached (${summary.count} model${summary.count === 1 ? '' : 's'})`;
         }
       };
-
-      // Tier Switcher Buttons
-      if (btnTier1Mode) {
-        btnTier1Mode.addEventListener('click', async () => {
-          engine.setTier(1);
-          updateEngineBadge();
-          if (window.SongState) window.SongState.requestSave();
-          if (currentAudioBuffer) {
-            await processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
-          }
-        });
-      }
-
-      if (btnTier2Mode) {
-        btnTier2Mode.addEventListener('click', async () => {
-          engine.setTier(2);
-          const hasBasicPitch = await engine.storage.hasModel('basic_pitch');
-          if (!hasBasicPitch) {
-            try {
-              const resp = await fetch('models/basic_pitch.onnx');
-              if (resp.ok) {
-                const ab = await resp.arrayBuffer();
-                await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
-              }
-            } catch (e) {}
-          }
-          const hasDemucs = await engine.storage.hasModel('demucs');
-          if (!hasDemucs) {
-            try {
-              const resp = await fetch('models/htdemucs.onnx');
-              if (resp.ok) {
-                const ab = await resp.arrayBuffer();
-                await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
-              }
-            } catch (e) {}
-          }
-          updateEngineBadge();
-          if (window.SongState) window.SongState.requestSave();
-          if (currentAudioBuffer) {
-            await processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
-          }
-        });
-      }
-
-      // Open/Close Modal
-      if (btnOpenModelManager && modalNeuralModels) {
-        btnOpenModelManager.addEventListener('click', async () => {
-          modalNeuralModels.style.display = 'flex';
-          await updateModelManagerUI();
-        });
-      }
-
-      if (btnCloseNeuralModal && modalNeuralModels) {
-        btnCloseNeuralModal.addEventListener('click', () => {
-          modalNeuralModels.style.display = 'none';
-        });
-      }
-
-      if (modalNeuralModels) {
-        modalNeuralModels.addEventListener('click', (e) => {
-          if (e.target === modalNeuralModels) {
-            modalNeuralModels.style.display = 'none';
-          }
-        });
-      }
-
-      // Download Spotify Basic Pitch
-      if (btnInstallBasicPitch) {
-        btnInstallBasicPitch.addEventListener('click', async () => {
-          btnInstallBasicPitch.disabled = true;
-          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
-          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Downloading Spotify Basic Pitch (226 KB)...';
-          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
-          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
-
-          try {
-            const bpUrls = [
-              'models/basic_pitch.onnx',
-              'https://songanalyzer.dredwerkz.cz/models/basic_pitch.onnx',
-              'https://raw.githubusercontent.com/spotify/basic-pitch/main/basic_pitch/saved_models/icassp_2022/nmp.onnx'
-            ];
-
-            let success = false;
-            let lastErr = null;
-
-            for (let i = 0; i < bpUrls.length; i++) {
-              const url = bpUrls[i];
-              try {
-                await engine.storage.downloadModel('basic_pitch', url, (frac, loaded, total) => {
-                  const pct = Math.round(frac * 100);
-                  if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
-                  if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
-                  if (neuralDownloadStatusText) {
-                    neuralDownloadStatusText.textContent = `Downloading Basic Pitch: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
-                  }
-                });
-                success = true;
-                break;
-              } catch (err) {
-                console.warn(`Basic Pitch source ${url} failed:`, err);
-                lastErr = err;
-              }
-            }
-
-            if (success) {
-              if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Spotify Basic Pitch installed & cached!';
-              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
-              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
-
-              setTimeout(() => {
-                if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
-              }, 1500);
-
-              await updateModelManagerUI();
-              updateEngineBadge();
-            } else {
-              console.error('Basic Pitch download failed:', lastErr);
-              if (neuralDownloadStatusText) {
-                neuralDownloadStatusText.textContent = `Download failed: ${lastErr ? lastErr.message : 'network error'}. You can load a local .onnx file below.`;
-              }
-              btnInstallBasicPitch.disabled = false;
-            }
-          } catch (outerErr) {
-            console.error('Basic Pitch process error:', outerErr);
-            btnInstallBasicPitch.disabled = false;
-          }
-        });
-      }
-
-      // Download Demucs
-      if (btnInstallDemucs) {
-        btnInstallDemucs.addEventListener('click', async () => {
-          btnInstallDemucs.disabled = true;
-          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
-          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository...';
-          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
-          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
-
-          const demucsUrls = [
-            'models/htdemucs.onnx',
-            'https://songanalyzer.dredwerkz.cz/models/htdemucs.onnx',
-            'https://huggingface.co/itamiArika/htdemucs-int8-memory/resolve/main/htdemucs-dft-int8-fp16-portable.onnx',
-            'https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/main/htdemucs_6s_fp16weights.onnx'
-          ];
-
-          let success = false;
-          let lastErr = null;
-
-          for (let i = 0; i < demucsUrls.length; i++) {
-            const url = demucsUrls[i];
-            try {
-              if (neuralDownloadStatusText) {
-                neuralDownloadStatusText.textContent = (i === 0)
-                  ? 'Checking local models folder (models/htdemucs.onnx)...'
-                  : (url.includes('dredwerkz.cz')
-                    ? 'Connecting to songanalyzer.dredwerkz.cz...'
-                    : `Connecting to public mirror ${i - 1}...`);
-              }
-
-              await engine.storage.downloadModel('demucs', url, (frac, loaded, total) => {
-                const pct = Math.round(frac * 100);
-                if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
-                if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
-                if (neuralDownloadStatusText) {
-                  neuralDownloadStatusText.textContent = `Downloading Demucs: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
-                }
-              });
-
-              success = true;
-              break;
-            } catch (mirrorErr) {
-              console.warn(`Demucs source ${url} failed:`, mirrorErr);
-              lastErr = mirrorErr;
-            }
-          }
-
-          if (success) {
-            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'HTDemucs installed & cached!';
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
-            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
-
-            setTimeout(() => {
-              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
-            }, 1500);
-
-            await updateModelManagerUI();
-            updateEngineBadge();
-          } else {
-            console.error('All Demucs download sources failed:', lastErr);
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Download failed: ${lastErr ? lastErr.message : 'network error'}. You can load a local htdemucs.onnx file below.`;
-            }
-            btnInstallDemucs.disabled = false;
-          }
-        });
-      }
-
-      // Local Model File Selector
-      if (btnBrowseLocalModel && inputLocalModelFile) {
-        btnBrowseLocalModel.addEventListener('click', () => {
-          inputLocalModelFile.value = '';
-          inputLocalModelFile.click();
-        });
-
-        inputLocalModelFile.addEventListener('change', async (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-
-          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
-          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Reading ${file.name} into memory...`;
-          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '30%';
-
-          try {
-            const buffer = await file.arrayBuffer();
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '75%';
-            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Saving ${file.name} to IndexedDB...`;
-
-            const nameLower = file.name.toLowerCase();
-            const modelId = nameLower.includes('demucs') ? 'demucs' : 'basic_pitch';
-
-            await engine.storage.saveModel(modelId, buffer, { name: file.name, size: buffer.byteLength });
-
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
-            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Successfully cached ${file.name} (${formatBytes(buffer.byteLength)}) as ${modelId === 'demucs' ? 'HTDemucs' : 'Spotify Basic Pitch'}!`;
-            }
-
-            setTimeout(() => {
-              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
-            }, 1500);
-
-            await updateModelManagerUI();
-            updateEngineBadge();
-          } catch (err) {
-            console.error('Error importing local model:', err);
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Error importing file: ${err.message}`;
-            }
-          }
-        });
-      }
-
-      // Clear Model Cache
-      if (btnClearNeuralCache) {
-        btnClearNeuralCache.addEventListener('click', async () => {
-          if (confirm('Clear all cached neural AI models from browser storage (IndexedDB)?')) {
-            await engine.storage.clearAll();
-            if (engine.neuralPitchRunner) engine.neuralPitchRunner.session = null;
-            await updateModelManagerUI();
-            updateEngineBadge();
-          }
-        });
-      }
-
-      // Silently sync local models into IndexedDB if available and not yet cached
-      engine.storage.getSummary().then(async (summary) => {
-        if (!summary.basicPitch) {
-          try {
-            const resp = await fetch('models/basic_pitch.onnx');
-            if (resp.ok) {
-              const ab = await resp.arrayBuffer();
-              await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
-            }
-          } catch (e) {}
-        }
-        if (!summary.demucs) {
-          try {
-            const resp = await fetch('models/htdemucs.onnx');
-            if (resp.ok) {
-              const ab = await resp.arrayBuffer();
-              await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
-            }
-          } catch (e) {}
-        }
-        updateModelManagerUI();
-        updateEngineBadge();
-      }).catch(() => {});
-
-      // Toggle Rack Open/Closed
-      const togglePanel = () => {
-        if (!section) return;
-        const isHidden = section.style.display === 'none' || !section.style.display;
-        section.style.display = isHidden ? 'block' : 'none';
-        if (btnToggleTop) {
-          btnToggleTop.textContent = isHidden ? '🎧 Transcribe: On' : '🎧 Transcribe: Off';
-          if (isHidden) {
-            btnToggleTop.classList.add('btn-success');
-            btnToggleTop.classList.remove('btn-outline-cyan');
-            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            if (this.transcriberStaffCanvasRenderer) {
-              setTimeout(() => this.transcriberStaffCanvasRenderer(), 50);
-            }
-          } else {
-            btnToggleTop.classList.remove('btn-success');
-            btnToggleTop.classList.add('btn-outline-cyan');
-            if (mixer.isPlaying) {
-              mixer.stop();
-              if (btnStemPlay) btnStemPlay.textContent = '▶ Play Mix';
-            }
-          }
-        }
-        if (window.SongState) window.SongState.requestSave();
-      };
-
-      if (btnToggleTop) btnToggleTop.addEventListener('click', togglePanel);
-      if (btnClose) {
-        btnClose.addEventListener('click', () => {
-          if (section) section.style.display = 'none';
-          if (btnToggleTop) {
-            btnToggleTop.textContent = '🎧 Transcribe: Off';
-            btnToggleTop.classList.remove('btn-success');
-            btnToggleTop.classList.add('btn-outline-cyan');
-          }
-          if (mixer.isPlaying) {
-            mixer.stop();
-            if (btnStemPlay) btnStemPlay.textContent = '▶ Play Mix';
-          }
-          if (window.SongState) window.SongState.requestSave();
-        });
-      }
-
-      // Keyboard Shortcut 'A' toggles Audio Transcriber
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'a' || e.key === 'A') {
-          const target = e.target;
-          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
-            return;
-          }
-          e.preventDefault();
-          if (btnToggleTop) btnToggleTop.click();
-        }
-      });
-
-      // Populate Tuning Dropdown based on chosen instrument
-      const populateTunings = (instKey) => {
-        if (!tuningSelect) return;
-        tuningSelect.innerHTML = '';
-        const Chords = window.SongChords;
-        const allTunings = (Chords && Chords.TUNINGS) ? Object.values(Chords.TUNINGS).filter(t => t.instrument === instKey) : [];
-
-        if (allTunings.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = instKey.startsWith('bass') ? 'bass_4str_std' : 'guitar_6str_std';
-          opt.textContent = 'Standard';
-          tuningSelect.appendChild(opt);
-          return;
-        }
-
-        allTunings.forEach((t, idx) => {
-          const opt = document.createElement('option');
-          opt.value = t.id;
-          opt.textContent = t.name;
-          if (idx === 0) opt.selected = true;
-          tuningSelect.appendChild(opt);
-        });
-      };
-      this.populateTranscriberTunings = populateTunings;
-
-      if (instSelect) {
-        instSelect.addEventListener('change', () => {
-          populateTunings(instSelect.value);
-          if (currentStems) runTranscription();
-        });
-        populateTunings(instSelect.value);
-      }
-
-      if (tuningSelect) {
-        tuningSelect.addEventListener('change', () => {
-          if (currentStems) runTranscription();
-        });
-      }
-
-      if (targetStemSelect) {
-        targetStemSelect.addEventListener('change', () => {
-          const val = targetStemSelect.value;
-          if (val === 'bass' && instSelect && !instSelect.value.startsWith('bass')) {
-            instSelect.value = 'bass_4str';
-            populateTunings('bass_4str');
-          } else if (val === 'guitar' && instSelect && instSelect.value.startsWith('bass')) {
-            instSelect.value = 'guitar_6str';
-            populateTunings('guitar_6str');
-          }
-          if (currentStems) runTranscription();
-        });
-      }
 
       // Progress reporting helper
       const setProgress = (fraction, statusMsg) => {
@@ -3344,56 +2931,70 @@
         progressCard.style.display = (pct >= 100) ? 'none' : 'block';
       };
 
-      // Staff canvas resize/render callback
-      this.transcriberStaffCanvasRenderer = () => {
-        if (!staffCanvas || !currentTranscription) return;
-        const parentW = staffCanvas.parentElement ? staffCanvas.parentElement.clientWidth : 900;
-        staffCanvas.width = Math.max(300, parentW - 20);
-        const isBass = (instSelect && instSelect.value.startsWith('bass'));
-        engine.renderStaffCanvas(staffCanvas, currentTranscription, isBass ? 'bass' : 'treble');
-      };
+      // Convert AudioBuffer to 16-bit PCM stereo WAV ArrayBuffer
+      const audioBufferToWav = (audioBuf) => {
+        const numChannels = audioBuf.numberOfChannels;
+        const sampleRate = audioBuf.sampleRate;
+        const numSamples = audioBuf.length;
+        const bytesPerSample = 2;
+        const blockAlign = numChannels * bytesPerSample;
+        const byteRate = sampleRate * blockAlign;
+        const dataSize = numSamples * blockAlign;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
 
-      window.addEventListener('resize', () => {
-        if (section && section.style.display !== 'none') {
-          this.transcriberStaffCanvasRenderer();
-        }
-      });
+        const writeString = (offset, str) => {
+          for (let i = 0; i < str.length; i++) {
+            view.setUint8(offset + i, str.charCodeAt(i));
+          }
+        };
 
-      // Run Stem Transcription
-      const runTranscription = async () => {
-        if (!currentStems) return;
-        const selectedStem = targetStemSelect ? targetStemSelect.value : 'guitar';
-        const stemBuffer = currentStems[selectedStem] || currentStems.guitar || currentStems.bass;
-        if (!stemBuffer) return;
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM format
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, byteRate, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, 16, true); // 16 bits per sample
+        writeString(36, 'data');
+        view.setUint32(40, dataSize, true);
 
-        const tuningKey = tuningSelect ? tuningSelect.value : (selectedStem === 'bass' ? 'bass_4str_std' : 'guitar_6str_std');
-        const targetInst = instSelect ? instSelect.value : (selectedStem === 'bass' ? 'bass_4str' : 'guitar_6str');
-
-        setProgress(0.1, `Transcribing ${selectedStem} stem notes...`);
-        await new Promise(r => setTimeout(r, 20));
-
-        currentTranscription = await engine.transcribeStem(stemBuffer, {
-          bpm: currentBpm,
-          tuningKey,
-          targetInstrument: targetInst
-        }, (p, msg) => setProgress(p, msg));
-
-        const Chords = window.SongChords;
-        const tuning = (Chords && Chords.TUNINGS) ? Chords.TUNINGS[tuningKey] : null;
-
-        if (tabContainer) {
-          tabContainer.innerHTML = engine.generateTabHtml(currentTranscription, tuning);
+        const channels = [];
+        for (let c = 0; c < numChannels; c++) {
+          channels.push(audioBuf.getChannelData(c));
         }
 
-        this.transcriberStaffCanvasRenderer();
-        setProgress(1.0, 'Ready');
+        let offset = 44;
+        for (let i = 0; i < numSamples; i++) {
+          for (let ch = 0; ch < numChannels; ch++) {
+            const s = Math.max(-1, Math.min(1, channels[ch][i]));
+            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            view.setInt16(offset, val, true);
+            offset += 2;
+          }
+        }
+        return buffer;
       };
 
-      if (btnRunTranscription) {
-        btnRunTranscription.addEventListener('click', () => {
-          runTranscription();
-        });
-      }
+      const downloadAudioBufferAsWav = (audioBuf, filename = 'stem.wav') => {
+        if (!audioBuf) return;
+        const wavData = audioBufferToWav(audioBuf);
+        const blob = new Blob([wavData], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      };
 
       // Process Decoded AudioBuffer
       const processBuffer = async (audioBuffer, filename = 'audio_track.mp3') => {
@@ -3405,33 +3006,57 @@
         const secs = String(durSec % 60).padStart(2, '0');
         if (durationEl) durationEl.textContent = `${mins}:${secs}`;
 
-        setProgress(0.15, 'Detecting song tempo (BPM) and beat grid...');
+        setProgress(0.05, 'Detecting song tempo (BPM)...');
         await new Promise(r => setTimeout(r, 20));
 
         const tempoResult = engine.detectBpmAndBeats(audioBuffer);
         currentBpm = tempoResult.bpm || 113;
         if (bpmBadgeEl) bpmBadgeEl.textContent = `${currentBpm} BPM`;
 
-        const tierLabel = (engine.activeTier === 2) ? 'HTDemucs Neural AI' : 'Mid/Side Crossover';
-        setProgress(0.25, `Separating 6 isolated stems (${tierLabel})...`);
+        setProgress(0.1, 'Separating 4 isolated stems using Meta AI HTDemucs...');
         await new Promise(r => setTimeout(r, 20));
 
-        currentStems = await engine.separateStems(audioBuffer, (p, msg) => {
-          setProgress(0.25 + p * 0.55, msg);
-        });
+        try {
+          currentStems = await engine.separateStems(audioBuffer, (p, msg) => {
+            setProgress(0.1 + p * 0.85, msg);
+          });
 
-        mixer.setStems(currentStems);
+          // Clean up old object URLs
+          revokeStemUrls();
 
-        if (trackInfoBar) trackInfoBar.style.display = 'flex';
-        if (mixerSection) mixerSection.style.display = 'block';
-        if (notationCard) notationCard.style.display = 'block';
+          // Assign each stem audio buffer to its preview player
+          ['drums', 'bass', 'other', 'vocals'].forEach(stemName => {
+            const buf = currentStems[stemName];
+            const audioEl = audioPreviewElements[stemName];
+            if (buf && audioEl) {
+              const wavData = audioBufferToWav(buf);
+              const blob = new Blob([wavData], { type: 'audio/wav' });
+              const url = URL.createObjectURL(blob);
+              stemObjectUrls[stemName] = url;
+              audioEl.src = url;
+              audioEl.load();
+            }
+          });
 
-        if (liveBadge) {
-          liveBadge.textContent = (engine.activeTier === 2) ? '🧠 Neural 6 Stems Ready' : '⚡ 6 Stems Ready';
-          liveBadge.classList.add('badge-gold');
+          if (trackInfoBar) trackInfoBar.style.display = 'flex';
+          if (stemsDeck) stemsDeck.style.display = 'block';
+
+          if (liveBadge) {
+            liveBadge.textContent = '🧠 4 Stems Ready';
+            liveBadge.classList.add('badge-gold');
+          }
+
+          setProgress(1.0, 'Neural separation complete!');
+        } catch (sepErr) {
+          console.error('Stem separation failed:', sepErr);
+          const isFileProto = window.location.protocol === 'file:';
+          let userMsg = `Neural stem separation failed: ${sepErr.message || 'Unknown error'}.`;
+          if (isFileProto) {
+            userMsg += '\n\nNote: You are opening the app via file://. Browsers block WebAssembly and neural model loading due to CORS sandbox policy.\n\nTo run in browser, start a local server:\npython3 -m http.server 8000\nand visit http://localhost:8000\n\nOr run separation in your terminal:\npython3 scripts/separate_stems.py <audio_file>';
+          }
+          alert(userMsg);
+          setProgress(1.0, 'Separation failed');
         }
-
-        await runTranscription();
       };
 
       // Load & Decode Audio File
@@ -3495,6 +3120,40 @@
         });
       }
 
+      // Download Individual Stem
+      stemDownloadBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const stem = btn.dataset.stem;
+          if (!currentStems || !currentStems[stem]) {
+            alert(`No audio data available for ${stem} stem. Please load and separate an audio track first.`);
+            return;
+          }
+          const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
+          const baseName = rawName.replace(/\.[^/.]+$/, '');
+          downloadAudioBufferAsWav(currentStems[stem], `${baseName}_${stem}.wav`);
+        });
+      });
+
+      // Download All 4 Stems
+      if (btnDownloadAllStemsMaster) {
+        btnDownloadAllStemsMaster.addEventListener('click', async () => {
+          if (!currentStems) {
+            alert('Please load and separate an audio file first to generate stems.');
+            return;
+          }
+          const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
+          const baseName = rawName.replace(/\.[^/.]+$/, '');
+          const stemNames = ['drums', 'bass', 'other', 'vocals'];
+          for (const s of stemNames) {
+            if (currentStems[s]) {
+              downloadAudioBufferAsWav(currentStems[s], `${baseName}_${s}.wav`);
+              await new Promise(r => setTimeout(r, 250));
+            }
+          }
+        });
+      }
+
       // Ingestion 2: Load Synthetic Funk Demo Track
       if (btnLoadDemo) {
         btnLoadDemo.addEventListener('click', async () => {
@@ -3547,7 +3206,6 @@
                 const gain = offlineCtx.createGain();
                 gain.gain.setValueAtTime(0.65, t);
                 gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-
                 noiseSrc.connect(filter);
                 filter.connect(gain);
                 gain.connect(offlineCtx.destination);
@@ -3573,7 +3231,6 @@
                 const vol = (step % 4 === 0) ? 0.35 : 0.18;
                 hgain.gain.setValueAtTime(vol, t);
                 hgain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-
                 hatSrc.connect(hfilter);
                 hfilter.connect(hgain);
                 hgain.connect(offlineCtx.destination);
@@ -3582,7 +3239,7 @@
               }
             }
 
-            // 2. Bass (Walking funk bassline in Dm: D2, F2, G2, G#2, A2, C3, D3)
+            // 2. Bass
             const bassGroove = [
               { beat: 0.0, midi: 38, dur: 0.35 },
               { beat: 0.75, midi: 41, dur: 0.2 },
@@ -3620,53 +3277,7 @@
               });
             }
 
-            // 3. Guitar Stabs (Syncopated funky 9th chords: D9, G13)
-            const guitarChords = [
-              { beat: 0.5, notes: [54, 60, 64, 69], dur: 0.15 },
-              { beat: 1.25, notes: [54, 60, 64, 69], dur: 0.12 },
-              { beat: 2.25, notes: [53, 59, 64, 67], dur: 0.18 },
-              { beat: 3.25, notes: [54, 60, 64, 69], dur: 0.12 }
-            ];
-
-            for (let bar = 0; bar < 4; bar++) {
-              const barStart = bar * barSec;
-              guitarChords.forEach(c => {
-                const t = barStart + c.beat * beatSec;
-                if (t >= duration) return;
-
-                c.notes.forEach((midi, idx) => {
-                  const freq = 440 * Math.pow(2, (midi - 69) / 12);
-                  const osc = offlineCtx.createOscillator();
-                  osc.type = 'triangle';
-                  osc.frequency.setValueAtTime(freq, t);
-
-                  const filter = offlineCtx.createBiquadFilter();
-                  filter.type = 'bandpass';
-                  filter.frequency.setValueAtTime(1800 + idx * 300, t);
-                  filter.Q.value = 2.2;
-
-                  const gain = offlineCtx.createGain();
-                  gain.gain.setValueAtTime(0.2, t);
-                  gain.gain.exponentialRampToValueAtTime(0.001, t + c.dur * beatSec);
-
-                  const panner = offlineCtx.createStereoPanner ? offlineCtx.createStereoPanner() : null;
-                  if (panner) panner.pan.value = 0.5;
-
-                  osc.connect(filter);
-                  filter.connect(gain);
-                  if (panner) {
-                    gain.connect(panner);
-                    panner.connect(offlineCtx.destination);
-                  } else {
-                    gain.connect(offlineCtx.destination);
-                  }
-                  osc.start(t);
-                  osc.stop(t + c.dur * beatSec + 0.02);
-                });
-              });
-            }
-
-            // 4. Electric Piano Chords (Dm9, G13)
+            // 3. Other Instruments / Keyboards
             for (let bar = 0; bar < 4; bar++) {
               const barStart = bar * barSec;
               const pNotes = (bar % 2 === 0) ? [50, 57, 62, 65] : [55, 59, 64, 67];
@@ -3688,7 +3299,7 @@
               });
             }
 
-            // 5. Vocal / Lead Whistle
+            // 4. Vocal Whistle Lead
             const vocalMelody = [
               { beat: 0.5, midi: 69, dur: 0.4 },
               { beat: 1.5, midi: 72, dur: 0.3 },
@@ -3782,284 +3393,205 @@
         });
       }
 
-      // Stem Mixer Controls
-      if (btnStemPlay) {
-        btnStemPlay.addEventListener('click', async () => {
-          if (window.audio && !window.audio.initialized) {
-            await window.audio.init();
-          }
-          if (mixer.isPlaying) {
-            mixer.stop();
-            btnStemPlay.textContent = '▶ Play Mix';
-            btnStemPlay.classList.remove('btn-warning');
-            btnStemPlay.classList.add('btn-success');
-          } else {
-            mixer.play(0);
-            btnStemPlay.textContent = '⏸ Pause Mix';
-            btnStemPlay.classList.remove('btn-success');
-            btnStemPlay.classList.add('btn-warning');
+      // Open/Close Neural Modal
+      if (btnOpenModelManager && modalNeuralModels) {
+        btnOpenModelManager.addEventListener('click', async () => {
+          modalNeuralModels.style.display = 'flex';
+          await updateModelManagerUI();
+        });
+      }
+
+      if (btnCloseNeuralModal && modalNeuralModels) {
+        btnCloseNeuralModal.addEventListener('click', () => {
+          modalNeuralModels.style.display = 'none';
+        });
+      }
+
+      if (modalNeuralModels) {
+        modalNeuralModels.addEventListener('click', (e) => {
+          if (e.target === modalNeuralModels) {
+            modalNeuralModels.style.display = 'none';
           }
         });
       }
 
-      speedButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          speedButtons.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const rate = parseFloat(btn.dataset.speed) || 1.0;
-          mixer.setSpeed(rate);
-        });
-      });
+      // Download Demucs
+      if (btnInstallDemucs) {
+        btnInstallDemucs.addEventListener('click', async () => {
+          btnInstallDemucs.disabled = true;
+          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository...';
+          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
 
-      stemFaders.forEach(fader => {
-        fader.addEventListener('input', () => {
-          const stem = fader.dataset.stem;
-          const vol = parseFloat(fader.value);
-          mixer.setStemVolume(stem, vol);
-          const readout = document.getElementById(`stemVol_${stem}`);
-          if (readout) readout.textContent = `${Math.round(vol * 100)}%`;
-        });
-      });
-
-      stemSoloBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const stem = btn.dataset.stem;
-          mixer.toggleSolo(stem);
-          btn.classList.toggle('active', mixer.stemStates[stem].solo);
-        });
-      });
-
-      stemMuteBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const stem = btn.dataset.stem;
-          mixer.toggleMute(stem);
-          btn.classList.toggle('active', mixer.stemStates[stem].mute);
-        });
-      });
-
-      // Convert AudioBuffer to 16-bit PCM stereo WAV ArrayBuffer
-      const audioBufferToWav = (audioBuf) => {
-        const numChannels = audioBuf.numberOfChannels;
-        const sampleRate = audioBuf.sampleRate;
-        const numSamples = audioBuf.length;
-        const bytesPerSample = 2;
-        const blockAlign = numChannels * bytesPerSample;
-        const byteRate = sampleRate * blockAlign;
-        const dataSize = numSamples * blockAlign;
-        const buffer = new ArrayBuffer(44 + dataSize);
-        const view = new DataView(buffer);
-
-        const writeString = (offset, str) => {
-          for (let i = 0; i < str.length; i++) {
-            view.setUint8(offset + i, str.charCodeAt(i));
-          }
-        };
-
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true); // PCM format
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, 16, true); // 16 bits per sample
-        writeString(36, 'data');
-        view.setUint32(40, dataSize, true);
-
-        const channels = [];
-        for (let c = 0; c < numChannels; c++) {
-          channels.push(audioBuf.getChannelData(c));
-        }
-
-        let offset = 44;
-        for (let i = 0; i < numSamples; i++) {
-          for (let ch = 0; ch < numChannels; ch++) {
-            const s = Math.max(-1, Math.min(1, channels[ch][i]));
-            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            view.setInt16(offset, val, true);
-            offset += 2;
-          }
-        }
-        return buffer;
-      };
-
-      const downloadAudioBufferAsWav = (audioBuf, filename = 'stem.wav') => {
-        if (!audioBuf) return;
-        const wavData = audioBufferToWav(audioBuf);
-        const blob = new Blob([wavData], { type: 'audio/wav' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 1000);
-      };
-
-      // Download Individual Stem
-      stemDownloadBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const stem = btn.dataset.stem;
-          if (!currentStems || !currentStems[stem]) {
-            alert(`No audio data available for ${stem} stem. Please load an audio track first.`);
-            return;
-          }
-          const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
-          const baseName = rawName.replace(/\.[^/.]+$/, '');
-          const tierTag = (engine.activeTier === 2) ? 'tier2' : 'tier1';
-          downloadAudioBufferAsWav(currentStems[stem], `${baseName}_${stem}_${tierTag}.wav`);
-        });
-      });
-
-      // Download All 6 Stems
-      if (btnDownloadAllStems) {
-        btnDownloadAllStems.addEventListener('click', async () => {
-          if (!currentStems) {
-            alert('Please load and analyze an audio file first to generate stems.');
-            return;
-          }
-          const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
-          const baseName = rawName.replace(/\.[^/.]+$/, '');
-          const tierTag = (engine.activeTier === 2) ? 'tier2' : 'tier1';
-          const stemNames = ['drums', 'bass', 'guitar', 'piano', 'vocals', 'other'];
-          for (const s of stemNames) {
-            if (currentStems[s]) {
-              downloadAudioBufferAsWav(currentStems[s], `${baseName}_${s}_${tierTag}.wav`);
-              await new Promise(r => setTimeout(r, 250));
-            }
-          }
-        });
-      }
-
-      // Export Buttons: Copy Tab, Export MIDI, Send Chords to Analyzer
-      if (btnCopyTab) {
-        btnCopyTab.addEventListener('click', () => {
-          if (!currentTranscription) {
-            alert('Please transcribe an audio stem first.');
-            return;
-          }
-          const Chords = window.SongChords;
-          const tuning = (Chords && Chords.TUNINGS) ? Chords.TUNINGS[tuningSelect ? tuningSelect.value : 'guitar_6str_std'] : null;
-          const ascii = engine.generateTabAscii(currentTranscription, tuning);
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(ascii).then(() => {
-              btnCopyTab.textContent = '✓ Copied!';
-              setTimeout(() => { btnCopyTab.textContent = '📋 Copy Tab'; }, 1500);
-            }).catch(() => {
-              btnCopyTab.textContent = '✓ Copied!';
-              setTimeout(() => { btnCopyTab.textContent = '📋 Copy Tab'; }, 1500);
-            });
-          }
-        });
-      }
-
-      if (btnExportMidi) {
-        btnExportMidi.addEventListener('click', () => {
-          if (!currentTranscription || !currentTranscription.notes || currentTranscription.notes.length === 0) {
-            alert('No transcribed notes available to export.');
-            return;
-          }
-
-          const bpm = currentTranscription.bpm || 113;
-          const ppq = 480;
-          const ticksPerSec = (bpm / 60) * ppq;
-          const targetInst = instSelect ? instSelect.value : 'guitar_6str';
-          const isBass = targetInst.startsWith('bass');
-          const stemName = targetStemSelect ? targetStemSelect.value : 'stem';
-
-          const events = [
-            { tick: 0, type: 'tempo', bpm },
-            { tick: 0, type: 'trackName', name: `${targetInst} (${stemName})` },
-            { tick: 0, type: 'programChange', channel: 0, program: isBass ? 33 : 25 }
+          const demucsUrls = [
+            'models/htdemucs.onnx',
+            'https://songanalyzer.dredwerkz.cz/models/htdemucs.onnx',
+            'https://huggingface.co/itamiArika/htdemucs-int8-memory/resolve/main/htdemucs-dft-int8-fp16-portable.onnx',
+            'https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/main/htdemucs_6s_fp16weights.onnx'
           ];
 
-          currentTranscription.notes.forEach(n => {
-            const startTick = Math.max(0, Math.round((n.timeStart || 0) * ticksPerSec));
-            const durSec = Math.max(0.12, n.duration || 0.25);
-            const endTick = startTick + Math.round(durSec * ticksPerSec);
-            events.push({ tick: startTick, type: 'noteOn', channel: 0, note: n.midi, velocity: 90 });
-            events.push({ tick: endTick, type: 'noteOff', channel: 0, note: n.midi, velocity: 0 });
-          });
+          let success = false;
+          let lastErr = null;
 
-          events.sort((a, b) => a.tick - b.tick);
-
-          if (window.SongMidi && window.SongMidi.createMidiFile && window.SongMidi.downloadMidiBlob) {
-            const bytes = window.SongMidi.createMidiFile({ tracks: [events], ppq });
-            window.SongMidi.downloadMidiBlob(bytes, `${stemName}_${targetInst}_transcription.mid`);
-            btnExportMidi.textContent = '✓ Exported!';
-            setTimeout(() => { btnExportMidi.textContent = '⬇ Export MIDI'; }, 1500);
-          }
-        });
-      }
-
-      if (btnSendChords) {
-        btnSendChords.addEventListener('click', () => {
-          let chordSequence = 'Dm7 - G7 - Cmaj7 - Am7';
-
-          if (currentTranscription && currentTranscription.notes && currentTranscription.notes.length >= 4) {
-            const bpm = currentTranscription.bpm || 113;
-            const windowSec = (60 / bpm) * 2;
-            const buckets = {};
-
-            currentTranscription.notes.forEach(n => {
-              const bIdx = Math.floor((n.timeStart || 0) / windowSec);
-              if (!buckets[bIdx]) buckets[bIdx] = [];
-              buckets[bIdx].push(n.midi);
-            });
-
-            const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-            const detectedChords = [];
-
-            Object.keys(buckets).sort((a, b) => Number(a) - Number(b)).slice(0, 8).forEach(bIdx => {
-              const midis = buckets[bIdx];
-              if (midis.length === 0) return;
-              const minMidi = Math.min(...midis);
-              const rootPC = minMidi % 12;
-              const pcs = new Set(midis.map(m => (m - rootPC + 12) % 12));
-
-              let quality = '';
-              if (pcs.has(3)) {
-                quality = pcs.has(10) ? 'm7' : 'm';
-              } else if (pcs.has(4)) {
-                if (pcs.has(10)) quality = '7';
-                else if (pcs.has(11)) quality = 'maj7';
-                else quality = '';
-              } else {
-                quality = 'm';
+          for (let i = 0; i < demucsUrls.length; i++) {
+            const url = demucsUrls[i];
+            try {
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = (i === 0)
+                  ? 'Checking local models folder (models/htdemucs.onnx)...'
+                  : (url.includes('dredwerkz.cz')
+                    ? 'Connecting to songanalyzer.dredwerkz.cz...'
+                    : `Connecting to public mirror ${i - 1}...`);
               }
-              detectedChords.push(`${sharpNames[rootPC]}${quality}`);
-            });
 
-            if (detectedChords.length >= 2) {
-              chordSequence = detectedChords.join(' - ');
+              await engine.storage.downloadModel('demucs', url, (frac, loaded, total) => {
+                const pct = Math.round(frac * 100);
+                if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+                if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+                if (neuralDownloadStatusText) {
+                  neuralDownloadStatusText.textContent = `Downloading Demucs: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+                }
+              });
+
+              success = true;
+              break;
+            } catch (mirrorErr) {
+              console.warn(`Demucs source ${url} failed:`, mirrorErr);
+              lastErr = mirrorErr;
             }
           }
 
-          const progInput = document.getElementById('progressionInput');
-          if (progInput) {
-            progInput.value = chordSequence;
-          }
+          if (success) {
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'HTDemucs installed & cached!';
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
 
-          this.analyzeProgression();
+            setTimeout(() => {
+              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+            }, 1500);
 
-          if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
-            this.setMobileTab('analyzerSection');
+            await updateModelManagerUI();
           } else {
-            const anSec = document.getElementById('analyzerSection');
-            if (anSec) anSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            console.error('All Demucs download sources failed:', lastErr);
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Download failed: ${lastErr ? lastErr.message : 'network error'}. You can load a local htdemucs.onnx file below.`;
+            }
+            btnInstallDemucs.disabled = false;
           }
-
-          btnSendChords.textContent = '✓ Sent!';
-          setTimeout(() => { btnSendChords.textContent = '🎹 Send to Analyzer'; }, 1500);
         });
       }
+
+      // Local Model File Selector
+      if (btnBrowseLocalModel && inputLocalModelFile) {
+        btnBrowseLocalModel.addEventListener('click', () => {
+          inputLocalModelFile.value = '';
+          inputLocalModelFile.click();
+        });
+
+        inputLocalModelFile.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+
+          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Reading ${file.name} into memory...`;
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '30%';
+
+          try {
+            const buffer = await file.arrayBuffer();
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '75%';
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Saving ${file.name} to IndexedDB...`;
+
+            await engine.storage.saveModel('demucs', buffer, { name: file.name, size: buffer.byteLength });
+
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Successfully cached ${file.name} (${formatBytes(buffer.byteLength)}) as HTDemucs!`;
+            }
+
+            setTimeout(() => {
+              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+            }, 1500);
+
+            await updateModelManagerUI();
+          } catch (err) {
+            console.error('Error importing local model:', err);
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Error importing file: ${err.message}`;
+            }
+          }
+        });
+      }
+
+      // Clear Model Cache
+      if (btnClearNeuralCache) {
+        btnClearNeuralCache.addEventListener('click', async () => {
+          if (confirm('Clear all cached neural AI models from browser storage (IndexedDB)?')) {
+            await engine.storage.clearAll();
+            if (engine.demucsRunner) engine.demucsRunner.session = null;
+            await updateModelManagerUI();
+          }
+        });
+      }
+
+      // Silently sync local model into IndexedDB if available and not yet cached
+      engine.storage.getSummary().then(async (summary) => {
+        if (!summary.demucs) {
+          try {
+            const resp = await fetch('models/htdemucs.onnx');
+            if (resp.ok) {
+              const ab = await resp.arrayBuffer();
+              await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
+            }
+          } catch (e) {}
+        }
+        updateModelManagerUI();
+      }).catch(() => {});
+
+      // Toggle Rack Open/Closed
+      const togglePanel = () => {
+        if (!section) return;
+        const isHidden = section.style.display === 'none' || !section.style.display;
+        section.style.display = isHidden ? 'block' : 'none';
+        if (btnToggleTop) {
+          btnToggleTop.textContent = isHidden ? '🎧 Stems: On' : '🎧 Stems: Off';
+          if (isHidden) {
+            btnToggleTop.classList.add('btn-success');
+            btnToggleTop.classList.remove('btn-outline-cyan');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+        }
+        if (window.SongState) window.SongState.requestSave();
+      };
+
+      if (btnToggleTop) btnToggleTop.addEventListener('click', togglePanel);
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (section) section.style.display = 'none';
+          if (btnToggleTop) {
+            btnToggleTop.textContent = '🎧 Stems: Off';
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      // Keyboard Shortcut 'A' toggles Stem Separator
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'a' || e.key === 'A') {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+            return;
+          }
+          e.preventDefault();
+          if (btnToggleTop) btnToggleTop.click();
+        }
+      });
     }
 
     // 0C. Voice Leading Ribbon & 6-School Melodic Pathway Studio

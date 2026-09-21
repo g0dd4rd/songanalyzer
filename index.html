@@ -94,8 +94,8 @@
           🎸 Chords: Off
         </button>
 
-        <button id="btnToggleTranscriberTop" class="btn btn-sm btn-outline-cyan" title="Toggle Audio Transcriber & 6-Stem Studio [A]">
-          🎧 Transcribe: Off
+        <button id="btnToggleTranscriberTop" class="btn btn-sm btn-outline-cyan" title="Toggle Neural Stem Separator [A]">
+          🎧 Stems: Off
         </button>
       </div>
 
@@ -586,80 +586,59 @@
       </div>
     </section>
 
-    <!-- Module 0D: AI Audio Transcriber & 6-Stem Studio (Collapsible Studio Rack) -->
+    <!-- Module 0D: AI Neural Stem Separator (Collapsible Studio Rack) -->
     <section class="card transcriber-card" id="transcriberSection" style="display: none; grid-column: 1 / -1;">
       <div class="card-title">
         <div class="card-title-left">
-          <button type="button" class="panel-help-btn" data-panel-guide="guideTranscriber" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Audio Transcriber">ℹ</button>
-          <span><span class="card-title-icon">🎧</span> AI Audio Transcriber &amp; 6-Stem Studio</span>
+          <button type="button" class="panel-help-btn" data-panel-guide="guideTranscriber" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Audio Stem Separator">ℹ</button>
+          <span><span class="card-title-icon">🎧</span> AI Neural Stem Separator (HTDemucs)</span>
           <span id="transcriberLiveBadge" class="tempo-marking-badge" style="margin-left: 8px; font-size: 0.76rem; padding: 2px 8px;">No Audio Loaded</span>
         </div>
         <div class="card-title-actions" style="display: flex; gap: 8px; align-items: center;">
-          <button id="btnCloseTranscriber" class="btn btn-sm" title="Close Transcriber Panel" style="padding: 2px 8px;">✕</button>
+          <button id="btnCloseTranscriber" class="btn btn-sm" title="Close Stem Separator Panel" style="padding: 2px 8px;">✕</button>
         </div>
       </div>
 
-      <!-- Student Guide Drawer: Transcriber -->
+      <!-- Student Guide Drawer: Stem Separator -->
       <div id="guideTranscriber" class="panel-guide-box" style="display: none;">
         <div class="guide-box-header">
-          <span class="guide-box-tag">🎓 Student Guide • Audio Transcriber &amp; 6-Stem Studio</span>
+          <span class="guide-box-tag">🎓 Student Guide • Neural Audio Stem Separator</span>
           <button type="button" class="guide-box-close" data-close-guide="guideTranscriber" title="Close Guide" aria-label="Close Guide">&times;</button>
         </div>
         <div class="guide-box-content">
-          <p><strong class="label-what">What it is:</strong> A multi-stem audio transcription studio that separates any song into 6 isolated audio tracks (Drums, Bass, Guitar, Piano, Vocals, Other) and converts audio into playable guitar/bass tablature (TAB) and 5-line musical sheet notation.</p>
-          <p><strong class="label-why">Why use it:</strong> Transcribe riffs, learn fast basslines, decode chord progressions from commercial recordings, isolate backing tracks for practice, and slow down tracks to 0.5x or 0.75x without changing pitch.</p>
+          <p><strong class="label-what">What it is:</strong> A deep-learning audio stem separator powered by Meta AI HTDemucs that isolates any song into 4 pure audio tracks: Drums, Bass, Other Instruments, and Vocals.</p>
+          <p><strong class="label-why">Why use it:</strong> Extract clean, isolated drum grooves, basslines, vocal tracks, and instrumental backings for practice, remixing, sampling, or focused learning.</p>
           <div>
             <strong class="label-how">How to use it:</strong>
             <ol class="guide-how-list">
-              <li><strong>Drop any audio file</strong> (MP3, WAV, FLAC, M4A, OGG) or click <strong>🎙️ Record Instrument</strong> to record your playing directly.</li>
-              <li>The engine detects the song's tempo (BPM) and splits the mix into 6 isolated stems.</li>
-              <li>Use the <strong>6-Stem Mixer</strong> to solo (<strong>S</strong>) or mute (<strong>M</strong>) any instrument, and play along at 0.5x or 0.75x speed.</li>
-              <li>Select your target instrument (e.g. <em>6-String Guitar Drop D</em> or <em>5-String Bass</em>) and click <strong>⚡ Transcribe Stem</strong> to generate clean Tablature and Sheet Music!</li>
-              <li>Click <strong>⬇ Export MIDI</strong> to drag the transcription into your favorite DAW.</li>
+              <li><strong>Drop any audio file</strong> (MP3, WAV, FLAC, M4A, OGG) or click <strong>📂 Open Audio File</strong>.</li>
+              <li>The engine runs the HTDemucs deep-learning model to isolate the track into 4 stems.</li>
+              <li>Preview each stem directly with the built-in browser audio players.</li>
+              <li>Click <strong>⬇ Download (.wav)</strong> for any individual stem or click <strong>⬇ Download All 4 Stems</strong> to save the complete uncompressed stem package.</li>
             </ol>
           </div>
           <div class="guide-tip-box">
-            💡 <strong class="label-tip">Student Pro-Tip:</strong> The Biomechanical Fretboard Solver automatically finds the most natural hand positions and string fingerings for your chosen tuning. Solo the Bass stem to instantly learn walking basslines without guitar interference!
+            💡 <strong class="label-tip">Pro-Tip:</strong> The separation is performed locally using the HTDemucs neural network. Once downloaded into the browser cache, it operates 100% offline and privately.
           </div>
         </div>
       </div>
 
       <!-- Main Transcriber Rack Layout -->
       <div class="transcriber-rack-grid">
-        <!-- 0. Engine Tier Selector Bar -->
-        <div class="transcriber-engine-bar" id="transcriberEngineBar">
-          <div class="engine-bar-left">
-            <span class="engine-bar-label">⚙️ Engine Mode:</span>
-            <div class="engine-pill-group">
-              <button type="button" class="btn btn-sm btn-engine-tier active" id="btnTier1Mode" data-tier="1" title="Instant digital linear-phase filterbank (<2s, zero download)">
-                ⚡ Tier 1: Fast Filterbank (Instant)
-              </button>
-              <button type="button" class="btn btn-sm btn-engine-tier" id="btnTier2Mode" data-tier="2" title="Deep learning neural networks (Spotify Basic Pitch + Demucs)">
-                🧠 Tier 2: Neural AI
-              </button>
-            </div>
-            <span id="neuralEngineBadge" class="engine-status-badge badge-tier1">Tier 1: Filterbank (Active)</span>
-          </div>
-          <div class="engine-bar-right">
-            <button type="button" id="btnOpenModelManager" class="btn btn-sm btn-outline-cyan" title="Open Neural Model &amp; Cache Manager">
-              🧠 Neural Models &amp; Cache
-            </button>
-          </div>
-        </div>
-
         <!-- 1. Drop Zone & Ingestion Box -->
         <div class="transcriber-drop-card" id="transcriberDropZone">
           <div class="drop-zone-content">
-            <span class="drop-zone-icon">📁</span>
+            <span class="drop-zone-icon">🧠</span>
             <div class="drop-zone-text">
-              <strong>Drag &amp; Drop Song Audio Here</strong>
-              <span class="drop-zone-subtext">Supports MP3, WAV, FLAC, M4A, OGG • 100% Local &amp; Private</span>
+              <strong>Drag &amp; Drop Audio Track for Neural Stem Separation</strong>
+              <span class="drop-zone-subtext">Powered by Meta AI HTDemucs • Isolates Drums, Bass, Other &amp; Vocals • 100% Offline &amp; Private</span>
             </div>
             <div class="drop-zone-buttons">
               <button type="button" id="btnBrowseAudioFile" class="btn btn-sm btn-primary">📂 Open Audio File</button>
               <input type="file" id="transcriberAudioFileInput" accept="audio/*" style="display: none;">
               <button type="button" id="btnRecordMicLive" class="btn btn-sm btn-outline-cyan">🎙️ Record Instrument</button>
               <button type="button" id="btnLoadSampleDemo" class="btn btn-sm btn-outline-gold" title="Load built-in funk demo track to test">⚡ Load Demo Track</button>
+              <button type="button" id="btnOpenModelManager" class="btn btn-sm btn-outline-cyan" title="Open Neural Model &amp; Cache Manager">🧠 Model Cache</button>
             </div>
           </div>
           <!-- Track Info Readout (Visible after file loaded) -->
@@ -667,8 +646,13 @@
             <div class="track-info-pill"><span class="track-info-label">File:</span> <span id="transcriberFilename" class="track-info-val">demo.mp3</span></div>
             <div class="track-info-pill"><span class="track-info-label">Duration:</span> <span id="transcriberDuration" class="track-info-val">0:00</span></div>
             <div class="track-info-pill"><span class="track-info-label">Tempo:</span> <span id="transcriberBpmBadge" class="track-info-val">113 BPM</span></div>
-            <button type="button" id="btnReanalyzeStems" class="btn btn-sm btn-primary" style="margin-left: auto;">⚡ Process &amp; Transcribe</button>
+            <button type="button" id="btnReanalyzeStems" class="btn btn-sm btn-primary" style="margin-left: auto;">🧠 Separate Stems (Demucs)</button>
           </div>
+        </div>
+
+        <!-- File protocol notice (shown only when running on file://) -->
+        <div id="fileProtocolNotice" class="file-protocol-banner" style="display: none;">
+          ℹ️ <strong>Running without a web server (<code>file://</code>):</strong> Browsers block WebAssembly and neural model loading directly from disk due to CORS sandbox policy. To run Demucs in the browser, start the local server with <code>python3 -m http.server 8000</code> and visit <code>http://localhost:8000</code>, or run separation directly in terminal: <code>python3 scripts/separate_stems.py &lt;audio_file&gt;</code>.
         </div>
 
         <!-- 2. Multi-Stage Progress Banner -->
@@ -682,175 +666,87 @@
           </div>
         </div>
 
-        <!-- 3. 6-Stem Mixer Rack -->
-        <div id="transcriberMixerSection" class="transcriber-mixer-card" style="display: none;">
-          <div class="mixer-header-row">
-            <span class="mixer-title">🎚️ 6-Stem Isolation &amp; Practice Mixer</span>
-            <div class="mixer-transport-controls">
-              <button type="button" id="btnStemPlayToggle" class="btn btn-sm btn-success">▶ Play Mix</button>
-              <button type="button" id="btnDownloadAllStems" class="btn btn-sm btn-outline-cyan" title="Download all separated stems (.wav)">⬇ Download All Stems (.wav)</button>
-              <div class="speed-selector-group">
-                <span style="font-size: 0.76rem; color: var(--text-muted);">Speed:</span>
-                <button type="button" class="btn btn-sm btn-speed active" data-speed="1.0">1.0x</button>
-                <button type="button" class="btn btn-sm btn-speed" data-speed="0.75">0.75x</button>
-                <button type="button" class="btn btn-sm btn-speed" data-speed="0.5">0.5x</button>
-              </div>
+        <!-- 3. Separated Stems Download Deck -->
+        <div id="transcriberStemsDeck" class="transcriber-stems-deck" style="display: none;">
+          <div class="stems-deck-header">
+            <div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #38bdf8;">✨ Isolated Neural Audio Stems</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Separated using Meta AI HTDemucs (44.1 kHz 16-bit PCM WAV)</div>
+            </div>
+            <div class="stems-deck-actions">
+              <button type="button" id="btnDownloadAllStemsMaster" class="btn btn-sm btn-primary">
+                ⬇ Download All 4 Stems (WAV)
+              </button>
             </div>
           </div>
 
-          <!-- 6 Stem Channel Strips -->
-          <div class="stem-channels-grid">
-            <!-- Channel 1: Drums -->
-            <div class="stem-channel-strip" data-stem="drums">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🥁</span>
-                <span class="stem-strip-name">Drums</span>
+          <div class="stems-cards-grid">
+            <!-- Stem 1: Drums -->
+            <div class="stem-card">
+              <div class="stem-card-header">
+                <span class="stem-card-icon">🥁</span>
+                <div>
+                  <div class="stem-card-title">Drums</div>
+                  <div class="stem-card-desc">Kick, snare, hi-hats, cymbals &amp; percussion</div>
+                </div>
               </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="drums" title="Solo Drums [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="drums" title="Mute Drums [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="drums" title="Download Drums Stem (.wav)">⬇</button>
+              <div class="stem-card-player">
+                <audio id="audioPreview_drums" controls preload="none" style="width: 100%; height: 36px;"></audio>
               </div>
-              <input type="range" class="stem-fader" data-stem="drums" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_drums">85%</span>
-            </div>
-
-            <!-- Channel 2: Bass -->
-            <div class="stem-channel-strip" data-stem="bass">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🎸</span>
-                <span class="stem-strip-name">Bass</span>
-              </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="bass" title="Solo Bass [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="bass" title="Mute Bass [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="bass" title="Download Bass Stem (.wav)">⬇</button>
-              </div>
-              <input type="range" class="stem-fader" data-stem="bass" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_bass">85%</span>
-            </div>
-
-            <!-- Channel 3: Guitar -->
-            <div class="stem-channel-strip" data-stem="guitar">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🎸</span>
-                <span class="stem-strip-name">Guitar</span>
-              </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="guitar" title="Solo Guitar [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="guitar" title="Mute Guitar [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="guitar" title="Download Guitar Stem (.wav)">⬇</button>
-              </div>
-              <input type="range" class="stem-fader" data-stem="guitar" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_guitar">85%</span>
-            </div>
-
-            <!-- Channel 4: Piano / Keys -->
-            <div class="stem-channel-strip" data-stem="piano">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🎹</span>
-                <span class="stem-strip-name">Piano</span>
-              </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="piano" title="Solo Piano [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="piano" title="Mute Piano [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="piano" title="Download Piano Stem (.wav)">⬇</button>
-              </div>
-              <input type="range" class="stem-fader" data-stem="piano" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_piano">85%</span>
-            </div>
-
-            <!-- Channel 5: Vocals -->
-            <div class="stem-channel-strip" data-stem="vocals">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🎤</span>
-                <span class="stem-strip-name">Vocals</span>
-              </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="vocals" title="Solo Vocals [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="vocals" title="Mute Vocals [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="vocals" title="Download Vocals Stem (.wav)">⬇</button>
-              </div>
-              <input type="range" class="stem-fader" data-stem="vocals" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_vocals">85%</span>
-            </div>
-
-            <!-- Channel 6: Other -->
-            <div class="stem-channel-strip" data-stem="other">
-              <div class="stem-strip-header">
-                <span class="stem-strip-icon">🎷</span>
-                <span class="stem-strip-name">Other</span>
-              </div>
-              <div class="stem-strip-buttons">
-                <button type="button" class="btn-stem-solo" data-stem="other" title="Solo Other [S]">S</button>
-                <button type="button" class="btn-stem-mute" data-stem="other" title="Mute Other [M]">M</button>
-                <button type="button" class="btn-stem-download" data-stem="other" title="Download Other Stem (.wav)">⬇</button>
-              </div>
-              <input type="range" class="stem-fader" data-stem="other" min="0" max="1.5" step="0.05" value="0.85">
-              <span class="stem-vol-readout" id="stemVol_other">85%</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 4. Target Instrument, Tuning & Transcribed Notation -->
-        <div id="transcriberNotationCard" class="transcriber-notation-card" style="display: none;">
-          <div class="transcription-toolbar-row">
-            <div class="toolbar-left-group">
-              <label for="transcribeTargetStemSelect" style="font-size: 0.8rem; color: var(--text-muted);">Stem to Transcribe:</label>
-              <select id="transcribeTargetStemSelect" class="form-control" style="font-size: 0.82rem; padding: 2px 6px;">
-                <option value="guitar" selected>🎸 Guitar Stem</option>
-                <option value="bass">🎸 Bass Stem</option>
-                <option value="piano">🎹 Piano / Keys Stem</option>
-                <option value="vocals">🎤 Vocal Stem</option>
-              </select>
-
-              <label for="transcribeInstrumentSelect" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">Target Instrument:</label>
-              <select id="transcribeInstrumentSelect" class="form-control" style="font-size: 0.82rem; padding: 2px 6px;">
-                <optgroup label="Guitars">
-                  <option value="guitar_6str" selected>6-String Guitar</option>
-                  <option value="guitar_7str">7-String Guitar</option>
-                  <option value="guitar_8str">8-String Guitar</option>
-                </optgroup>
-                <optgroup label="Bass Guitars">
-                  <option value="bass_4str">4-String Bass</option>
-                  <option value="bass_5str">5-String Bass</option>
-                  <option value="bass_6str">6-String Bass</option>
-                </optgroup>
-              </select>
-
-              <label for="transcribeTuningSelect" style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">Tuning:</label>
-              <select id="transcribeTuningSelect" class="form-control" style="font-size: 0.82rem; padding: 2px 6px;">
-                <!-- Populated dynamically based on instrument -->
-              </select>
-
-              <button type="button" id="btnRunStemTranscription" class="btn btn-sm btn-success" style="margin-left: 8px;">
-                ⚡ Transcribe to TAB
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="drums">
+                ⬇ Download Drums (.wav)
               </button>
             </div>
 
-            <div class="toolbar-right-group">
-              <button type="button" id="btnCopyTranscribedTab" class="btn btn-sm btn-outline-cyan" title="Copy ASCII Tab to clipboard">📋 Copy Tab</button>
-              <button type="button" id="btnExportTranscribedMidi" class="btn btn-sm btn-outline-cyan" title="Export transcribed track as Standard MIDI file (.mid)">⬇ Export MIDI</button>
-              <button type="button" id="btnSendChordsToAnalyzer" class="btn btn-sm btn-primary" title="Send detected chord timeline to Harmonic Progression Analyzer">🎹 Send to Analyzer</button>
-            </div>
-          </div>
-
-          <!-- Triple Notation Containers -->
-          <div class="transcribed-views-container">
-            <!-- View A: Interactive Formatted Tablature -->
-            <div class="transcribed-view-pane">
-              <div class="pane-title">🎸 Biomechanical Fretboard Tablature (TAB)</div>
-              <div id="transcribedTabContainer" class="transcribed-tab-box">
-                <!-- Injected dynamically -->
+            <!-- Stem 2: Bass -->
+            <div class="stem-card">
+              <div class="stem-card-header">
+                <span class="stem-card-icon">🎸</span>
+                <div>
+                  <div class="stem-card-title">Bass</div>
+                  <div class="stem-card-desc">Electric bass, bass synth &amp; sub-bass</div>
+                </div>
               </div>
+              <div class="stem-card-player">
+                <audio id="audioPreview_bass" controls preload="none" style="width: 100%; height: 36px;"></audio>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="bass">
+                ⬇ Download Bass (.wav)
+              </button>
             </div>
 
-            <!-- View B: 5-Line Musical Sheet Canvas -->
-            <div class="transcribed-view-pane" style="margin-top: 12px;">
-              <div class="pane-title">🎼 5-Line Musical Staff Notation</div>
-              <div class="transcribed-staff-wrapper">
-                <canvas id="transcribedStaffCanvas" width="900" height="150" class="transcribed-staff-canvas"></canvas>
+            <!-- Stem 3: Other / Instruments -->
+            <div class="stem-card">
+              <div class="stem-card-header">
+                <span class="stem-card-icon">🎹</span>
+                <div>
+                  <div class="stem-card-title">Other Instruments</div>
+                  <div class="stem-card-desc">Electric &amp; acoustic guitars, keyboards, piano, synths</div>
+                </div>
               </div>
+              <div class="stem-card-player">
+                <audio id="audioPreview_other" controls preload="none" style="width: 100%; height: 36px;"></audio>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="other">
+                ⬇ Download Other (.wav)
+              </button>
+            </div>
+
+            <!-- Stem 4: Vocals -->
+            <div class="stem-card">
+              <div class="stem-card-header">
+                <span class="stem-card-icon">🎤</span>
+                <div>
+                  <div class="stem-card-title">Vocals</div>
+                  <div class="stem-card-desc">Lead vocals, harmony &amp; vocal formants</div>
+                </div>
+              </div>
+              <div class="stem-card-player">
+                <audio id="audioPreview_vocals" controls preload="none" style="width: 100%; height: 36px;"></audio>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="vocals">
+                ⬇ Download Vocals (.wav)
+              </button>
             </div>
           </div>
         </div>

@@ -52,4 +52,7 @@ studio_workspace_ui_*.jpg
 # Large neural models (>50MB) stored locally
 models/*demucs*.onnx
 
+# Local helper scripts
+scripts/
+
 
