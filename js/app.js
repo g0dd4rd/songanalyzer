@@ -3063,14 +3063,16 @@
         }
         setProgress(0.05, 'Reading file into memory...');
         try {
-          const ab = await file.arrayBuffer();
           const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : engine.getAudioContext();
+          if (ctx && ctx.state === 'suspended') {
+            await ctx.resume().catch(() => {});
+          }
           setProgress(0.1, 'Decoding audio file...');
-          const audioBuf = await engine.decodeAudioFile(ab, ctx);
+          const audioBuf = await engine.decodeAudioFile(file, ctx);
           await processBuffer(audioBuf, file.name);
         } catch (err) {
           console.error('Failed to load audio file:', err);
-          alert('Could not decode audio file. Please try another MP3, WAV, FLAC, or M4A file.');
+          alert(`Could not decode audio file: ${err && err.message ? err.message : 'format unsupported'}. Please try another MP3, WAV, FLAC, or M4A file.`);
           setProgress(1.0, 'Error decoding');
         }
       };

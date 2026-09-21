@@ -277,25 +277,75 @@
     }
 
     getAudioContext() {
-      if (!this.audioCtx) {
-        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-        this.audioCtx = new AudioCtxClass();
+      if (this.audioCtx && this.audioCtx.state !== 'closed') {
+        if (this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+        return this.audioCtx;
       }
+      if (window.audio && window.audio.ctx && window.audio.ctx.state !== 'closed') {
+        this.audioCtx = window.audio.ctx;
+        if (this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+        return this.audioCtx;
+      }
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      this.audioCtx = new AudioCtxClass();
       if (this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
+        this.audioCtx.resume().catch(() => {});
       }
       return this.audioCtx;
     }
 
     /**
      * 1. Decode Audio File (WAV, MP3, FLAC, M4A, OGG)
+     * Supports File, Blob, or ArrayBuffer, using Promise or callback decodeAudioData.
      */
-    async decodeAudioFile(fileOrBlob) {
-      const ctx = this.getAudioContext();
-      const arrayBuffer = await fileOrBlob.arrayBuffer();
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      this.sourceAudioBuffer = audioBuffer;
-      return audioBuffer;
+    async decodeAudioFile(fileOrBlobOrBuffer, customCtx = null) {
+      const ctx = customCtx || this.getAudioContext();
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch (e) {}
+      }
+
+      let arrayBuffer;
+      if (fileOrBlobOrBuffer instanceof ArrayBuffer) {
+        arrayBuffer = fileOrBlobOrBuffer;
+      } else if (fileOrBlobOrBuffer && typeof fileOrBlobOrBuffer.arrayBuffer === 'function') {
+        arrayBuffer = await fileOrBlobOrBuffer.arrayBuffer();
+      } else if (fileOrBlobOrBuffer && fileOrBlobOrBuffer.buffer instanceof ArrayBuffer) {
+        arrayBuffer = fileOrBlobOrBuffer.buffer;
+      } else {
+        throw new Error('Unsupported audio payload: expected File, Blob, or ArrayBuffer');
+      }
+
+      // Slicing arrayBuffer ensures that if decodeAudioData detaches the buffer,
+      // the original remains intact.
+      const bufferCopy = arrayBuffer.slice(0);
+
+      return new Promise((resolve, reject) => {
+        let isSettled = false;
+        const onSuccess = (decoded) => {
+          if (isSettled) return;
+          isSettled = true;
+          this.sourceAudioBuffer = decoded;
+          resolve(decoded);
+        };
+        const onError = (err) => {
+          if (isSettled) return;
+          isSettled = true;
+          reject(err || new Error('Audio decoding failed'));
+        };
+
+        try {
+          const ret = ctx.decodeAudioData(bufferCopy, onSuccess, onError);
+          if (ret && typeof ret.then === 'function') {
+            ret.then(onSuccess).catch(onError);
+          }
+        } catch (syncErr) {
+          onError(syncErr);
+        }
+      });
     }
 
     /**
@@ -869,13 +919,24 @@
     }
 
     play(startSec = 0) {
-      if (this.isPlaying || !this.audio || !this.stems.bass) return;
-      const ctx = this.audio.ctx || this.audio.getAudioContext();
+      if (this.isPlaying || !this.stems || !this.stems.bass) return;
+      let ctx = null;
+      if (this.audio && this.audio.ctx && this.audio.ctx.state !== 'closed') {
+        ctx = this.audio.ctx;
+      } else if (window.audio && window.audio.ctx && window.audio.ctx.state !== 'closed') {
+        ctx = window.audio.ctx;
+      } else if (this.audio && typeof this.audio.getAudioContext === 'function') {
+        ctx = this.audio.getAudioContext();
+      }
       if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
 
       this.sources = {};
       this.gainNodes = {};
       const hasAnySolo = Object.values(this.stemStates).some(s => s.solo);
+      const masterDest = (this.audio && this.audio.masterVolumeGain) ? this.audio.masterVolumeGain : ctx.destination;
 
       Object.entries(this.stems).forEach(([name, buffer]) => {
         if (!buffer) return;
@@ -893,7 +954,7 @@
         gainNode.gain.value = finalGain;
 
         source.connect(gainNode);
-        gainNode.connect(ctx.destination);
+        gainNode.connect(masterDest);
 
         source.start(0, startSec);
         this.sources[name] = source;
