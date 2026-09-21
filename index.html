@@ -27,6 +27,7 @@
   <script src="js/accuracy.js"></script>
   <script src="js/ribbon.js"></script>
   <script src="js/sheetmusic.js"></script>
+  <script src="js/state.js"></script>
   <script src="js/app.js"></script>
 </head>
 <body>
@@ -97,6 +98,10 @@
           <label for="masterVolume">Vol:</label>
           <input type="range" id="masterVolume" min="-30" max="4" value="-6" step="1" title="Master Audio Volume">
         </div>
+        <button type="button" id="btnSessionModal" class="btn btn-sm btn-session" title="Session State, Auto-Save & Backups">
+          <span class="session-dot" id="headerSessionDot"></span>
+          <span class="session-label" id="headerSessionLabel">Saved</span>
+        </button>
       </div>
     </div>
   </header>
@@ -1600,6 +1605,89 @@
     </div>
 
   </main>
+
+  <!-- Session State & Backup Management Modal Dialog -->
+  <div id="sessionModal" class="session-modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="sessionModalTitle">
+    <div class="session-modal-container">
+      <div class="session-modal-header">
+        <div class="session-modal-title-area">
+          <span class="session-modal-icon">💾</span>
+          <div>
+            <h3 id="sessionModalTitle" class="session-modal-title">Session State &amp; Backups</h3>
+            <div class="session-modal-subtitle">Auto-save persistence, portable JSON backup, snapshots &amp; reset</div>
+          </div>
+        </div>
+        <button type="button" id="btnCloseSessionModal" class="session-modal-close" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="session-modal-body">
+        <!-- Live Auto-Save Status Banner -->
+        <div class="session-status-card">
+          <div class="session-status-left">
+            <span class="session-status-dot pulsing" id="sessionModalDot"></span>
+            <div>
+              <div class="session-status-text" id="sessionModalStatus">Auto-Save Active (Local Storage)</div>
+              <div class="session-status-subtext">All chords, movable shapes, tempos, and practice logs save automatically</div>
+            </div>
+          </div>
+          <div class="session-status-right">
+            <span class="session-last-saved" id="sessionModalLastSaved">Saved just now</span>
+          </div>
+        </div>
+
+        <!-- 1. Portable JSON Backup & Restore -->
+        <div class="session-card">
+          <div class="session-card-header">
+            <span class="session-card-title">📦 Session Backup &amp; Portability</span>
+            <span class="session-tag">JSON</span>
+          </div>
+          <p class="session-card-desc">
+            Export your entire studio state (progressions, movable voicings, custom drum patterns, practice history logs, tuner settings, and snapshots) to a single portable JSON file, or restore a backup from any computer or phone.
+          </p>
+          <div class="session-btn-row">
+            <button type="button" id="btnExportSessionJson" class="btn btn-sm btn-primary">
+              ⬇ Export Session Backup (.json)
+            </button>
+            <button type="button" id="btnImportSessionJson" class="btn btn-sm btn-outline-cyan">
+              ⬆ Restore / Import Backup (.json)
+            </button>
+            <input type="file" id="sessionJsonFileInput" accept=".json" style="display: none;">
+          </div>
+        </div>
+
+        <!-- 2. Quick Snapshot Presets (3 Slots) -->
+        <div class="session-card">
+          <div class="session-card-header">
+            <span class="session-card-title">⚡ Quick Studio Snapshots</span>
+            <span class="session-tag">3 Slots</span>
+          </div>
+          <p class="session-card-desc">
+            Store and quickly switch between your favorite setups (e.g. Jazz Standards, Djent 8-String, Metronome Speed Drills).
+          </p>
+          <div class="snapshot-slots-list" id="snapshotSlotsList">
+            <!-- Populated dynamically: 3 slot cards with Load, Save, Clear -->
+          </div>
+        </div>
+
+        <!-- 3. Factory Reset -->
+        <div class="session-card session-card-danger">
+          <div class="session-card-header">
+            <span class="session-card-title" style="color: var(--accent-red);">⚠️ Factory Reset</span>
+            <span class="session-tag" style="border-color: rgba(239, 68, 68, 0.4); color: var(--accent-red);">Reset</span>
+          </div>
+          <p class="session-card-desc">
+            Clear all stored persistence data from your browser and revert all modules, chords, and timers back to factory defaults.
+          </p>
+          <button type="button" id="btnResetSessionDefaults" class="btn btn-sm btn-danger">
+            🔄 Reset All Settings to Factory Defaults
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="sessionToastContainer" class="session-toast-container" aria-live="polite"></div>
 
 </body>
 </html>

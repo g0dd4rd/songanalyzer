@@ -45,6 +45,13 @@ An all-in-one, responsive, single-page music theory companion and practice studi
      - *Music Staff Notation*: Procedural 5-line canvas staff renderer with Treble Clef ($\text{G}_8$) for guitar and Bass Clef ($\text{F}_8$) for bass, complete with chord note stacking and accidentals.
    - Interactive root transposition slider (Frets 0–19) and zero-allocation humanized strumming (downstroke / upstroke).
 
+8. **Persistent Session State & Backup Studio**:
+   - **Seamless Debounced Auto-Save**: Preserves your entire studio state in local storage (chord progressions, movable chord instrument/tuning/shape/fret, metronome BPM/time signature/subdivision, drum machine patterns, practice session timers, tuner calibration, and mobile views).
+   - **Zero Friction Mobile Resumption**: Reopening the app or returning after backgrounding immediately resumes exactly where you left off.
+   - **Session Backup & Portability (.json)**: One-click export and import of complete session backups (including custom grooves, practice logs, and studio snapshots) to move sessions across phones, tablets, and desktop workstations.
+   - **3 Quick Snapshot Slots**: Store and quickly switch between studio presets (e.g. Jazz Voicings, Djent 8-String, Metronome Speed Practice).
+   - **Factory Reset**: One-click reset to clean defaults whenever desired.
+
 ## Quick Start & Installation
 
 ### 1. Running Locally (Desktop & LAN)

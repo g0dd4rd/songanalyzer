@@ -75,6 +75,9 @@
       this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
       this.initAccuracyModule();     // Initialize Rhythmic Accuracy Analyzer & Pocket Meter
       this.initMovableChordsModule(); // Initialize Multi-Notation Movable Chord Studio
+      if (window.SongState) {
+        window.SongState.init(this); // Initialize Session Auto-Save, Portability & Snapshots
+      }
       this.initPWA();                // Initialize PWA Service Worker
       this.initWakeLock();           // Initialize Screen Wake Lock API
     }
@@ -2472,6 +2475,7 @@
                 selectedShapeIndex = idx;
                 targetFretOverride = null;
                 renderCurrentChord();
+                if (window.SongState) window.SongState.requestSave();
               });
               shapesList.appendChild(pill);
             });
@@ -2522,6 +2526,60 @@
 
       this.chordStudioRenderer = renderCurrentChord;
 
+      this.chordStudio = {
+        getState: () => ({
+          instrument: currentInst,
+          tuning: currentTuningKey,
+          rootPC: currentRootPC,
+          quality: currentQuality,
+          style: currentStyle,
+          badgeMode: badgeMode,
+          selectedShapeIndex: selectedShapeIndex,
+          fretOverride: targetFretOverride
+        }),
+        setState: (st) => {
+          if (!st) return;
+          if (st.instrument && instSelect) {
+            instSelect.value = st.instrument;
+            currentInst = st.instrument;
+            populateTunings(currentInst);
+          }
+          if (st.tuning && tuningSelect) {
+            tuningSelect.value = st.tuning;
+            currentTuningKey = st.tuning;
+          }
+          if (st.rootPC !== undefined && rootSelect) {
+            rootSelect.value = String(st.rootPC);
+            currentRootPC = parseInt(st.rootPC, 10);
+          }
+          if (st.quality && qualitySelect) {
+            qualitySelect.value = st.quality;
+            currentQuality = st.quality;
+          }
+          if (st.style && styleSelect) {
+            styleSelect.value = st.style;
+            currentStyle = st.style;
+          }
+          if (st.badgeMode) {
+            badgeMode = st.badgeMode;
+            if (btnBadgeInterval && btnBadgeFinger) {
+              btnBadgeInterval.classList.toggle('active', badgeMode === 'interval');
+              btnBadgeFinger.classList.toggle('active', badgeMode === 'finger');
+            }
+          }
+          if (typeof st.selectedShapeIndex === 'number') {
+            selectedShapeIndex = st.selectedShapeIndex;
+          }
+          if (typeof st.fretOverride === 'number') {
+            targetFretOverride = st.fretOverride;
+            if (fretSlider) fretSlider.value = targetFretOverride;
+          } else {
+            targetFretOverride = null;
+          }
+          renderCurrentChord();
+        }
+      };
+
       // Event Listeners
       if (instSelect) {
         instSelect.addEventListener('change', () => {
@@ -2530,6 +2588,7 @@
           selectedShapeIndex = 0;
           targetFretOverride = null;
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2538,6 +2597,7 @@
           currentTuningKey = tuningSelect.value;
           targetFretOverride = null;
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2546,6 +2606,7 @@
           currentRootPC = parseInt(rootSelect.value, 10);
           targetFretOverride = null;
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2555,6 +2616,7 @@
           selectedShapeIndex = 0;
           targetFretOverride = null;
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2564,6 +2626,7 @@
           selectedShapeIndex = 0;
           targetFretOverride = null;
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2573,12 +2636,14 @@
           btnBadgeInterval.classList.add('active');
           btnBadgeFinger.classList.remove('active');
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
         btnBadgeFinger.addEventListener('click', () => {
           badgeMode = 'finger';
           btnBadgeFinger.classList.add('active');
           btnBadgeInterval.classList.remove('active');
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
@@ -2586,6 +2651,7 @@
         fretSlider.addEventListener('input', () => {
           targetFretOverride = parseInt(fretSlider.value, 10);
           renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
         });
       }
 
