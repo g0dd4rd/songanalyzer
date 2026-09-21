@@ -3935,3 +3935,387 @@ tr:hover td {
   }
 }
 
+/* =============================================================
+   Audio Transcriber & 6-Stem Studio Styling
+   ============================================================= */
+
+.transcriber-card {
+  border-top: 3px solid #8b5cf6;
+}
+
+.transcriber-rack-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* Drop Zone */
+.transcriber-drop-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 2px dashed rgba(139, 92, 246, 0.35);
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.transcriber-drop-card.dragover {
+  border-color: #a855f7;
+  background: rgba(139, 92, 246, 0.12);
+  transform: scale(1.005);
+}
+
+.drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.drop-zone-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.drop-zone-text strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.drop-zone-subtext {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.drop-zone-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+/* Track Info Bar */
+.transcriber-track-info-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid #334155;
+  border-radius: 8px;
+}
+
+.track-info-pill {
+  font-size: 0.82rem;
+  color: #f1f5f9;
+}
+
+.track-info-label {
+  color: #94a3b8;
+  margin-right: 4px;
+}
+
+.track-info-val {
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: var(--font-mono);
+}
+
+/* Progress Card */
+.transcriber-progress-card {
+  background: #0f172a;
+  border: 1px solid #24304f;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.progress-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+  margin-bottom: 6px;
+}
+
+.progress-status-label {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.progress-percent-val {
+  font-family: var(--font-mono);
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.transcriber-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #1e293b;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #06b6d4, #10b981);
+  transition: width 0.25s ease;
+}
+
+/* 6-Stem Mixer Card */
+.transcriber-mixer-card {
+  background: #0d1424;
+  border: 1px solid #24304f;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mixer-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mixer-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.mixer-transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.speed-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-speed {
+  font-size: 0.74rem;
+  padding: 2px 7px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-speed.active {
+  background: #0ea5e9;
+  color: #fff;
+  border-color: #38bdf8;
+  font-weight: 700;
+}
+
+/* Stem Channel Strips */
+.stem-channels-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.stem-channel-strip {
+  background: #151d30;
+  border: 1px solid #24304f;
+  border-radius: 8px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.stem-strip-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stem-strip-icon {
+  font-size: 1.3rem;
+}
+
+.stem-strip-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.stem-strip-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-stem-solo, .btn-stem-mute {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-stem-solo.active {
+  background: #f59e0b;
+  color: #0b0f19;
+  border-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.btn-stem-mute.active {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.stem-fader {
+  width: 100%;
+  accent-color: #06b6d4;
+  cursor: pointer;
+}
+
+.stem-vol-readout {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+}
+
+/* Transcribed Notation Card */
+.transcriber-notation-card {
+  background: #0e1424;
+  border: 1px solid #24304f;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.transcription-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toolbar-left-group, .toolbar-right-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transcribed-views-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.transcribed-view-pane {
+  background: #090d16;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.pane-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+/* Tab Viewport */
+.transcribed-tab-viewport {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  font-family: var(--font-mono);
+}
+
+.tab-measure-block {
+  flex-shrink: 0;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.tab-measure-header {
+  font-size: 0.74rem;
+  color: #38bdf8;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tab-string-line {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.tab-string-name {
+  color: #f1f5f9;
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+.tab-fret-digit {
+  color: #38bdf8;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.15);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.transcribed-staff-wrapper {
+  overflow-x: auto;
+}
+
+.transcribed-staff-canvas {
+  width: 100%;
+  max-width: 900px;
+  height: 150px;
+  border-radius: 6px;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .stem-channels-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .stem-channels-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+

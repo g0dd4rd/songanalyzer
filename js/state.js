@@ -63,6 +63,7 @@
           tunerOpen: this.isSectionOpen('tunerSection'),
           accuracyOpen: this.isSectionOpen('accuracySection'),
           chordsOpen: this.isSectionOpen('movableChordSection'),
+          transcriberOpen: this.isSectionOpen('transcriberSection'),
           activeVisualizerTab: this.getActiveVisualizerTab(),
           fretboardInstrument: this.getSelectValue('fretboardInstrumentSelect', 'guitar_std'),
           clockLayers: this.getClockLayers()
@@ -442,6 +443,16 @@
             if (btnChord) {
               btnChord.textContent = '🎸 Chords: On';
               btnChord.classList.add('active');
+            }
+          }
+          if (state.navigation.transcriberOpen) {
+            const transSec = document.getElementById('transcriberSection');
+            const btnTrans = document.getElementById('btnToggleTranscriberTop');
+            if (transSec) transSec.style.display = 'block';
+            if (btnTrans) {
+              btnTrans.textContent = '🎧 Transcribe: On';
+              btnTrans.classList.remove('btn-outline-cyan');
+              btnTrans.classList.add('btn-success');
             }
           }
           if (state.navigation.mobileTab && app.setMobileTab) {

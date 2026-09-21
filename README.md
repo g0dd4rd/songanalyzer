@@ -52,6 +52,14 @@ An all-in-one, responsive, single-page music theory companion and practice studi
    - **3 Quick Snapshot Slots**: Store and quickly switch between studio presets (e.g. Jazz Voicings, Djent 8-String, Metronome Speed Practice).
    - **Factory Reset**: One-click reset to clean defaults whenever desired.
 
+9. **AI Audio Transcriber, 6-Stem Isolation & Biomechanical Tab Studio**:
+   - **Multi-Format Audio Ingestion**: Drag & drop any audio file (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`), record instruments live via microphone, or audition instantly with the built-in synthesized funk demo track.
+   - **Instant 6-Stem Separation**: Splits mixed audio into 6 isolated stems (*Drums*, *Bass*, *Guitar*, *Piano*, *Vocals*, *Other*) using real-time linear-phase Mid/Side crossover filterbanks in < 2 seconds.
+   - **6-Stem Mixer & Practice Controls**: Individual Solo (**S**) and Mute (**M**) buttons, channel volume faders, and pitch-preserving speed slowdown (**0.5x**, **0.75x**, **1.0x**) for play-along practice.
+   - **Constant-Q & YIN Transcription**: Automatic tempo (BPM) detection and note tracking with metric 16th-beat grid quantization.
+   - **Biomechanical Viterbi Fretboard Solver**: Globally calculates optimal, anatomically natural string and fret fingerings across 4/5/6-string bass and 6/7/8-string guitar in 24 tunings (minimizing hand position shifts and respecting hand-span limits $\le 5$ frets).
+   - **Multi-Notation & DAW Export**: Responsive visual HTML Tablature, one-click copyable ASCII Tablature, 5-line musical staff notation (Treble $\text{G}_8$ & Bass $\text{F}_8$), Standard MIDI (`.mid`) DAW export, and one-click transfer of detected chords to the Harmonic Progression Analyzer.
+
 ## Quick Start & Installation
 
 ### 1. Running Locally (Desktop & LAN)

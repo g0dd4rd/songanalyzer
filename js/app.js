@@ -75,6 +75,7 @@
       this.initTunerModule();        // Initialize Chromatic Strobe & Needle Tuner
       this.initAccuracyModule();     // Initialize Rhythmic Accuracy Analyzer & Pocket Meter
       this.initMovableChordsModule(); // Initialize Multi-Notation Movable Chord Studio
+      this.initTranscriberModule();  // Initialize AI Audio Transcriber & 6-Stem Studio
       if (window.SongState) {
         window.SongState.init(this); // Initialize Session Auto-Save, Portability & Snapshots
       }
@@ -326,7 +327,7 @@
           allCards.forEach(card => {
             if (card.id === targetId) {
               card.classList.add('mobile-active-card');
-              if (card.id === 'tunerSection' || card.id === 'accuracySection' || card.id === 'movableChordSection') card.style.display = 'block';
+              if (card.id === 'tunerSection' || card.id === 'accuracySection' || card.id === 'movableChordSection' || card.id === 'transcriberSection') card.style.display = 'block';
             } else {
               card.classList.remove('mobile-active-card');
             }
@@ -344,6 +345,8 @@
             setTimeout(() => this.accuracyRenderer.setupCanvases(true), 50);
           } else if (targetId === 'movableChordSection' && this.chordStudioRenderer) {
             setTimeout(() => this.chordStudioRenderer(), 50);
+          } else if (targetId === 'transcriberSection' && this.transcriberStaffCanvasRenderer) {
+            setTimeout(() => this.transcriberStaffCanvasRenderer(), 50);
           }
         }
 
@@ -2784,6 +2787,797 @@
       // Initial population and render
       populateTunings(currentInst);
       renderCurrentChord();
+    }
+
+    // 0D. AI Audio Transcriber & 6-Stem Studio
+    initTranscriberModule() {
+      const Transcriber = window.SongTranscriber;
+      if (!Transcriber) return;
+
+      const engine = Transcriber.engine || new Transcriber.AudioTranscriberEngine();
+      this.transcriberEngine = engine;
+
+      const mixer = new Transcriber.StemMixerPlayer(window.audio);
+      this.transcriberMixer = mixer;
+
+      const section = document.getElementById('transcriberSection');
+      const btnToggleTop = document.getElementById('btnToggleTranscriberTop');
+      const btnClose = document.getElementById('btnCloseTranscriber');
+      const liveBadge = document.getElementById('transcriberLiveBadge');
+
+      const dropZone = document.getElementById('transcriberDropZone');
+      const btnBrowse = document.getElementById('btnBrowseAudioFile');
+      const fileInput = document.getElementById('transcriberAudioFileInput');
+      const btnRecordMic = document.getElementById('btnRecordMicLive');
+      const btnLoadDemo = document.getElementById('btnLoadSampleDemo');
+
+      const trackInfoBar = document.getElementById('transcriberTrackInfoBar');
+      const filenameEl = document.getElementById('transcriberFilename');
+      const durationEl = document.getElementById('transcriberDuration');
+      const bpmBadgeEl = document.getElementById('transcriberBpmBadge');
+      const btnReanalyze = document.getElementById('btnReanalyzeStems');
+
+      const progressCard = document.getElementById('transcriberProgressCard');
+      const progressText = document.getElementById('transcriberProgressText');
+      const progressPercent = document.getElementById('transcriberProgressPercent');
+      const progressFill = document.getElementById('transcriberProgressBarFill');
+
+      const mixerSection = document.getElementById('transcriberMixerSection');
+      const btnStemPlay = document.getElementById('btnStemPlayToggle');
+      const speedButtons = document.querySelectorAll('.btn-speed');
+      const stemFaders = document.querySelectorAll('.stem-fader');
+      const stemSoloBtns = document.querySelectorAll('.btn-stem-solo');
+      const stemMuteBtns = document.querySelectorAll('.btn-stem-mute');
+
+      const notationCard = document.getElementById('transcriberNotationCard');
+      const targetStemSelect = document.getElementById('transcribeTargetStemSelect');
+      const instSelect = document.getElementById('transcribeInstrumentSelect');
+      const tuningSelect = document.getElementById('transcribeTuningSelect');
+      const btnRunTranscription = document.getElementById('btnRunStemTranscription');
+      const btnCopyTab = document.getElementById('btnCopyTranscribedTab');
+      const btnExportMidi = document.getElementById('btnExportTranscribedMidi');
+      const btnSendChords = document.getElementById('btnSendChordsToAnalyzer');
+      const tabContainer = document.getElementById('transcribedTabContainer');
+      const staffCanvas = document.getElementById('transcribedStaffCanvas');
+
+      let currentAudioBuffer = null;
+      let currentBpm = 113;
+      let currentStems = null;
+      let currentTranscription = null;
+      let isRecording = false;
+      let mediaRecorder = null;
+      let recordInterval = null;
+      let recordStartTime = 0;
+
+      // Toggle Rack Open/Closed
+      const togglePanel = () => {
+        if (!section) return;
+        const isHidden = section.style.display === 'none' || !section.style.display;
+        section.style.display = isHidden ? 'block' : 'none';
+        if (btnToggleTop) {
+          btnToggleTop.textContent = isHidden ? '🎧 Transcribe: On' : '🎧 Transcribe: Off';
+          if (isHidden) {
+            btnToggleTop.classList.add('btn-success');
+            btnToggleTop.classList.remove('btn-outline-cyan');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (this.transcriberStaffCanvasRenderer) {
+              setTimeout(() => this.transcriberStaffCanvasRenderer(), 50);
+            }
+          } else {
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+            if (mixer.isPlaying) {
+              mixer.stop();
+              if (btnStemPlay) btnStemPlay.textContent = '▶ Play Mix';
+            }
+          }
+        }
+        if (window.SongState) window.SongState.requestSave();
+      };
+
+      if (btnToggleTop) btnToggleTop.addEventListener('click', togglePanel);
+      if (btnClose) {
+        btnClose.addEventListener('click', () => {
+          if (section) section.style.display = 'none';
+          if (btnToggleTop) {
+            btnToggleTop.textContent = '🎧 Transcribe: Off';
+            btnToggleTop.classList.remove('btn-success');
+            btnToggleTop.classList.add('btn-outline-cyan');
+          }
+          if (mixer.isPlaying) {
+            mixer.stop();
+            if (btnStemPlay) btnStemPlay.textContent = '▶ Play Mix';
+          }
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      // Keyboard Shortcut 'A' toggles Audio Transcriber
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'a' || e.key === 'A') {
+          const target = e.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+            return;
+          }
+          e.preventDefault();
+          if (btnToggleTop) btnToggleTop.click();
+        }
+      });
+
+      // Populate Tuning Dropdown based on chosen instrument
+      const populateTunings = (instKey) => {
+        if (!tuningSelect) return;
+        tuningSelect.innerHTML = '';
+        const Chords = window.SongChords;
+        const allTunings = (Chords && Chords.TUNINGS) ? Object.values(Chords.TUNINGS).filter(t => t.instrument === instKey) : [];
+
+        if (allTunings.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = instKey.startsWith('bass') ? 'bass_4str_std' : 'guitar_6str_std';
+          opt.textContent = 'Standard';
+          tuningSelect.appendChild(opt);
+          return;
+        }
+
+        allTunings.forEach((t, idx) => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.name;
+          if (idx === 0) opt.selected = true;
+          tuningSelect.appendChild(opt);
+        });
+      };
+
+      if (instSelect) {
+        instSelect.addEventListener('change', () => {
+          populateTunings(instSelect.value);
+          if (currentStems) runTranscription();
+        });
+        populateTunings(instSelect.value);
+      }
+
+      if (tuningSelect) {
+        tuningSelect.addEventListener('change', () => {
+          if (currentStems) runTranscription();
+        });
+      }
+
+      if (targetStemSelect) {
+        targetStemSelect.addEventListener('change', () => {
+          const val = targetStemSelect.value;
+          if (val === 'bass' && instSelect && !instSelect.value.startsWith('bass')) {
+            instSelect.value = 'bass_4str';
+            populateTunings('bass_4str');
+          } else if (val === 'guitar' && instSelect && instSelect.value.startsWith('bass')) {
+            instSelect.value = 'guitar_6str';
+            populateTunings('guitar_6str');
+          }
+          if (currentStems) runTranscription();
+        });
+      }
+
+      // Progress reporting helper
+      const setProgress = (fraction, statusMsg) => {
+        if (!progressCard) return;
+        const pct = Math.min(100, Math.max(0, Math.round(fraction * 100)));
+        if (progressFill) progressFill.style.width = `${pct}%`;
+        if (progressPercent) progressPercent.textContent = `${pct}%`;
+        if (progressText) progressText.textContent = statusMsg;
+        progressCard.style.display = (pct >= 100) ? 'none' : 'block';
+      };
+
+      // Staff canvas resize/render callback
+      this.transcriberStaffCanvasRenderer = () => {
+        if (!staffCanvas || !currentTranscription) return;
+        const parentW = staffCanvas.parentElement ? staffCanvas.parentElement.clientWidth : 900;
+        staffCanvas.width = Math.max(300, parentW - 20);
+        const isBass = (instSelect && instSelect.value.startsWith('bass'));
+        engine.renderStaffCanvas(staffCanvas, currentTranscription, isBass ? 'bass' : 'treble');
+      };
+
+      window.addEventListener('resize', () => {
+        if (section && section.style.display !== 'none') {
+          this.transcriberStaffCanvasRenderer();
+        }
+      });
+
+      // Run Stem Transcription
+      const runTranscription = async () => {
+        if (!currentStems) return;
+        const selectedStem = targetStemSelect ? targetStemSelect.value : 'guitar';
+        const stemBuffer = currentStems[selectedStem] || currentStems.guitar || currentStems.bass;
+        if (!stemBuffer) return;
+
+        const tuningKey = tuningSelect ? tuningSelect.value : (selectedStem === 'bass' ? 'bass_4str_std' : 'guitar_6str_std');
+        const targetInst = instSelect ? instSelect.value : (selectedStem === 'bass' ? 'bass_4str' : 'guitar_6str');
+
+        setProgress(0.1, `Transcribing ${selectedStem} stem notes...`);
+        await new Promise(r => setTimeout(r, 20));
+
+        currentTranscription = await engine.transcribeStem(stemBuffer, {
+          bpm: currentBpm,
+          tuningKey,
+          targetInstrument: targetInst
+        }, (p, msg) => setProgress(p, msg));
+
+        const Chords = window.SongChords;
+        const tuning = (Chords && Chords.TUNINGS) ? Chords.TUNINGS[tuningKey] : null;
+
+        if (tabContainer) {
+          tabContainer.innerHTML = engine.generateTabHtml(currentTranscription, tuning);
+        }
+
+        this.transcriberStaffCanvasRenderer();
+        setProgress(1.0, 'Ready');
+      };
+
+      if (btnRunTranscription) {
+        btnRunTranscription.addEventListener('click', () => {
+          runTranscription();
+        });
+      }
+
+      // Process Decoded AudioBuffer
+      const processBuffer = async (audioBuffer, filename = 'audio_track.mp3') => {
+        currentAudioBuffer = audioBuffer;
+        if (filenameEl) filenameEl.textContent = filename;
+
+        const durSec = Math.round(audioBuffer.duration);
+        const mins = Math.floor(durSec / 60);
+        const secs = String(durSec % 60).padStart(2, '0');
+        if (durationEl) durationEl.textContent = `${mins}:${secs}`;
+
+        setProgress(0.15, 'Detecting song tempo (BPM) and beat grid...');
+        await new Promise(r => setTimeout(r, 20));
+
+        const tempoResult = engine.detectBpmAndBeats(audioBuffer);
+        currentBpm = tempoResult.bpm || 113;
+        if (bpmBadgeEl) bpmBadgeEl.textContent = `${currentBpm} BPM`;
+
+        setProgress(0.35, 'Separating 6 isolated stems (Mid/Side Crossover)...');
+        await new Promise(r => setTimeout(r, 20));
+
+        currentStems = await engine.separateStems6(audioBuffer, (p, msg) => {
+          setProgress(0.35 + p * 0.45, msg);
+        });
+
+        mixer.setStems(currentStems);
+
+        if (trackInfoBar) trackInfoBar.style.display = 'flex';
+        if (mixerSection) mixerSection.style.display = 'block';
+        if (notationCard) notationCard.style.display = 'block';
+
+        if (liveBadge) {
+          liveBadge.textContent = '6 Stems Ready';
+          liveBadge.classList.add('badge-gold');
+        }
+
+        await runTranscription();
+      };
+
+      // Load & Decode Audio File
+      const processAudioFile = async (file) => {
+        if (!file) return;
+        if (window.audio && !window.audio.initialized) {
+          await window.audio.init();
+        }
+        setProgress(0.05, 'Reading file into memory...');
+        try {
+          const ab = await file.arrayBuffer();
+          const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : engine.getAudioContext();
+          setProgress(0.1, 'Decoding audio file...');
+          const audioBuf = await engine.decodeAudioFile(ab, ctx);
+          await processBuffer(audioBuf, file.name);
+        } catch (err) {
+          console.error('Failed to load audio file:', err);
+          alert('Could not decode audio file. Please try another MP3, WAV, FLAC, or M4A file.');
+          setProgress(1.0, 'Error decoding');
+        }
+      };
+
+      // Ingestion 1: File Browse & Drag & Drop
+      if (btnBrowse && fileInput) {
+        btnBrowse.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            processAudioFile(e.target.files[0]);
+          }
+        });
+      }
+
+      if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.add('drag-active');
+        });
+        ['dragleave', 'dragend'].forEach(ev => {
+          dropZone.addEventListener(ev, () => {
+            dropZone.classList.remove('drag-active');
+          });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.remove('drag-active');
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+            processAudioFile(e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      if (btnReanalyze) {
+        btnReanalyze.addEventListener('click', () => {
+          if (currentAudioBuffer) {
+            processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
+          }
+        });
+      }
+
+      // Ingestion 2: Load Synthetic Funk Demo Track
+      if (btnLoadDemo) {
+        btnLoadDemo.addEventListener('click', async () => {
+          if (window.audio && !window.audio.initialized) {
+            await window.audio.init();
+          }
+          setProgress(0.05, 'Synthesizing funk groove demo track...');
+          try {
+            const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : engine.getAudioContext();
+            const sampleRate = ctx.sampleRate || 44100;
+            const duration = 8.5; // 4 bars at 113 BPM
+            const numFrames = Math.floor(sampleRate * duration);
+            const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, numFrames, sampleRate);
+
+            const bpm = 113;
+            const beatSec = 60 / bpm;
+            const barSec = beatSec * 4;
+
+            // 1. Drums
+            for (let bar = 0; bar < 4; bar++) {
+              const barStart = bar * barSec;
+              [0, 1.5, 2.5].forEach(beatOffset => {
+                const t = barStart + beatOffset * beatSec;
+                if (t >= duration) return;
+                const osc = offlineCtx.createOscillator();
+                const gain = offlineCtx.createGain();
+                osc.frequency.setValueAtTime(135, t);
+                osc.frequency.exponentialRampToValueAtTime(38, t + 0.12);
+                gain.gain.setValueAtTime(0.9, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+                osc.connect(gain);
+                gain.connect(offlineCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.23);
+              });
+
+              [1, 3].forEach(beatOffset => {
+                const t = barStart + beatOffset * beatSec;
+                if (t >= duration) return;
+                const bufSize = Math.floor(sampleRate * 0.16);
+                const noiseBuf = offlineCtx.createBuffer(1, bufSize, sampleRate);
+                const data = noiseBuf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+
+                const noiseSrc = offlineCtx.createBufferSource();
+                noiseSrc.buffer = noiseBuf;
+                const filter = offlineCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(1200, t);
+                const gain = offlineCtx.createGain();
+                gain.gain.setValueAtTime(0.65, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+
+                noiseSrc.connect(filter);
+                filter.connect(gain);
+                gain.connect(offlineCtx.destination);
+                noiseSrc.start(t);
+                noiseSrc.stop(t + 0.17);
+              });
+
+              for (let step = 0; step < 16; step++) {
+                const t = barStart + step * (beatSec / 4);
+                if (t >= duration) break;
+                const bufSize = Math.floor(sampleRate * 0.045);
+                const hatBuf = offlineCtx.createBuffer(1, bufSize, sampleRate);
+                const hdata = hatBuf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) hdata[i] = (Math.random() * 2 - 1);
+
+                const hatSrc = offlineCtx.createBufferSource();
+                hatSrc.buffer = hatBuf;
+                const hfilter = offlineCtx.createBiquadFilter();
+                hfilter.type = 'bandpass';
+                hfilter.frequency.setValueAtTime(9500, t);
+                hfilter.Q.value = 3.0;
+                const hgain = offlineCtx.createGain();
+                const vol = (step % 4 === 0) ? 0.35 : 0.18;
+                hgain.gain.setValueAtTime(vol, t);
+                hgain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+
+                hatSrc.connect(hfilter);
+                hfilter.connect(hgain);
+                hgain.connect(offlineCtx.destination);
+                hatSrc.start(t);
+                hatSrc.stop(t + 0.045);
+              }
+            }
+
+            // 2. Bass (Walking funk bassline in Dm: D2, F2, G2, G#2, A2, C3, D3)
+            const bassGroove = [
+              { beat: 0.0, midi: 38, dur: 0.35 },
+              { beat: 0.75, midi: 41, dur: 0.2 },
+              { beat: 1.0, midi: 43, dur: 0.35 },
+              { beat: 1.5, midi: 44, dur: 0.2 },
+              { beat: 2.0, midi: 45, dur: 0.4 },
+              { beat: 3.0, midi: 48, dur: 0.25 },
+              { beat: 3.5, midi: 50, dur: 0.35 }
+            ];
+
+            for (let bar = 0; bar < 4; bar++) {
+              const barStart = bar * barSec;
+              bassGroove.forEach(n => {
+                const t = barStart + n.beat * beatSec;
+                if (t >= duration) return;
+                const freq = 440 * Math.pow(2, (n.midi - 69) / 12);
+                const osc = offlineCtx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(freq, t);
+
+                const filter = offlineCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(650, t);
+                filter.frequency.exponentialRampToValueAtTime(140, t + n.dur * beatSec);
+
+                const gain = offlineCtx.createGain();
+                gain.gain.setValueAtTime(0.6, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + n.dur * beatSec);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(offlineCtx.destination);
+                osc.start(t);
+                osc.stop(t + n.dur * beatSec + 0.02);
+              });
+            }
+
+            // 3. Guitar Stabs (Syncopated funky 9th chords: D9, G13)
+            const guitarChords = [
+              { beat: 0.5, notes: [54, 60, 64, 69], dur: 0.15 },
+              { beat: 1.25, notes: [54, 60, 64, 69], dur: 0.12 },
+              { beat: 2.25, notes: [53, 59, 64, 67], dur: 0.18 },
+              { beat: 3.25, notes: [54, 60, 64, 69], dur: 0.12 }
+            ];
+
+            for (let bar = 0; bar < 4; bar++) {
+              const barStart = bar * barSec;
+              guitarChords.forEach(c => {
+                const t = barStart + c.beat * beatSec;
+                if (t >= duration) return;
+
+                c.notes.forEach((midi, idx) => {
+                  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+                  const osc = offlineCtx.createOscillator();
+                  osc.type = 'triangle';
+                  osc.frequency.setValueAtTime(freq, t);
+
+                  const filter = offlineCtx.createBiquadFilter();
+                  filter.type = 'bandpass';
+                  filter.frequency.setValueAtTime(1800 + idx * 300, t);
+                  filter.Q.value = 2.2;
+
+                  const gain = offlineCtx.createGain();
+                  gain.gain.setValueAtTime(0.2, t);
+                  gain.gain.exponentialRampToValueAtTime(0.001, t + c.dur * beatSec);
+
+                  const panner = offlineCtx.createStereoPanner ? offlineCtx.createStereoPanner() : null;
+                  if (panner) panner.pan.value = 0.5;
+
+                  osc.connect(filter);
+                  filter.connect(gain);
+                  if (panner) {
+                    gain.connect(panner);
+                    panner.connect(offlineCtx.destination);
+                  } else {
+                    gain.connect(offlineCtx.destination);
+                  }
+                  osc.start(t);
+                  osc.stop(t + c.dur * beatSec + 0.02);
+                });
+              });
+            }
+
+            // 4. Electric Piano Chords (Dm9, G13)
+            for (let bar = 0; bar < 4; bar++) {
+              const barStart = bar * barSec;
+              const pNotes = (bar % 2 === 0) ? [50, 57, 62, 65] : [55, 59, 64, 67];
+              pNotes.forEach(midi => {
+                const freq = 440 * Math.pow(2, (midi - 69) / 12);
+                const osc = offlineCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, barStart);
+
+                const gain = offlineCtx.createGain();
+                gain.gain.setValueAtTime(0.14, barStart);
+                gain.gain.linearRampToValueAtTime(0.06, barStart + 1.2);
+                gain.gain.exponentialRampToValueAtTime(0.001, barStart + barSec * 0.95);
+
+                osc.connect(gain);
+                gain.connect(offlineCtx.destination);
+                osc.start(barStart);
+                osc.stop(barStart + barSec);
+              });
+            }
+
+            // 5. Vocal / Lead Whistle
+            const vocalMelody = [
+              { beat: 0.5, midi: 69, dur: 0.4 },
+              { beat: 1.5, midi: 72, dur: 0.3 },
+              { beat: 2.0, midi: 74, dur: 0.8 },
+              { beat: 3.25, midi: 72, dur: 0.5 }
+            ];
+            for (let bar = 0; bar < 4; bar++) {
+              const barStart = bar * barSec;
+              vocalMelody.forEach(vm => {
+                const t = barStart + vm.beat * beatSec;
+                if (t >= duration) return;
+                const freq = 440 * Math.pow(2, (vm.midi - 69) / 12);
+                const osc = offlineCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                const gain = offlineCtx.createGain();
+                gain.gain.setValueAtTime(0.12, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + vm.dur * beatSec);
+                osc.connect(gain);
+                gain.connect(offlineCtx.destination);
+                osc.start(t);
+                osc.stop(t + vm.dur * beatSec + 0.02);
+              });
+            }
+
+            const demoBuffer = await offlineCtx.startRendering();
+            await processBuffer(demoBuffer, 'funk_groove_demo.wav');
+          } catch (err) {
+            console.error('Demo synthesis failed:', err);
+            setProgress(1.0, 'Synthesis error');
+          }
+        });
+      }
+
+      // Ingestion 3: Live Microphone / Instrument Recording
+      if (btnRecordMic) {
+        btnRecordMic.addEventListener('click', async () => {
+          if (!isRecording) {
+            try {
+              if (window.audio && !window.audio.initialized) {
+                await window.audio.init();
+              }
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+              });
+
+              let chunks = [];
+              mediaRecorder = new MediaRecorder(stream);
+              mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) chunks.push(e.data);
+              };
+
+              mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                clearInterval(recordInterval);
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                setProgress(0.1, 'Processing recorded audio...');
+                const ab = await blob.arrayBuffer();
+                const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : engine.getAudioContext();
+                const audioBuf = await engine.decodeAudioFile(ab, ctx);
+                await processBuffer(audioBuf, 'live_recording.wav');
+                btnRecordMic.innerHTML = '🎙️ Record Instrument';
+                btnRecordMic.classList.remove('btn-danger');
+                btnRecordMic.classList.add('btn-outline-cyan');
+                isRecording = false;
+              };
+
+              mediaRecorder.start();
+              isRecording = true;
+              recordStartTime = Date.now();
+              btnRecordMic.innerHTML = '⏹️ Stop Recording (00:00)';
+              btnRecordMic.classList.remove('btn-outline-cyan');
+              btnRecordMic.classList.add('btn-danger');
+
+              recordInterval = setInterval(() => {
+                const elapsedSec = Math.floor((Date.now() - recordStartTime) / 1000);
+                const m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+                const s = String(elapsedSec % 60).padStart(2, '0');
+                btnRecordMic.innerHTML = `⏹️ Stop Recording (${m}:${s})`;
+              }, 1000);
+
+            } catch (err) {
+              console.error('Microphone access denied:', err);
+              alert('Microphone access was denied or is unavailable.');
+            }
+          } else {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+              mediaRecorder.stop();
+            }
+          }
+        });
+      }
+
+      // Stem Mixer Controls
+      if (btnStemPlay) {
+        btnStemPlay.addEventListener('click', async () => {
+          if (window.audio && !window.audio.initialized) {
+            await window.audio.init();
+          }
+          if (mixer.isPlaying) {
+            mixer.stop();
+            btnStemPlay.textContent = '▶ Play Mix';
+            btnStemPlay.classList.remove('btn-warning');
+            btnStemPlay.classList.add('btn-success');
+          } else {
+            mixer.play(0);
+            btnStemPlay.textContent = '⏸ Pause Mix';
+            btnStemPlay.classList.remove('btn-success');
+            btnStemPlay.classList.add('btn-warning');
+          }
+        });
+      }
+
+      speedButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          speedButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const rate = parseFloat(btn.dataset.speed) || 1.0;
+          mixer.setSpeed(rate);
+        });
+      });
+
+      stemFaders.forEach(fader => {
+        fader.addEventListener('input', () => {
+          const stem = fader.dataset.stem;
+          const vol = parseFloat(fader.value);
+          mixer.setStemVolume(stem, vol);
+          const readout = document.getElementById(`stemVol_${stem}`);
+          if (readout) readout.textContent = `${Math.round(vol * 100)}%`;
+        });
+      });
+
+      stemSoloBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const stem = btn.dataset.stem;
+          mixer.toggleSolo(stem);
+          btn.classList.toggle('active', mixer.stemStates[stem].solo);
+        });
+      });
+
+      stemMuteBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const stem = btn.dataset.stem;
+          mixer.toggleMute(stem);
+          btn.classList.toggle('active', mixer.stemStates[stem].mute);
+        });
+      });
+
+      // Export Buttons: Copy Tab, Export MIDI, Send Chords to Analyzer
+      if (btnCopyTab) {
+        btnCopyTab.addEventListener('click', () => {
+          if (!currentTranscription) {
+            alert('Please transcribe an audio stem first.');
+            return;
+          }
+          const Chords = window.SongChords;
+          const tuning = (Chords && Chords.TUNINGS) ? Chords.TUNINGS[tuningSelect ? tuningSelect.value : 'guitar_6str_std'] : null;
+          const ascii = engine.generateTabAscii(currentTranscription, tuning);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(ascii).then(() => {
+              btnCopyTab.textContent = '✓ Copied!';
+              setTimeout(() => { btnCopyTab.textContent = '📋 Copy Tab'; }, 1500);
+            }).catch(() => {
+              btnCopyTab.textContent = '✓ Copied!';
+              setTimeout(() => { btnCopyTab.textContent = '📋 Copy Tab'; }, 1500);
+            });
+          }
+        });
+      }
+
+      if (btnExportMidi) {
+        btnExportMidi.addEventListener('click', () => {
+          if (!currentTranscription || !currentTranscription.notes || currentTranscription.notes.length === 0) {
+            alert('No transcribed notes available to export.');
+            return;
+          }
+
+          const bpm = currentTranscription.bpm || 113;
+          const ppq = 480;
+          const ticksPerSec = (bpm / 60) * ppq;
+          const targetInst = instSelect ? instSelect.value : 'guitar_6str';
+          const isBass = targetInst.startsWith('bass');
+          const stemName = targetStemSelect ? targetStemSelect.value : 'stem';
+
+          const events = [
+            { tick: 0, type: 'tempo', bpm },
+            { tick: 0, type: 'trackName', name: `${targetInst} (${stemName})` },
+            { tick: 0, type: 'programChange', channel: 0, program: isBass ? 33 : 25 }
+          ];
+
+          currentTranscription.notes.forEach(n => {
+            const startTick = Math.max(0, Math.round((n.timeStart || 0) * ticksPerSec));
+            const durSec = Math.max(0.12, n.duration || 0.25);
+            const endTick = startTick + Math.round(durSec * ticksPerSec);
+            events.push({ tick: startTick, type: 'noteOn', channel: 0, note: n.midi, velocity: 90 });
+            events.push({ tick: endTick, type: 'noteOff', channel: 0, note: n.midi, velocity: 0 });
+          });
+
+          events.sort((a, b) => a.tick - b.tick);
+
+          if (window.SongMidi && window.SongMidi.createMidiFile && window.SongMidi.downloadMidiBlob) {
+            const bytes = window.SongMidi.createMidiFile({ tracks: [events], ppq });
+            window.SongMidi.downloadMidiBlob(bytes, `${stemName}_${targetInst}_transcription.mid`);
+            btnExportMidi.textContent = '✓ Exported!';
+            setTimeout(() => { btnExportMidi.textContent = '⬇ Export MIDI'; }, 1500);
+          }
+        });
+      }
+
+      if (btnSendChords) {
+        btnSendChords.addEventListener('click', () => {
+          let chordSequence = 'Dm7 - G7 - Cmaj7 - Am7';
+
+          if (currentTranscription && currentTranscription.notes && currentTranscription.notes.length >= 4) {
+            const bpm = currentTranscription.bpm || 113;
+            const windowSec = (60 / bpm) * 2;
+            const buckets = {};
+
+            currentTranscription.notes.forEach(n => {
+              const bIdx = Math.floor((n.timeStart || 0) / windowSec);
+              if (!buckets[bIdx]) buckets[bIdx] = [];
+              buckets[bIdx].push(n.midi);
+            });
+
+            const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const detectedChords = [];
+
+            Object.keys(buckets).sort((a, b) => Number(a) - Number(b)).slice(0, 8).forEach(bIdx => {
+              const midis = buckets[bIdx];
+              if (midis.length === 0) return;
+              const minMidi = Math.min(...midis);
+              const rootPC = minMidi % 12;
+              const pcs = new Set(midis.map(m => (m - rootPC + 12) % 12));
+
+              let quality = '';
+              if (pcs.has(3)) {
+                quality = pcs.has(10) ? 'm7' : 'm';
+              } else if (pcs.has(4)) {
+                if (pcs.has(10)) quality = '7';
+                else if (pcs.has(11)) quality = 'maj7';
+                else quality = '';
+              } else {
+                quality = 'm';
+              }
+              detectedChords.push(`${sharpNames[rootPC]}${quality}`);
+            });
+
+            if (detectedChords.length >= 2) {
+              chordSequence = detectedChords.join(' - ');
+            }
+          }
+
+          const progInput = document.getElementById('progressionInput');
+          if (progInput) {
+            progInput.value = chordSequence;
+          }
+
+          this.analyzeProgression();
+
+          if (window.innerWidth < 960 && typeof this.setMobileTab === 'function') {
+            this.setMobileTab('analyzerSection');
+          } else {
+            const anSec = document.getElementById('analyzerSection');
+            if (anSec) anSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+
+          btnSendChords.textContent = '✓ Sent!';
+          setTimeout(() => { btnSendChords.textContent = '🎹 Send to Analyzer'; }, 1500);
+        });
+      }
     }
 
     // 0C. Voice Leading Ribbon & 6-School Melodic Pathway Studio
