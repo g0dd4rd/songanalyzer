@@ -303,7 +303,10 @@
 
         const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
         this.session = await window.ort.InferenceSession.create(modelBytes, {
-          executionProviders: ['wasm']
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'disabled',
+          enableCpuMemArena: false,
+          enableMemPattern: false
         });
         this.inputName = this.session.inputNames[0];
         this.outputNames = this.session.outputNames;
@@ -486,7 +489,10 @@
 
         const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
         this.session = await window.ort.InferenceSession.create(modelBytes, {
-          executionProviders: ['wasm']
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'disabled',
+          enableCpuMemArena: false,
+          enableMemPattern: false
         });
         this.inputName = this.session.inputNames[0] || 'mix';
         this.outputName = this.session.outputNames[0] || 'stems';
@@ -563,6 +569,7 @@
         if (onProgress) {
           const frac = 0.08 + (c / nChunks) * 0.80;
           onProgress(frac, `Neural stem separation: chunk ${c + 1} of ${nChunks} (~${Math.round(end / 44100)}s)...`);
+          await new Promise(r => setTimeout(r, 0));
         }
 
         // Prepare chunk data shape [1, 2, 343980]
