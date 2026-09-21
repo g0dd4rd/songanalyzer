@@ -3049,12 +3049,8 @@
           setProgress(1.0, 'Neural separation complete!');
         } catch (sepErr) {
           console.error('Stem separation failed:', sepErr);
-          const isFileProto = window.location.protocol === 'file:';
-          let userMsg = `Neural stem separation failed: ${sepErr.message || 'Unknown error'}.`;
-          if (isFileProto) {
-            userMsg += '\n\nNote: You are opening the app via file://. Browsers block WebAssembly and neural model loading due to CORS sandbox policy.\n\nTo run in browser, start a local server:\npython3 -m http.server 8000\nand visit http://localhost:8000\n\nOr run separation in your terminal:\npython3 scripts/separate_stems.py <audio_file>';
-          }
-          alert(userMsg);
+          const errDetail = (sepErr && (sepErr.message || sepErr.toString())) || 'Unknown error';
+          alert(`Neural stem separation failed: ${errDetail}`);
           setProgress(1.0, 'Separation failed');
         }
       };
@@ -3464,6 +3460,17 @@
           }
 
           if (success) {
+            try {
+              const hasWasm = await engine.storage.hasModel('ort_wasm_simd');
+              if (!hasWasm) {
+                const wasmResp = await fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm');
+                if (wasmResp.ok) {
+                  const wasmAb = await wasmResp.arrayBuffer();
+                  await engine.storage.saveModel('ort_wasm_simd', wasmAb, { name: 'ONNX WASM SIMD Runtime' });
+                }
+              }
+            } catch (e) {}
+
             if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Spotify Basic Pitch installed & cached!';
             if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
             if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
@@ -3535,6 +3542,17 @@
           }
 
           if (success) {
+            try {
+              const hasWasm = await engine.storage.hasModel('ort_wasm_simd');
+              if (!hasWasm) {
+                const wasmResp = await fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm');
+                if (wasmResp.ok) {
+                  const wasmAb = await wasmResp.arrayBuffer();
+                  await engine.storage.saveModel('ort_wasm_simd', wasmAb, { name: 'ONNX WASM SIMD Runtime' });
+                }
+              }
+            } catch (e) {}
+
             if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'HTDemucs installed & cached!';
             if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
             if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';

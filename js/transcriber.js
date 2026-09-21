@@ -218,6 +218,18 @@
       } catch (e) {}
     }
 
+    if (!wasmBuf && storage && window.location && window.location.protocol === 'file:') {
+      try {
+        const resp = await fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm');
+        if (resp.ok) {
+          wasmBuf = await resp.arrayBuffer();
+          await storage.saveModel('ort_wasm_simd', wasmBuf, { name: 'ONNX WASM SIMD Runtime' });
+        }
+      } catch (e) {
+        console.warn('Direct fetch of ort-wasm-simd.wasm failed, falling back to CDN path:', e);
+      }
+    }
+
     if (wasmBuf) {
       const blobUrl = URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' }));
       window.ort.env.wasm.wasmPaths = {
@@ -228,14 +240,6 @@
       };
     } else if (window.location && window.location.protocol === 'file:') {
       window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
-      if (storage) {
-        fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm')
-          .then(r => r.ok ? r.arrayBuffer() : null)
-          .then(buf => {
-            if (buf) storage.saveModel('ort_wasm_simd', buf, { name: 'ONNX WASM SIMD Runtime' });
-          })
-          .catch(() => {});
-      }
     } else {
       window.ort.env.wasm.wasmPaths = 'js/vendor/';
     }
@@ -297,7 +301,8 @@
           throw new Error('Spotify Basic Pitch model is not installed or cached.');
         }
 
-        this.session = await window.ort.InferenceSession.create(buffer, {
+        const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
+        this.session = await window.ort.InferenceSession.create(modelBytes, {
           executionProviders: ['wasm']
         });
         this.inputName = this.session.inputNames[0];
@@ -479,7 +484,8 @@
           throw new Error('Demucs model is not installed or cached.');
         }
 
-        this.session = await window.ort.InferenceSession.create(buffer, {
+        const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
+        this.session = await window.ort.InferenceSession.create(modelBytes, {
           executionProviders: ['wasm']
         });
         this.inputName = this.session.inputNames[0] || 'mix';
