@@ -38,3 +38,14 @@ Icon
 # Firefox Profiler dumps
 Firefox*profile.json
 
+# User audio test files
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+
+# Untracked design proposals & mockups
+design-proposal.md
+studio_workspace_ui_*.jpg
+

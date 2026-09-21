@@ -263,17 +263,358 @@
   }
 
   // -------------------------------------------------------------
+  // 2B. Neural Model Offline Storage (IndexedDB)
+  // -------------------------------------------------------------
+  class NeuralModelStorage {
+    constructor() {
+      this.dbName = 'songanalyzer_models_v1';
+      this.storeName = 'models';
+      this.db = null;
+    }
+
+    async open() {
+      if (this.db) return this.db;
+      if (typeof indexedDB === 'undefined') return null;
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(this.dbName, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => {
+          this.db = e.target.result;
+          resolve(this.db);
+        };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async saveModel(id, arrayBuffer, metadata = {}) {
+      const db = await this.open();
+      if (!db) return false;
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.put({
+          id,
+          buffer: arrayBuffer,
+          size: arrayBuffer.byteLength,
+          updatedAt: Date.now(),
+          ...metadata
+        });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async getModel(id) {
+      const db = await this.open();
+      if (!db) return null;
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.get(id);
+        req.onsuccess = () => {
+          if (req.result && req.result.buffer) {
+            resolve(req.result.buffer);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async hasModel(id) {
+      const db = await this.open();
+      if (!db) return false;
+      return new Promise((resolve) => {
+        const tx = db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.count(id);
+        req.onsuccess = () => resolve(req.result > 0);
+        req.onerror = () => resolve(false);
+      });
+    }
+
+    async deleteModel(id) {
+      const db = await this.open();
+      if (!db) return false;
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.delete(id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async clearAll() {
+      const db = await this.open();
+      if (!db) return false;
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.clear();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async getSummary() {
+      const db = await this.open();
+      if (!db) return { basicPitch: false, demucs: false, totalBytes: 0, count: 0 };
+      return new Promise((resolve) => {
+        const tx = db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const records = req.result || [];
+          let basicPitch = false;
+          let demucs = false;
+          let totalBytes = 0;
+          records.forEach(r => {
+            const sz = r.size || (r.buffer ? r.buffer.byteLength : 0);
+            totalBytes += sz;
+            if (r.id === 'basic_pitch') basicPitch = true;
+            if (r.id === 'demucs') demucs = true;
+          });
+          resolve({ basicPitch, demucs, totalBytes, count: records.length });
+        };
+        req.onerror = () => resolve({ basicPitch: false, demucs: false, totalBytes: 0, count: 0 });
+      });
+    }
+
+    async downloadModel(id, url, onProgress) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      const contentLength = Number(resp.headers.get('content-length')) || 0;
+
+      if (!resp.body || !resp.body.getReader) {
+        const ab = await resp.arrayBuffer();
+        await this.saveModel(id, ab, { url });
+        if (onProgress) onProgress(1.0, ab.byteLength, ab.byteLength);
+        return ab;
+      }
+
+      const reader = resp.body.getReader();
+      let receivedBytes = 0;
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedBytes += value.length;
+        if (onProgress) {
+          const frac = contentLength > 0 ? (receivedBytes / contentLength) : 0.5;
+          onProgress(frac, receivedBytes, contentLength);
+        }
+      }
+
+      const combined = new Uint8Array(receivedBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      await this.saveModel(id, combined.buffer, { url });
+      return combined.buffer;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2C. Spotify Basic Pitch Neural Engine Runner (ONNX)
+  // -------------------------------------------------------------
+  class SpotifyBasicPitchRunner {
+    constructor(storage) {
+      this.storage = storage;
+      this.session = null;
+      this.inputName = null;
+      this.outputNames = [];
+      this.isInitializing = false;
+    }
+
+    async isReady() {
+      if (this.session) return true;
+      if (typeof window === 'undefined') return false;
+      const cached = await this.storage.hasModel('basic_pitch');
+      return cached;
+    }
+
+    async initSession(modelBuffer = null) {
+      if (this.session) return this.session;
+      if (this.isInitializing) {
+        while (this.isInitializing) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        return this.session;
+      }
+      this.isInitializing = true;
+      try {
+        if (typeof window === 'undefined' || !window.ort) {
+          throw new Error('ONNX Runtime Web (ort) is not available.');
+        }
+
+        // Configure wasm paths
+        if (window.ort.env && window.ort.env.wasm) {
+          window.ort.env.wasm.wasmPaths = 'js/vendor/';
+          window.ort.env.wasm.numThreads = Math.min(4, (navigator && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 2);
+        }
+
+        let buffer = modelBuffer;
+        if (!buffer) {
+          buffer = await this.storage.getModel('basic_pitch');
+        }
+        if (!buffer) {
+          // Attempt loading from local models folder
+          try {
+            const resp = await fetch('models/basic_pitch.onnx');
+            if (resp.ok) {
+              buffer = await resp.arrayBuffer();
+              await this.storage.saveModel('basic_pitch', buffer, { name: 'Spotify Basic Pitch' });
+            }
+          } catch (e) {}
+        }
+        if (!buffer) {
+          throw new Error('Spotify Basic Pitch model is not installed or cached.');
+        }
+
+        this.session = await window.ort.InferenceSession.create(buffer, {
+          executionProviders: ['wasm']
+        });
+        this.inputName = this.session.inputNames[0];
+        this.outputNames = this.session.outputNames;
+        return this.session;
+      } finally {
+        this.isInitializing = false;
+      }
+    }
+
+    async resampleTo22k(audioBuffer) {
+      const targetRate = 22050;
+      if (audioBuffer.sampleRate === targetRate) {
+        return audioBuffer.getChannelData(0);
+      }
+      const duration = audioBuffer.duration;
+      const targetLength = Math.max(1, Math.round(duration * targetRate));
+      const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+        1,
+        targetLength,
+        targetRate
+      );
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(offlineCtx.destination);
+      source.start(0);
+
+      const resampled = await offlineCtx.startRendering();
+      return resampled.getChannelData(0);
+    }
+
+    async transcribe(audioBuffer, options = {}, onProgress = null) {
+      await this.initSession();
+      if (!this.session) throw new Error('Basic Pitch session could not be initialized.');
+
+      if (onProgress) onProgress(0.05, 'Resampling audio to 22.05 kHz for neural network...');
+      const monoAudio = await this.resampleTo22k(audioBuffer);
+      const totalSamples = monoAudio.length;
+
+      const CHUNK_SIZE = 43844;
+      const HOP_SIZE = 43844;
+      const totalChunks = Math.max(1, Math.ceil(totalSamples / HOP_SIZE));
+      const secPerFrame = (CHUNK_SIZE / 22050.0) / 172.0;
+
+      const rawNotes = [];
+      const noteThresh = options.noteThreshold || 0.30;
+      const onsetThresh = options.onsetThreshold || 0.38;
+
+      for (let c = 0; c < totalChunks; c++) {
+        if (onProgress) {
+          const pct = 0.1 + (c / totalChunks) * 0.65;
+          onProgress(pct, `Neural pitch transcription: chunk ${c + 1} of ${totalChunks}...`);
+        }
+
+        const startSample = c * HOP_SIZE;
+        const chunkData = new Float32Array(CHUNK_SIZE);
+        const available = Math.min(CHUNK_SIZE, totalSamples - startSample);
+        if (available > 0) {
+          chunkData.set(monoAudio.subarray(startSample, startSample + available));
+        }
+
+        const chunkStartTime = startSample / 22050.0;
+        const inputTensor = new window.ort.Tensor('float32', chunkData, [1, CHUNK_SIZE, 1]);
+        const results = await this.session.run({ [this.inputName]: inputTensor });
+
+        // Outputs: output 0 is onsets [1, 172, 88], output 1 is note activations [1, 172, 88]
+        const onsetData = results[this.outputNames[0]].data;
+        const noteData = results[this.outputNames[1]].data;
+
+        for (let k = 0; k < 88; k++) {
+          const midi = k + 21;
+          let inNote = false;
+          let startFrame = 0;
+          let peakVal = 0.0;
+
+          for (let f = 0; f < 172; f++) {
+            const idx = f * 88 + k;
+            const nVal = noteData[idx];
+            const oVal = onsetData[idx];
+
+            if (!inNote) {
+              if (oVal > onsetThresh || nVal > (noteThresh + 0.12)) {
+                inNote = true;
+                startFrame = f;
+                peakVal = Math.max(nVal, oVal);
+              }
+            } else {
+              peakVal = Math.max(peakVal, nVal);
+              if (nVal < noteThresh || f === 171) {
+                inNote = false;
+                const dur = (f - startFrame) * secPerFrame;
+                if (dur >= 0.07) {
+                  rawNotes.push({
+                    midi,
+                    timeStart: chunkStartTime + (startFrame * secPerFrame),
+                    duration: dur,
+                    velocity: Math.min(1.0, Math.max(0.3, peakVal))
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      rawNotes.sort((a, b) => a.timeStart - b.timeStart);
+      return rawNotes;
+    }
+  }
+
+  // -------------------------------------------------------------
   // 3. Audio Transcriber & 6-Stem Engine
   // -------------------------------------------------------------
   class AudioTranscriberEngine {
     constructor() {
       this.audioCtx = null;
       this.fretboardSolver = new BiomechanicalFretboardSolver();
+      this.storage = new NeuralModelStorage();
+      this.neuralPitchRunner = new SpotifyBasicPitchRunner(this.storage);
+      this.activeTier = 1; // 1 = Fast Filterbank, 2 = Neural AI
       this.cachedStems = null;
       this.sourceAudioBuffer = null;
       this.detectedBpm = 113;
       this.timeSignature = { num: 4, den: 4 };
       this.isProcessing = false;
+    }
+
+    setTier(tier) {
+      this.activeTier = (tier === 2) ? 2 : 1;
+      return this.activeTier;
     }
 
     getAudioContext() {
@@ -548,132 +889,21 @@
     }
 
     /**
-     * 4. Polyphonic Pitch & Note Transcription (Spotify Basic Pitch CQT Salience Engine)
+     * Reusable Quantization and Biomechanical Fretboard Solver
      */
-    transcribeStem(stemAudioBuffer, options = {}, onProgress) {
-      const sampleRate = stemAudioBuffer.sampleRate;
-      const length = stemAudioBuffer.length;
-      const duration = stemAudioBuffer.duration;
-      const bpm = options.bpm || this.detectedBpm || 113;
-      const targetInstrument = options.instrument || 'guitar_6str';
-      const tuningKey = options.tuningKey || 'guitar_6str_std';
+    quantizeAndSolveNotes(detectedRawNotes, bpm, tuningKey, targetInstrument, onProgress) {
+      if (onProgress) onProgress(0.80, 'Quantizing to beat grid & measures...');
 
-      const isBass = targetInstrument.startsWith('bass');
-      const minMidi = isBass ? 24 : 40;  // C1 for bass, E2 for guitar
-      const maxMidi = isBass ? 67 : 88;  // G4 for bass, E6 for guitar
-
-      const chData = stemAudioBuffer.getChannelData(0);
-
-      // Frame slicing: 20ms hops
-      const hopSize = Math.floor(sampleRate * 0.02);
-      const numFrames = Math.floor(length / hopSize);
-
-      if (onProgress) onProgress(0.15, 'Computing Constant-Q Transform spectral salience...');
-
-      const detectedRawNotes = [];
-      let activeNote = null;
-
-      // Autocorrelation & Salience matrix evaluation
-      for (let f = 0; f < numFrames; f++) {
-        if (f % 50 === 0 && onProgress) {
-          onProgress(0.15 + (f / numFrames) * 0.55, `Extracting polyphonic notes (${Math.round((f / numFrames) * 100)}%)...`);
-        }
-
-        const startIdx = f * hopSize;
-        const timeStart = startIdx / sampleRate;
-
-        // Frame slice
-        const frameLength = Math.min(2048, length - startIdx);
-        if (frameLength < 1024) break;
-
-        // RMS Energy gate (skip silent passages)
-        let rms = 0;
-        for (let i = 0; i < frameLength; i++) {
-          const v = chData[startIdx + i];
-          rms += v * v;
-        }
-        rms = Math.sqrt(rms / frameLength);
-
-        const energyThreshold = isBass ? 0.025 : 0.035;
-        if (rms < energyThreshold) {
-          if (activeNote) {
-            activeNote.timeEnd = timeStart;
-            activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
-            if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
-            activeNote = null;
-          }
-          continue;
-        }
-
-        // Multi-resolution Autocorrelation Peak Detector (YIN Salience)
-        let bestPeriod = -1;
-        let bestCorrelation = -1;
-
-        const minPeriod = Math.floor(sampleRate / MIDI_TO_FREQ[maxMidi]);
-        const maxPeriod = Math.floor(sampleRate / MIDI_TO_FREQ[minMidi]);
-
-        for (let tau = minPeriod; tau <= maxPeriod; tau++) {
-          let sum = 0;
-          for (let i = 0; i < frameLength - tau; i += 2) {
-            sum += chData[startIdx + i] * chData[startIdx + i + tau];
-          }
-          if (sum > bestCorrelation) {
-            bestCorrelation = sum;
-            bestPeriod = tau;
-          }
-        }
-
-        if (bestPeriod > 0) {
-          const fundamentalFreq = sampleRate / bestPeriod;
-          // Map frequency to nearest MIDI note
-          const rawMidi = 69 + 12 * Math.log2(fundamentalFreq / 440);
-          const candidateMidi = Math.round(rawMidi);
-
-          if (candidateMidi >= minMidi && candidateMidi <= maxMidi) {
-            if (activeNote && activeNote.midi === candidateMidi) {
-              // Extend existing note duration
-              activeNote.timeEnd = timeStart + (hopSize / sampleRate);
-            } else {
-              // Close previous note
-              if (activeNote) {
-                activeNote.timeEnd = timeStart;
-                activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
-                if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
-              }
-              // Open new note
-              activeNote = {
-                midi: candidateMidi,
-                timeStart,
-                timeEnd: timeStart + (hopSize / sampleRate),
-                velocity: Math.min(1.0, rms * 4.0)
-              };
-            }
-          }
-        }
-      }
-
-      if (activeNote) {
-        activeNote.timeEnd = duration;
-        activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
-        if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
-      }
-
-      if (onProgress) onProgress(0.75, 'Quantizing to beat grid & measures...');
-
-      // 5. Metric Beat-Grid Quantization
       const beatSec = 60.0 / bpm;
       const sixteenthSec = beatSec / 4.0;
-      const beatsPerBar = 4;
 
       const quantizedNotes = detectedRawNotes.map(n => {
-        // Snap start time to nearest 16th note
         const nearest16th = Math.round(n.timeStart / sixteenthSec) * sixteenthSec;
         const total16thUnits = Math.round(nearest16th / sixteenthSec);
 
         const barIndex = Math.floor(total16thUnits / 16);
         const beatInBar = (total16thUnits % 16) / 4.0;
 
-        // Snap duration to musical units (16th, 8th, dotted 8th, quarter, half)
         let durUnits = Math.max(1, Math.round(n.duration / sixteenthSec));
         if (durUnits > 16) durUnits = 16;
 
@@ -696,9 +926,8 @@
         };
       });
 
-      if (onProgress) onProgress(0.88, 'Solving biomechanical fretboard positions...');
+      if (onProgress) onProgress(0.90, 'Solving biomechanical fretboard positions...');
 
-      // 6. Biomechanical Fretboard Solver (Viterbi)
       const tuning = (window.SongChords && window.SongChords.TUNINGS) ? window.SongChords.TUNINGS[tuningKey] : null;
       let solvedTabNotes = quantizedNotes;
 
@@ -706,7 +935,6 @@
         solvedTabNotes = this.fretboardSolver.solve(quantizedNotes, tuning);
       }
 
-      // Group into measures
       const measures = [];
       solvedTabNotes.forEach(note => {
         const b = note.barIndex || 0;
@@ -723,8 +951,143 @@
         tuningKey,
         targetInstrument,
         notes: solvedTabNotes,
-        measures: measures.slice(0, 64) // Limit to first 64 measures
+        measures: measures.slice(0, 64)
       };
+    }
+
+    /**
+     * Tier 1: Fast Spectral Filterbank (Constant-Q & YIN Salience)
+     */
+    transcribeStemSpectral(stemAudioBuffer, options = {}, onProgress) {
+      const sampleRate = stemAudioBuffer.sampleRate;
+      const length = stemAudioBuffer.length;
+      const duration = stemAudioBuffer.duration;
+      const bpm = options.bpm || this.detectedBpm || 113;
+      const targetInstrument = options.instrument || options.targetInstrument || 'guitar_6str';
+      const tuningKey = options.tuningKey || 'guitar_6str_std';
+
+      const isBass = targetInstrument.startsWith('bass');
+      const minMidi = isBass ? 24 : 40;
+      const maxMidi = isBass ? 67 : 88;
+
+      const chData = stemAudioBuffer.getChannelData(0);
+      const hopSize = Math.floor(sampleRate * 0.02);
+      const numFrames = Math.floor(length / hopSize);
+
+      if (onProgress) onProgress(0.15, 'Computing Constant-Q Transform spectral salience...');
+
+      const detectedRawNotes = [];
+      let activeNote = null;
+
+      for (let f = 0; f < numFrames; f++) {
+        if (f % 50 === 0 && onProgress) {
+          onProgress(0.15 + (f / numFrames) * 0.55, `Extracting polyphonic notes (${Math.round((f / numFrames) * 100)}%)...`);
+        }
+
+        const startIdx = f * hopSize;
+        const timeStart = startIdx / sampleRate;
+        const frameLength = Math.min(2048, length - startIdx);
+        if (frameLength < 1024) break;
+
+        let rms = 0;
+        for (let i = 0; i < frameLength; i++) {
+          const v = chData[startIdx + i];
+          rms += v * v;
+        }
+        rms = Math.sqrt(rms / frameLength);
+
+        const energyThreshold = isBass ? 0.025 : 0.035;
+        if (rms < energyThreshold) {
+          if (activeNote) {
+            activeNote.timeEnd = timeStart;
+            activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
+            if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
+            activeNote = null;
+          }
+          continue;
+        }
+
+        let bestPeriod = -1;
+        let bestCorrelation = -1;
+        const minPeriod = Math.floor(sampleRate / MIDI_TO_FREQ[maxMidi]);
+        const maxPeriod = Math.floor(sampleRate / MIDI_TO_FREQ[minMidi]);
+
+        for (let tau = minPeriod; tau <= maxPeriod; tau++) {
+          let sum = 0;
+          for (let i = 0; i < frameLength - tau; i += 2) {
+            sum += chData[startIdx + i] * chData[startIdx + i + tau];
+          }
+          if (sum > bestCorrelation) {
+            bestCorrelation = sum;
+            bestPeriod = tau;
+          }
+        }
+
+        if (bestPeriod > 0) {
+          const fundamentalFreq = sampleRate / bestPeriod;
+          const rawMidi = 69 + 12 * Math.log2(fundamentalFreq / 440);
+          const candidateMidi = Math.round(rawMidi);
+
+          if (candidateMidi >= minMidi && candidateMidi <= maxMidi) {
+            if (activeNote && activeNote.midi === candidateMidi) {
+              activeNote.timeEnd = timeStart + (hopSize / sampleRate);
+            } else {
+              if (activeNote) {
+                activeNote.timeEnd = timeStart;
+                activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
+                if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
+              }
+              activeNote = {
+                midi: candidateMidi,
+                timeStart,
+                timeEnd: timeStart + (hopSize / sampleRate),
+                velocity: Math.min(1.0, rms * 4.0)
+              };
+            }
+          }
+        }
+      }
+
+      if (activeNote) {
+        activeNote.timeEnd = duration;
+        activeNote.duration = activeNote.timeEnd - activeNote.timeStart;
+        if (activeNote.duration >= 0.08) detectedRawNotes.push(activeNote);
+      }
+
+      return this.quantizeAndSolveNotes(detectedRawNotes, bpm, tuningKey, targetInstrument, onProgress);
+    }
+
+    /**
+     * Tier 2: Neural AI Pitch Transcription (Spotify Basic Pitch ONNX Engine)
+     */
+    async transcribeStemNeural(stemAudioBuffer, options = {}, onProgress) {
+      const bpm = options.bpm || this.detectedBpm || 113;
+      const targetInstrument = options.instrument || options.targetInstrument || 'guitar_6str';
+      const tuningKey = options.tuningKey || 'guitar_6str_std';
+
+      if (onProgress) onProgress(0.05, 'Starting Spotify Basic Pitch neural network...');
+      const rawNotes = await this.neuralPitchRunner.transcribe(stemAudioBuffer, options, onProgress);
+      return this.quantizeAndSolveNotes(rawNotes, bpm, tuningKey, targetInstrument, onProgress);
+    }
+
+    /**
+     * 4. Unified Transcription Dispatcher (Tier 1 vs Tier 2)
+     */
+    async transcribeStem(stemAudioBuffer, options = {}, onProgress) {
+      if (this.activeTier === 2 && this.neuralPitchRunner) {
+        const isReady = await this.neuralPitchRunner.isReady();
+        if (isReady) {
+          try {
+            return await this.transcribeStemNeural(stemAudioBuffer, options, onProgress);
+          } catch (neuralErr) {
+            console.warn('Neural pitch transcription error, falling back to Fast Filterbank:', neuralErr);
+            if (onProgress) onProgress(0.15, 'Neural inference failed, using Fast Filterbank...');
+          }
+        } else {
+          if (onProgress) onProgress(0.1, 'Neural model not installed, using Fast Filterbank...');
+        }
+      }
+      return this.transcribeStemSpectral(stemAudioBuffer, options, onProgress);
     }
 
     /**

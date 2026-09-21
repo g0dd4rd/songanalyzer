@@ -2840,6 +2840,32 @@
       const tabContainer = document.getElementById('transcribedTabContainer');
       const staffCanvas = document.getElementById('transcribedStaffCanvas');
 
+      // Tier Switcher & Neural AI Model Manager DOM Elements
+      const btnTier1Mode = document.getElementById('btnTier1Mode');
+      const btnTier2Mode = document.getElementById('btnTier2Mode');
+      const neuralEngineBadge = document.getElementById('neuralEngineBadge');
+      const btnOpenModelManager = document.getElementById('btnOpenModelManager');
+
+      const modalNeuralModels = document.getElementById('modalNeuralModels');
+      const btnCloseNeuralModal = document.getElementById('btnCloseNeuralModal');
+
+      const badgeBasicPitchStatus = document.getElementById('badgeBasicPitchStatus');
+      const btnInstallBasicPitch = document.getElementById('btnInstallBasicPitch');
+
+      const badgeDemucsStatus = document.getElementById('badgeDemucsStatus');
+      const btnInstallDemucs = document.getElementById('btnInstallDemucs');
+
+      const btnBrowseLocalModel = document.getElementById('btnBrowseLocalModel');
+      const inputLocalModelFile = document.getElementById('inputLocalModelFile');
+
+      const neuralDownloadProgressBox = document.getElementById('neuralDownloadProgressBox');
+      const neuralDownloadStatusText = document.getElementById('neuralDownloadStatusText');
+      const neuralDownloadPercentText = document.getElementById('neuralDownloadPercentText');
+      const neuralDownloadProgressFill = document.getElementById('neuralDownloadProgressFill');
+
+      const neuralCacheSummaryText = document.getElementById('neuralCacheSummaryText');
+      const btnClearNeuralCache = document.getElementById('btnClearNeuralCache');
+
       let currentAudioBuffer = null;
       let currentBpm = 113;
       let currentStems = null;
@@ -2848,6 +2874,301 @@
       let mediaRecorder = null;
       let recordInterval = null;
       let recordStartTime = 0;
+
+      const formatBytes = (bytes) => {
+        if (!bytes || bytes === 0) return '0 KB';
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      };
+
+      const updateEngineBadge = async () => {
+        if (!neuralEngineBadge) return;
+        const isTier2 = engine.activeTier === 2;
+        if (btnTier1Mode) btnTier1Mode.classList.toggle('active', !isTier2);
+        if (btnTier2Mode) btnTier2Mode.classList.toggle('active', isTier2);
+
+        if (!isTier2) {
+          neuralEngineBadge.textContent = '⚡ Tier 1: Filterbank (Active)';
+          neuralEngineBadge.className = 'engine-status-badge badge-tier1';
+        } else {
+          const hasBasicPitch = await engine.storage.hasModel('basic_pitch');
+          if (hasBasicPitch) {
+            neuralEngineBadge.textContent = '🧠 Tier 2: Neural AI (Ready • Basic Pitch)';
+            neuralEngineBadge.className = 'engine-status-badge badge-tier2';
+          } else {
+            neuralEngineBadge.textContent = '⚠️ Tier 2: Basic Pitch (Click to Cache)';
+            neuralEngineBadge.className = 'engine-status-badge badge-tier1';
+          }
+        }
+      };
+
+      const updateModelManagerUI = async () => {
+        const summary = await engine.storage.getSummary();
+
+        if (badgeBasicPitchStatus && btnInstallBasicPitch) {
+          if (summary.basicPitch) {
+            badgeBasicPitchStatus.textContent = 'Cached (226 KB)';
+            badgeBasicPitchStatus.className = 'model-status-pill pill-success';
+            btnInstallBasicPitch.textContent = '✓ Installed';
+            btnInstallBasicPitch.disabled = true;
+            btnInstallBasicPitch.className = 'btn btn-sm btn-outline-secondary';
+          } else {
+            badgeBasicPitchStatus.textContent = 'Not Cached';
+            badgeBasicPitchStatus.className = 'model-status-pill pill-warning';
+            btnInstallBasicPitch.textContent = '⬇ Download & Cache (226 KB)';
+            btnInstallBasicPitch.disabled = false;
+            btnInstallBasicPitch.className = 'btn btn-sm btn-primary';
+          }
+        }
+
+        if (badgeDemucsStatus && btnInstallDemucs) {
+          if (summary.demucs) {
+            badgeDemucsStatus.textContent = 'Cached (38 MB)';
+            badgeDemucsStatus.className = 'model-status-pill pill-success';
+            btnInstallDemucs.textContent = '✓ Installed';
+            btnInstallDemucs.disabled = true;
+            btnInstallDemucs.className = 'btn btn-sm btn-outline-secondary';
+          } else {
+            badgeDemucsStatus.textContent = 'Not Cached';
+            badgeDemucsStatus.className = 'model-status-pill pill-warning';
+            btnInstallDemucs.textContent = '⬇ Download (38 MB)';
+            btnInstallDemucs.disabled = false;
+            btnInstallDemucs.className = 'btn btn-sm btn-outline-cyan';
+          }
+        }
+
+        if (neuralCacheSummaryText) {
+          neuralCacheSummaryText.textContent = `Storage: ${formatBytes(summary.totalBytes)} cached (${summary.count} model${summary.count === 1 ? '' : 's'})`;
+        }
+      };
+
+      // Tier Switcher Buttons
+      if (btnTier1Mode) {
+        btnTier1Mode.addEventListener('click', () => {
+          engine.setTier(1);
+          updateEngineBadge();
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      if (btnTier2Mode) {
+        btnTier2Mode.addEventListener('click', async () => {
+          engine.setTier(2);
+          const hasBasicPitch = await engine.storage.hasModel('basic_pitch');
+          if (!hasBasicPitch) {
+            try {
+              const resp = await fetch('models/basic_pitch.onnx');
+              if (resp.ok) {
+                const ab = await resp.arrayBuffer();
+                await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
+              } else {
+                if (modalNeuralModels) modalNeuralModels.style.display = 'flex';
+                await updateModelManagerUI();
+              }
+            } catch (e) {
+              if (modalNeuralModels) modalNeuralModels.style.display = 'flex';
+              await updateModelManagerUI();
+            }
+          }
+          updateEngineBadge();
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      // Open/Close Modal
+      if (btnOpenModelManager && modalNeuralModels) {
+        btnOpenModelManager.addEventListener('click', async () => {
+          modalNeuralModels.style.display = 'flex';
+          await updateModelManagerUI();
+        });
+      }
+
+      if (btnCloseNeuralModal && modalNeuralModels) {
+        btnCloseNeuralModal.addEventListener('click', () => {
+          modalNeuralModels.style.display = 'none';
+        });
+      }
+
+      if (modalNeuralModels) {
+        modalNeuralModels.addEventListener('click', (e) => {
+          if (e.target === modalNeuralModels) {
+            modalNeuralModels.style.display = 'none';
+          }
+        });
+      }
+
+      // Download Spotify Basic Pitch
+      if (btnInstallBasicPitch) {
+        btnInstallBasicPitch.addEventListener('click', async () => {
+          btnInstallBasicPitch.disabled = true;
+          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Downloading Spotify Basic Pitch (226 KB)...';
+          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
+
+          try {
+            let targetUrl = 'models/basic_pitch.onnx';
+            let fetched = false;
+            try {
+              const testResp = await fetch(targetUrl, { method: 'HEAD' });
+              if (testResp.ok) fetched = true;
+            } catch (e) {}
+
+            if (!fetched) {
+              targetUrl = 'https://raw.githubusercontent.com/spotify/basic-pitch/main/basic_pitch/saved_models/icassp_2022/nmp.onnx';
+            }
+
+            await engine.storage.downloadModel('basic_pitch', targetUrl, (frac, loaded, total) => {
+              const pct = Math.round(frac * 100);
+              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = `Downloading: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+              }
+            });
+
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Spotify Basic Pitch installed & cached!';
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+
+            setTimeout(() => {
+              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+            }, 1500);
+
+            await updateModelManagerUI();
+            updateEngineBadge();
+          } catch (err) {
+            console.error('Basic Pitch download failed:', err);
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Download failed: ${err.message}. You can load a local .onnx file below.`;
+            }
+            btnInstallBasicPitch.disabled = false;
+          }
+        });
+      }
+
+      // Download Demucs
+      if (btnInstallDemucs) {
+        btnInstallDemucs.addEventListener('click', async () => {
+          btnInstallDemucs.disabled = true;
+          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository (38 MB)...';
+          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
+
+          try {
+            let targetUrl = 'models/htdemucs.onnx';
+            let fetched = false;
+            try {
+              const testResp = await fetch(targetUrl, { method: 'HEAD' });
+              if (testResp.ok) fetched = true;
+            } catch (e) {}
+
+            if (!fetched) {
+              targetUrl = 'https://huggingface.co/Anjok07/ultimatevocalremover_models/resolve/main/htdemucs_ft.onnx';
+            }
+
+            await engine.storage.downloadModel('demucs', targetUrl, (frac, loaded, total) => {
+              const pct = Math.round(frac * 100);
+              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = `Downloading Demucs: ${formatBytes(loaded)} / ${total ? formatBytes(total) : '38 MB'}`;
+              }
+            });
+
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'HTDemucs installed & cached!';
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+
+            setTimeout(() => {
+              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+            }, 1500);
+
+            await updateModelManagerUI();
+            updateEngineBadge();
+          } catch (err) {
+            console.error('Demucs download failed:', err);
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Demucs download error: ${err.message}. You can load a local htdemucs.onnx file below.`;
+            }
+            btnInstallDemucs.disabled = false;
+          }
+        });
+      }
+
+      // Local Model File Selector
+      if (btnBrowseLocalModel && inputLocalModelFile) {
+        btnBrowseLocalModel.addEventListener('click', () => {
+          inputLocalModelFile.value = '';
+          inputLocalModelFile.click();
+        });
+
+        inputLocalModelFile.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+
+          if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Reading ${file.name} into memory...`;
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '30%';
+
+          try {
+            const buffer = await file.arrayBuffer();
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '75%';
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Saving ${file.name} to IndexedDB...`;
+
+            const nameLower = file.name.toLowerCase();
+            const modelId = nameLower.includes('demucs') ? 'demucs' : 'basic_pitch';
+
+            await engine.storage.saveModel(modelId, buffer, { name: file.name, size: buffer.byteLength });
+
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Successfully cached ${file.name} (${formatBytes(buffer.byteLength)}) as ${modelId === 'demucs' ? 'HTDemucs' : 'Spotify Basic Pitch'}!`;
+            }
+
+            setTimeout(() => {
+              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+            }, 1500);
+
+            await updateModelManagerUI();
+            updateEngineBadge();
+          } catch (err) {
+            console.error('Error importing local model:', err);
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Error importing file: ${err.message}`;
+            }
+          }
+        });
+      }
+
+      // Clear Model Cache
+      if (btnClearNeuralCache) {
+        btnClearNeuralCache.addEventListener('click', async () => {
+          if (confirm('Clear all cached neural AI models from browser storage (IndexedDB)?')) {
+            await engine.storage.clearAll();
+            if (engine.neuralPitchRunner) engine.neuralPitchRunner.session = null;
+            await updateModelManagerUI();
+            updateEngineBadge();
+          }
+        });
+      }
+
+      // Silently sync local basic_pitch.onnx into IndexedDB if available and not yet cached
+      engine.storage.hasModel('basic_pitch').then(async (has) => {
+        if (!has) {
+          try {
+            const resp = await fetch('models/basic_pitch.onnx');
+            if (resp.ok) {
+              const ab = await resp.arrayBuffer();
+              await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
+            }
+          } catch (e) {}
+        }
+        updateModelManagerUI();
+        updateEngineBadge();
+      }).catch(() => {});
 
       // Toggle Rack Open/Closed
       const togglePanel = () => {
@@ -2927,6 +3248,7 @@
           tuningSelect.appendChild(opt);
         });
       };
+      this.populateTranscriberTunings = populateTunings;
 
       if (instSelect) {
         instSelect.addEventListener('change', () => {

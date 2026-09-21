@@ -1,7 +1,7 @@
 // Song Analyzer - Offline-First Service Worker
 // Enables 100% offline execution and PWA standalone installation
 
-const CACHE_NAME = 'songanalyzer-v4';
+const CACHE_NAME = 'songanalyzer-v5';
 
 const PRECACHE_ASSETS = [
   './',
@@ -23,6 +23,8 @@ const PRECACHE_ASSETS = [
   './js/sheetmusic.js',
   './js/state.js',
   './js/app.js',
+  './js/vendor/ort.min.js',
+  './models/basic_pitch.onnx',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon.svg'

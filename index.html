@@ -28,6 +28,7 @@
   <script src="js/ribbon.js"></script>
   <script src="js/sheetmusic.js"></script>
   <script src="js/state.js"></script>
+  <script src="js/vendor/ort.min.js"></script>
   <script src="js/transcriber.js"></script>
   <script src="js/app.js"></script>
 </head>
@@ -625,6 +626,27 @@
 
       <!-- Main Transcriber Rack Layout -->
       <div class="transcriber-rack-grid">
+        <!-- 0. Engine Tier Selector Bar -->
+        <div class="transcriber-engine-bar" id="transcriberEngineBar">
+          <div class="engine-bar-left">
+            <span class="engine-bar-label">⚙️ Engine Mode:</span>
+            <div class="engine-pill-group">
+              <button type="button" class="btn btn-sm btn-engine-tier active" id="btnTier1Mode" data-tier="1" title="Instant digital linear-phase filterbank (<2s, zero download)">
+                ⚡ Tier 1: Fast Filterbank (Instant)
+              </button>
+              <button type="button" class="btn btn-sm btn-engine-tier" id="btnTier2Mode" data-tier="2" title="Deep learning neural networks (Spotify Basic Pitch + Demucs)">
+                🧠 Tier 2: Neural AI
+              </button>
+            </div>
+            <span id="neuralEngineBadge" class="engine-status-badge badge-tier1">Tier 1: Filterbank (Active)</span>
+          </div>
+          <div class="engine-bar-right">
+            <button type="button" id="btnOpenModelManager" class="btn btn-sm btn-outline-cyan" title="Open Neural Model &amp; Cache Manager">
+              🧠 Neural Models &amp; Cache
+            </button>
+          </div>
+        </div>
+
         <!-- 1. Drop Zone & Ingestion Box -->
         <div class="transcriber-drop-card" id="transcriberDropZone">
           <div class="drop-zone-content">
@@ -822,6 +844,87 @@
               <div class="transcribed-staff-wrapper">
                 <canvas id="transcribedStaffCanvas" width="900" height="150" class="transcribed-staff-canvas"></canvas>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Neural Model Manager Modal / Dialog -->
+      <div id="modalNeuralModels" class="neural-modal-backdrop" style="display: none;">
+        <div class="neural-modal-box">
+          <div class="neural-modal-header">
+            <div class="neural-modal-title">🧠 Neural AI Models &amp; Offline Cache</div>
+            <button type="button" id="btnCloseNeuralModal" class="btn btn-sm" style="padding: 2px 8px;" title="Close Modal">✕</button>
+          </div>
+          <div class="neural-modal-body">
+            <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 12px;">
+              Download and cache deep-learning neural models directly into your browser's <code>IndexedDB</code>. Once cached, models run <strong>100% locally and offline</strong> with zero network dependencies.
+            </p>
+
+            <!-- Model 1: Spotify Basic Pitch -->
+            <div class="model-item-row" id="rowBasicPitch">
+              <div class="model-item-info">
+                <div class="model-item-name">
+                  <strong>Spotify Basic Pitch (ONNX)</strong>
+                  <span id="badgeBasicPitchStatus" class="model-status-pill pill-warning">Not Cached</span>
+                </div>
+                <div class="model-item-desc">
+                  Instrument-agnostic polyphonic pitch transcription neural network. Detects guitar/bass notes, chords, and pitch deviations.
+                </div>
+                <div class="model-item-size">Size: ~226 KB • Ultra-Fast Download (&lt; 1 sec)</div>
+              </div>
+              <div class="model-item-actions">
+                <button type="button" id="btnInstallBasicPitch" class="btn btn-sm btn-primary">
+                  ⬇ Download &amp; Cache (226 KB)
+                </button>
+              </div>
+            </div>
+
+            <!-- Model 2: HTDemucs Stem Separator -->
+            <div class="model-item-row" id="rowDemucs">
+              <div class="model-item-info">
+                <div class="model-item-name">
+                  <strong>HTDemucs Stem Separator (ONNX)</strong>
+                  <span id="badgeDemucsStatus" class="model-status-pill pill-warning">Not Cached</span>
+                </div>
+                <div class="model-item-desc">
+                  Meta AI convolutional transformer model for multi-stem audio isolation (Drums, Bass, Other, Vocals).
+                </div>
+                <div class="model-item-size">Size: ~38 MB (Quantized) • High Precision</div>
+              </div>
+              <div class="model-item-actions">
+                <button type="button" id="btnInstallDemucs" class="btn btn-sm btn-outline-cyan">
+                  ⬇ Download (38 MB)
+                </button>
+              </div>
+            </div>
+
+            <!-- Local Model File Drop / Browse -->
+            <div class="model-local-loader-box">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Have a local <code>.onnx</code> model file?</span>
+              <input type="file" id="inputLocalModelFile" accept=".onnx" style="display: none;">
+              <button type="button" id="btnBrowseLocalModel" class="btn btn-sm btn-outline-gold" style="font-size: 0.78rem;">
+                📂 Load Local .ONNX File into Storage
+              </button>
+            </div>
+
+            <!-- Download Progress Card -->
+            <div id="neuralDownloadProgressBox" class="neural-download-progress-box" style="display: none;">
+              <div class="download-progress-meta">
+                <span id="neuralDownloadStatusText">Downloading model...</span>
+                <span id="neuralDownloadPercentText">0%</span>
+              </div>
+              <div class="neural-progress-track">
+                <div id="neuralDownloadProgressFill" class="neural-progress-bar" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Cache summary & Clear -->
+            <div class="neural-modal-footer">
+              <div class="cache-summary-text" id="neuralCacheSummaryText">Storage: 0 MB cached</div>
+              <button type="button" id="btnClearNeuralCache" class="btn btn-sm btn-outline-danger" style="font-size: 0.76rem;">
+                🗑️ Clear Model Cache
+              </button>
             </div>
           </div>
         </div>
