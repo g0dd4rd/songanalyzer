@@ -688,6 +688,7 @@
             <span class="mixer-title">🎚️ 6-Stem Isolation &amp; Practice Mixer</span>
             <div class="mixer-transport-controls">
               <button type="button" id="btnStemPlayToggle" class="btn btn-sm btn-success">▶ Play Mix</button>
+              <button type="button" id="btnDownloadAllStems" class="btn btn-sm btn-outline-cyan" title="Download all separated stems (.wav)">⬇ Download All Stems (.wav)</button>
               <div class="speed-selector-group">
                 <span style="font-size: 0.76rem; color: var(--text-muted);">Speed:</span>
                 <button type="button" class="btn btn-sm btn-speed active" data-speed="1.0">1.0x</button>
@@ -708,6 +709,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="drums" title="Solo Drums [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="drums" title="Mute Drums [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="drums" title="Download Drums Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="drums" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_drums">85%</span>
@@ -722,6 +724,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="bass" title="Solo Bass [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="bass" title="Mute Bass [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="bass" title="Download Bass Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="bass" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_bass">85%</span>
@@ -736,6 +739,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="guitar" title="Solo Guitar [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="guitar" title="Mute Guitar [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="guitar" title="Download Guitar Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="guitar" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_guitar">85%</span>
@@ -750,6 +754,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="piano" title="Solo Piano [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="piano" title="Mute Piano [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="piano" title="Download Piano Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="piano" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_piano">85%</span>
@@ -764,6 +769,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="vocals" title="Solo Vocals [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="vocals" title="Mute Vocals [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="vocals" title="Download Vocals Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="vocals" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_vocals">85%</span>
@@ -778,6 +784,7 @@
               <div class="stem-strip-buttons">
                 <button type="button" class="btn-stem-solo" data-stem="other" title="Solo Other [S]">S</button>
                 <button type="button" class="btn-stem-mute" data-stem="other" title="Mute Other [M]">M</button>
+                <button type="button" class="btn-stem-download" data-stem="other" title="Download Other Stem (.wav)">⬇</button>
               </div>
               <input type="range" class="stem-fader" data-stem="other" min="0" max="1.5" step="0.05" value="0.85">
               <span class="stem-vol-readout" id="stemVol_other">85%</span>
