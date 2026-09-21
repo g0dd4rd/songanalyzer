@@ -2816,10 +2816,6 @@
       const bpmBadgeEl = document.getElementById('transcriberBpmBadge');
       const btnReanalyze = document.getElementById('btnReanalyzeStems');
 
-      const fileProtocolNotice = document.getElementById('fileProtocolNotice');
-      if (fileProtocolNotice && window.location.protocol === 'file:') {
-        fileProtocolNotice.style.display = 'block';
-      }
 
       const progressCard = document.getElementById('transcriberProgressCard');
       const progressText = document.getElementById('transcriberProgressText');
@@ -3013,6 +3009,21 @@
         currentBpm = tempoResult.bpm || 113;
         if (bpmBadgeEl) bpmBadgeEl.textContent = `${currentBpm} BPM`;
 
+        setProgress(0.08, 'Checking HTDemucs neural engine readiness...');
+        const isDemucsReady = await engine.demucsRunner.isReady();
+        if (!isDemucsReady) {
+          setProgress(1.0, 'HTDemucs model required');
+          if (confirm("Neural stem separation requires the Meta AI HTDemucs model (158 MB).\n\nWould you like to select your local 'models/htdemucs.onnx' file now to cache it for offline stem separation?")) {
+            if (inputLocalModelFile) {
+              inputLocalModelFile.value = '';
+              inputLocalModelFile.click();
+            }
+          } else if (modalNeuralModels) {
+            modalNeuralModels.style.display = 'flex';
+          }
+          return;
+        }
+
         setProgress(0.1, 'Separating 4 isolated stems using Meta AI HTDemucs...');
         await new Promise(r => setTimeout(r, 20));
 
@@ -3050,8 +3061,12 @@
         } catch (sepErr) {
           console.error('Stem separation failed:', sepErr);
           const errDetail = (sepErr && (sepErr.message || sepErr.toString())) || 'Unknown error';
-          alert(`Neural stem separation failed: ${errDetail}`);
           setProgress(1.0, 'Separation failed');
+          if (modalNeuralModels) {
+            modalNeuralModels.style.display = 'flex';
+            if (updateModelManagerUI) updateModelManagerUI();
+          }
+          alert(`Neural stem separation: ${errDetail}`);
         }
       };
 
@@ -3493,21 +3508,27 @@
       // Download Demucs
       if (btnInstallDemucs) {
         btnInstallDemucs.addEventListener('click', async () => {
+          const isFileProto = typeof window !== 'undefined' && window.location && window.location.protocol === 'file:';
+          if (isFileProto) {
+            const useLocal = confirm("You are running SongAnalyzer via file://.\n\nClick OK to select your local 'models/htdemucs.onnx' file (recommended, instant).\nOr click Cancel to download from a public web mirror.");
+            if (useLocal) {
+              if (inputLocalModelFile) {
+                inputLocalModelFile.value = '';
+                inputLocalModelFile.click();
+              }
+              return;
+            }
+          }
+
           btnInstallDemucs.disabled = true;
           if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
           if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = 'Connecting to Demucs model repository...';
           if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
           if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
 
-          const isFileProto = typeof window !== 'undefined' && window.location && window.location.protocol === 'file:';
-          const demucsUrls = isFileProto ? [
-            'https://huggingface.co/itamiArika/htdemucs-int8-memory/resolve/main/htdemucs-dft-int8-fp16-portable.onnx',
-            'https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/main/htdemucs_6s_fp16weights.onnx'
-          ] : [
+          const demucsUrls = [
             'models/htdemucs.onnx',
-            'https://songanalyzer.dredwerkz.cz/models/htdemucs.onnx',
-            'https://huggingface.co/itamiArika/htdemucs-int8-memory/resolve/main/htdemucs-dft-int8-fp16-portable.onnx',
-            'https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/main/htdemucs_6s_fp16weights.onnx'
+            'https://huggingface.co/timcsy/demucs-web-onnx/resolve/main/htdemucs_embedded.onnx'
           ];
 
           let success = false;
@@ -3519,9 +3540,7 @@
               if (neuralDownloadStatusText) {
                 neuralDownloadStatusText.textContent = url.startsWith('models/')
                   ? 'Checking local models folder (models/htdemucs.onnx)...'
-                  : (url.includes('dredwerkz.cz')
-                    ? 'Connecting to songanalyzer.dredwerkz.cz...'
-                    : `Connecting to public mirror ${i + 1}...`);
+                  : `Connecting to public mirror ${i}...`;
               }
 
               await engine.storage.downloadModel('demucs', url, (frac, loaded, total) => {
@@ -3548,7 +3567,9 @@
                 const wasmResp = await fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm');
                 if (wasmResp.ok) {
                   const wasmAb = await wasmResp.arrayBuffer();
-                  await engine.storage.saveModel('ort_wasm_simd', wasmAb, { name: 'ONNX WASM SIMD Runtime' });
+                  if (wasmAb.byteLength >= 10 * 1024 * 1024) {
+                    await engine.storage.saveModel('ort_wasm_simd', wasmAb, { name: 'ONNX WASM SIMD Runtime' });
+                  }
                 }
               }
             } catch (e) {}
@@ -3572,7 +3593,7 @@
         });
       }
 
-      // Local Model File Selector
+      // Local Model File Selector (Supports .onnx and .wasm)
       if (btnBrowseLocalModel && inputLocalModelFile) {
         btnBrowseLocalModel.addEventListener('click', () => {
           inputLocalModelFile.value = '';
@@ -3580,47 +3601,63 @@
         });
 
         inputLocalModelFile.addEventListener('change', async (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
+          const files = Array.from(e.target.files || []);
+          if (files.length === 0) return;
 
           if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
-          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Reading ${file.name} into memory...`;
-          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '30%';
 
-          try {
-            const buffer = await file.arrayBuffer();
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '75%';
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Reading ${file.name} (${i + 1}/${files.length})...`;
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '30%';
 
-            const lower = file.name.toLowerCase();
-            let modelKey = 'demucs';
-            let modelLabel = 'HTDemucs';
-            if (lower.includes('basic_pitch') || lower.includes('nmp')) {
-              modelKey = 'basic_pitch';
-              modelLabel = 'Spotify Basic Pitch';
-            } else if (lower.endsWith('.wasm')) {
-              modelKey = 'ort_wasm_simd';
-              modelLabel = 'ONNX WASM SIMD Runtime';
+            try {
+              const buffer = await file.arrayBuffer();
+              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '70%';
+
+              const lower = file.name.toLowerCase();
+              let modelKey = 'demucs';
+              let modelLabel = 'HTDemucs';
+              if (lower.includes('basic_pitch') || lower.includes('nmp')) {
+                modelKey = 'basic_pitch';
+                modelLabel = 'Spotify Basic Pitch';
+              } else if (lower.endsWith('.wasm')) {
+                modelKey = 'ort_wasm_simd';
+                modelLabel = 'ONNX WASM SIMD Runtime';
+              }
+
+              if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Caching ${file.name} in IndexedDB as ${modelLabel}...`;
+
+              await engine.storage.saveModel(modelKey, buffer, { name: file.name, size: buffer.byteLength });
+
+              if (modelKey === 'demucs' && engine.demucsRunner) {
+                engine.demucsRunner.session = null;
+              }
+
+              if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+              if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = `Successfully cached ${file.name} (${formatBytes(buffer.byteLength)}) as ${modelLabel}!`;
+              }
+            } catch (err) {
+              console.error(`Error importing ${file.name}:`, err);
+              if (neuralDownloadStatusText) {
+                neuralDownloadStatusText.textContent = `Error importing ${file.name}: ${err.message}`;
+              }
             }
+          }
 
-            if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Saving ${file.name} to IndexedDB as ${modelLabel}...`;
+          setTimeout(() => {
+            if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+          }, 1500);
 
-            await engine.storage.saveModel(modelKey, buffer, { name: file.name, size: buffer.byteLength });
+          await updateModelManagerUI();
 
-            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
-            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Successfully cached ${file.name} (${formatBytes(buffer.byteLength)}) as ${modelLabel}!`;
-            }
-
-            setTimeout(() => {
-              if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
-            }, 1500);
-
-            await updateModelManagerUI();
-          } catch (err) {
-            console.error('Error importing local model:', err);
-            if (neuralDownloadStatusText) {
-              neuralDownloadStatusText.textContent = `Error importing file: ${err.message}`;
+          // Auto-resume separation if an audio track is waiting
+          if (currentAudioBuffer && (!currentStems || !currentStems.drums)) {
+            const isReady = await engine.demucsRunner.isReady();
+            if (isReady) {
+              processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
             }
           }
         });

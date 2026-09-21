@@ -95,12 +95,27 @@
       const db = await this.open();
       if (!db) return null;
       return new Promise((resolve, reject) => {
-        const tx = db.transaction(this.storeName, 'readonly');
+        const tx = db.transaction(this.storeName, 'readwrite');
         const store = tx.objectStore(this.storeName);
         const req = store.get(id);
         req.onsuccess = () => {
           if (req.result && req.result.buffer) {
-            resolve(req.result.buffer);
+            const buf = req.result.buffer;
+            // Purge corrupt/truncated Demucs model (< 120 MB)
+            if (id === 'demucs' && buf.byteLength < 120 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated Demucs model (${buf.byteLength} bytes)`);
+              store.delete(id);
+              resolve(null);
+              return;
+            }
+            // Purge corrupt/truncated WASM runtime (< 10 MB)
+            if (id === 'ort_wasm_simd' && buf.byteLength < 10 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated WASM runtime (${buf.byteLength} bytes)`);
+              store.delete(id);
+              resolve(null);
+              return;
+            }
+            resolve(buf);
           } else {
             resolve(null);
           }
@@ -112,13 +127,8 @@
     async hasModel(id) {
       const db = await this.open();
       if (!db) return false;
-      return new Promise((resolve) => {
-        const tx = db.transaction(this.storeName, 'readonly');
-        const store = tx.objectStore(this.storeName);
-        const req = store.count(id);
-        req.onsuccess = () => resolve(req.result > 0);
-        req.onerror = () => resolve(false);
-      });
+      const buf = await this.getModel(id);
+      return Boolean(buf);
     }
 
     async deleteModel(id) {
@@ -149,7 +159,7 @@
       const db = await this.open();
       if (!db) return { basicPitch: false, demucs: false, totalBytes: 0, count: 0 };
       return new Promise((resolve) => {
-        const tx = db.transaction(this.storeName, 'readonly');
+        const tx = db.transaction(this.storeName, 'readwrite');
         const store = tx.objectStore(this.storeName);
         const req = store.getAll();
         req.onsuccess = () => {
@@ -157,13 +167,25 @@
           let basicPitch = false;
           let demucs = false;
           let totalBytes = 0;
+          let validCount = 0;
           records.forEach(r => {
             const sz = r.size || (r.buffer ? r.buffer.byteLength : 0);
+            if (r.id === 'demucs' && sz < 120 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated Demucs model (${sz} bytes)`);
+              store.delete('demucs');
+              return;
+            }
+            if (r.id === 'ort_wasm_simd' && sz < 10 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated WASM runtime (${sz} bytes)`);
+              store.delete('ort_wasm_simd');
+              return;
+            }
             totalBytes += sz;
+            validCount++;
             if (r.id === 'basic_pitch') basicPitch = true;
             if (r.id === 'demucs') demucs = true;
           });
-          resolve({ basicPitch, demucs, totalBytes, count: records.length });
+          resolve({ basicPitch, demucs, totalBytes, count: validCount });
         };
         req.onerror = () => resolve({ basicPitch: false, demucs: false, totalBytes: 0, count: 0 });
       });
@@ -176,6 +198,9 @@
 
       if (!resp.body || !resp.body.getReader) {
         const ab = await resp.arrayBuffer();
+        if (id === 'demucs' && ab.byteLength < 120 * 1024 * 1024) {
+          throw new Error(`Incomplete Demucs download: received only ${(ab.byteLength / (1024 * 1024)).toFixed(1)} MB (expected ~158 MB).`);
+        }
         await this.saveModel(id, ab, { url });
         if (onProgress) onProgress(1.0, ab.byteLength, ab.byteLength);
         return ab;
@@ -194,6 +219,16 @@
           const frac = contentLength > 0 ? (receivedBytes / contentLength) : 0.5;
           onProgress(frac, receivedBytes, contentLength);
         }
+      }
+
+      if (contentLength > 0 && receivedBytes < contentLength) {
+        throw new Error(`Download interrupted: received ${receivedBytes} of ${contentLength} bytes.`);
+      }
+      if (id === 'demucs' && receivedBytes < 120 * 1024 * 1024) {
+        throw new Error(`Incomplete Demucs download: received only ${(receivedBytes / (1024 * 1024)).toFixed(1)} MB (expected ~158 MB).`);
+      }
+      if (id === 'ort_wasm_simd' && receivedBytes < 10 * 1024 * 1024) {
+        throw new Error(`Incomplete WASM runtime download: received only ${(receivedBytes / (1024 * 1024)).toFixed(1)} MB (expected ~10.5 MB).`);
       }
 
       const combined = new Uint8Array(receivedBytes);
@@ -222,15 +257,18 @@
       try {
         const resp = await fetch('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort-wasm-simd.wasm');
         if (resp.ok) {
-          wasmBuf = await resp.arrayBuffer();
-          await storage.saveModel('ort_wasm_simd', wasmBuf, { name: 'ONNX WASM SIMD Runtime' });
+          const ab = await resp.arrayBuffer();
+          if (ab.byteLength >= 10 * 1024 * 1024) {
+            wasmBuf = ab;
+            await storage.saveModel('ort_wasm_simd', wasmBuf, { name: 'ONNX WASM SIMD Runtime' });
+          }
         }
       } catch (e) {
         console.warn('Direct fetch of ort-wasm-simd.wasm failed, falling back to CDN path:', e);
       }
     }
 
-    if (wasmBuf) {
+    if (wasmBuf && wasmBuf.byteLength >= 10 * 1024 * 1024) {
       const blobUrl = URL.createObjectURL(new Blob([wasmBuf], { type: 'application/wasm' }));
       window.ort.env.wasm.wasmPaths = {
         'ort-wasm-simd.wasm': blobUrl,
@@ -238,10 +276,8 @@
         'ort-wasm-simd-threaded.wasm': blobUrl,
         'ort-wasm-threaded.wasm': blobUrl
       };
-    } else if (window.location && window.location.protocol === 'file:') {
-      window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
     } else {
-      window.ort.env.wasm.wasmPaths = 'js/vendor/';
+      window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
     }
 
     const hasThreads = (typeof window !== 'undefined' && Boolean(window.crossOriginIsolated));
@@ -484,19 +520,27 @@
           } catch (e) {}
         }
         if (!buffer) {
-          throw new Error('Demucs model is not installed or cached.');
+          throw new Error('HTDemucs model is not cached. Please open "🧠 Model Cache" and select "models/htdemucs.onnx".');
         }
 
         const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
-        this.session = await window.ort.InferenceSession.create(modelBytes, {
-          executionProviders: ['wasm'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          enableMemPattern: false
-        });
-        this.inputName = this.session.inputNames[0] || 'mix';
-        this.outputName = this.session.outputNames[0] || 'stems';
-        return this.session;
+        try {
+          this.session = await window.ort.InferenceSession.create(modelBytes, {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'disabled',
+            enableCpuMemArena: false,
+            enableMemPattern: false
+          });
+          this.inputName = this.session.inputNames[0] || 'mix';
+          this.outputName = this.session.outputNames[0] || 'stems';
+          return this.session;
+        } catch (ortErr) {
+          console.error('[Demucs] ONNX session creation failed:', ortErr);
+          try { await this.storage.deleteModel('demucs'); } catch (e) {}
+          this.session = null;
+          const detail = (ortErr && (ortErr.message || ortErr.toString())) || 'unknown error';
+          throw new Error(`Demucs neural model failed to initialize (${detail}). Any corrupted cache was automatically removed. Please load 'models/htdemucs.onnx' (158 MB) using '📂 Load Local Model File' in the Model Cache dialog.`);
+        }
       } finally {
         this.isInitializing = false;
       }
@@ -861,10 +905,14 @@
     setStemVolume() {}
   }
 
-    // Export singleton to window namespace
+  // Export singleton to window namespace
   window.SongTranscriber = {
     AudioTranscriberEngine,
     engine: new AudioTranscriberEngine(),
+    NeuralModelStorage,
+    DemucsStemRunner,
+    SpotifyBasicPitchRunner,
+    setupWasmEnv,
     BiomechanicalFretboardSolver,
     StemMixerPlayer
   };

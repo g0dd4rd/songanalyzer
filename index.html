@@ -650,10 +650,6 @@
           </div>
         </div>
 
-        <!-- File protocol notice (shown only when running on file://) -->
-        <div id="fileProtocolNotice" class="file-protocol-banner" style="display: none;">
-          ℹ️ <strong>Running without a web server (<code>file://</code>):</strong> Browsers block WebAssembly and neural model loading directly from disk due to CORS sandbox policy. To run Demucs in the browser, start the local server with <code>python3 -m http.server 8000</code> and visit <code>http://localhost:8000</code>, or run separation directly in terminal: <code>python3 scripts/separate_stems.py &lt;audio_file&gt;</code>.
-        </div>
 
         <!-- 2. Multi-Stage Progress Banner -->
         <div id="transcriberProgressCard" class="transcriber-progress-card" style="display: none;">
@@ -805,7 +801,7 @@
             <!-- Local Model File Drop / Browse -->
             <div class="model-local-loader-box">
               <span style="font-size: 0.8rem; color: var(--text-muted);">Have a local <code>.onnx</code> or <code>.wasm</code> file?</span>
-              <input type="file" id="inputLocalModelFile" accept=".onnx,.wasm" style="display: none;">
+              <input type="file" id="inputLocalModelFile" accept=".onnx,.wasm" multiple style="display: none;">
               <button type="button" id="btnBrowseLocalModel" class="btn btn-sm btn-outline-gold" style="font-size: 0.78rem;">
                 📂 Load Local Model File (.onnx / .wasm)
               </button>
