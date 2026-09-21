@@ -2892,11 +2892,15 @@
           neuralEngineBadge.className = 'engine-status-badge badge-tier1';
         } else {
           const hasBasicPitch = await engine.storage.hasModel('basic_pitch');
-          if (hasBasicPitch) {
-            neuralEngineBadge.textContent = '🧠 Tier 2: Neural AI (Ready • Basic Pitch)';
+          const hasDemucs = await engine.storage.hasModel('demucs');
+          if (hasBasicPitch && hasDemucs) {
+            neuralEngineBadge.textContent = '🧠 Tier 2: Neural AI (Ready • Demucs & Basic Pitch)';
+            neuralEngineBadge.className = 'engine-status-badge badge-tier2';
+          } else if (hasBasicPitch || hasDemucs) {
+            neuralEngineBadge.textContent = `🧠 Tier 2: Neural AI (${hasDemucs ? 'Demucs' : 'Basic Pitch'} Ready)`;
             neuralEngineBadge.className = 'engine-status-badge badge-tier2';
           } else {
-            neuralEngineBadge.textContent = '⚠️ Tier 2: Basic Pitch (Click to Cache)';
+            neuralEngineBadge.textContent = '⚠️ Tier 2: Neural AI (Click to Cache Models)';
             neuralEngineBadge.className = 'engine-status-badge badge-tier1';
           }
         }
@@ -2923,7 +2927,7 @@
 
         if (badgeDemucsStatus && btnInstallDemucs) {
           if (summary.demucs) {
-            badgeDemucsStatus.textContent = 'Cached (38 MB)';
+            badgeDemucsStatus.textContent = 'Cached (158 MB)';
             badgeDemucsStatus.className = 'model-status-pill pill-success';
             btnInstallDemucs.textContent = '✓ Installed';
             btnInstallDemucs.disabled = true;
@@ -2931,7 +2935,7 @@
           } else {
             badgeDemucsStatus.textContent = 'Not Cached';
             badgeDemucsStatus.className = 'model-status-pill pill-warning';
-            btnInstallDemucs.textContent = '⬇ Download (38 MB)';
+            btnInstallDemucs.textContent = '⬇ Download & Cache (158 MB)';
             btnInstallDemucs.disabled = false;
             btnInstallDemucs.className = 'btn btn-sm btn-outline-cyan';
           }
@@ -2944,10 +2948,13 @@
 
       // Tier Switcher Buttons
       if (btnTier1Mode) {
-        btnTier1Mode.addEventListener('click', () => {
+        btnTier1Mode.addEventListener('click', async () => {
           engine.setTier(1);
           updateEngineBadge();
           if (window.SongState) window.SongState.requestSave();
+          if (currentAudioBuffer) {
+            await processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
+          }
         });
       }
 
@@ -2961,17 +2968,24 @@
               if (resp.ok) {
                 const ab = await resp.arrayBuffer();
                 await engine.storage.saveModel('basic_pitch', ab, { name: 'Spotify Basic Pitch' });
-              } else {
-                if (modalNeuralModels) modalNeuralModels.style.display = 'flex';
-                await updateModelManagerUI();
               }
-            } catch (e) {
-              if (modalNeuralModels) modalNeuralModels.style.display = 'flex';
-              await updateModelManagerUI();
-            }
+            } catch (e) {}
+          }
+          const hasDemucs = await engine.storage.hasModel('demucs');
+          if (!hasDemucs) {
+            try {
+              const resp = await fetch('models/htdemucs.onnx');
+              if (resp.ok) {
+                const ab = await resp.arrayBuffer();
+                await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
+              }
+            } catch (e) {}
           }
           updateEngineBadge();
           if (window.SongState) window.SongState.requestSave();
+          if (currentAudioBuffer) {
+            await processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
+          }
         });
       }
 
@@ -3396,11 +3410,12 @@
         currentBpm = tempoResult.bpm || 113;
         if (bpmBadgeEl) bpmBadgeEl.textContent = `${currentBpm} BPM`;
 
-        setProgress(0.35, 'Separating 6 isolated stems (Mid/Side Crossover)...');
+        const tierLabel = (engine.activeTier === 2) ? 'HTDemucs Neural AI' : 'Mid/Side Crossover';
+        setProgress(0.25, `Separating 6 isolated stems (${tierLabel})...`);
         await new Promise(r => setTimeout(r, 20));
 
-        currentStems = await engine.separateStems6(audioBuffer, (p, msg) => {
-          setProgress(0.35 + p * 0.45, msg);
+        currentStems = await engine.separateStems(audioBuffer, (p, msg) => {
+          setProgress(0.25 + p * 0.55, msg);
         });
 
         mixer.setStems(currentStems);
@@ -3410,7 +3425,7 @@
         if (notationCard) notationCard.style.display = 'block';
 
         if (liveBadge) {
-          liveBadge.textContent = '6 Stems Ready';
+          liveBadge.textContent = (engine.activeTier === 2) ? '🧠 Neural 6 Stems Ready' : '⚡ 6 Stems Ready';
           liveBadge.classList.add('badge-gold');
         }
 

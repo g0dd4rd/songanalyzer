@@ -611,6 +611,238 @@
   }
 
   // -------------------------------------------------------------
+  // 2D. Demucs Neural Stem Separator Runner (ONNX)
+  // -------------------------------------------------------------
+  class DemucsStemRunner {
+    constructor(storage) {
+      this.storage = storage;
+      this.session = null;
+      this.inputName = 'mix';
+      this.outputName = 'stems';
+      this.isInitializing = false;
+      this.sampleRate = 44100;
+      this.chunkSize = 343980; // 7.8s at 44.1kHz
+      this.overlap = Math.floor(this.chunkSize / 4); // ~1.95s overlap (85995 samples)
+      this.stride = this.chunkSize - this.overlap;   // ~5.85s stride (257985 samples)
+    }
+
+    async isReady() {
+      if (this.session) return true;
+      if (typeof window === 'undefined') return false;
+      return await this.storage.hasModel('demucs');
+    }
+
+    async initSession(modelBuffer = null) {
+      if (this.session) return this.session;
+      if (this.isInitializing) {
+        while (this.isInitializing) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        return this.session;
+      }
+      this.isInitializing = true;
+      try {
+        if (typeof window === 'undefined' || !window.ort) {
+          throw new Error('ONNX Runtime Web (ort) is not available.');
+        }
+
+        if (window.ort.env && window.ort.env.wasm) {
+          window.ort.env.wasm.wasmPaths = 'js/vendor/';
+          window.ort.env.wasm.numThreads = Math.min(4, (navigator && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 2);
+        }
+
+        let buffer = modelBuffer;
+        if (!buffer) {
+          buffer = await this.storage.getModel('demucs');
+        }
+        if (!buffer) {
+          try {
+            const resp = await fetch('models/htdemucs.onnx');
+            if (resp.ok) {
+              buffer = await resp.arrayBuffer();
+              await this.storage.saveModel('demucs', buffer, { name: 'HTDemucs' });
+            }
+          } catch (e) {}
+        }
+        if (!buffer) {
+          throw new Error('Demucs model is not installed or cached.');
+        }
+
+        this.session = await window.ort.InferenceSession.create(buffer, {
+          executionProviders: ['wasm']
+        });
+        this.inputName = this.session.inputNames[0] || 'mix';
+        this.outputName = this.session.outputNames[0] || 'stems';
+        return this.session;
+      } finally {
+        this.isInitializing = false;
+      }
+    }
+
+    _makeWindow(n, overlap) {
+      const w = new Float32Array(n);
+      w.fill(1.0);
+      for (let i = 0; i < overlap; i++) {
+        const fade = i / overlap;
+        w[i] = fade;
+        w[n - 1 - i] = fade;
+      }
+      return w;
+    }
+
+    async resampleTo44kStereo(audioBuffer) {
+      const targetRate = 44100;
+      if (audioBuffer.sampleRate === targetRate && audioBuffer.numberOfChannels === 2) {
+        return {
+          left: audioBuffer.getChannelData(0),
+          right: audioBuffer.getChannelData(1),
+          length: audioBuffer.length
+        };
+      }
+      const duration = audioBuffer.duration;
+      const targetLength = Math.max(1, Math.round(duration * targetRate));
+      const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+        2,
+        targetLength,
+        targetRate
+      );
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(offlineCtx.destination);
+      source.start(0);
+
+      const resampled = await offlineCtx.startRendering();
+      return {
+        left: resampled.getChannelData(0),
+        right: resampled.getChannelData(1),
+        length: resampled.length
+      };
+    }
+
+    async separate(audioBuffer, onProgress = null) {
+      await this.initSession();
+      if (!this.session) throw new Error('Demucs ONNX session could not be initialized.');
+
+      if (onProgress) onProgress(0.05, 'Preparing 44.1 kHz stereo audio for Demucs neural engine...');
+      const stereo = await this.resampleTo44kStereo(audioBuffer);
+      const totalSamples = stereo.length;
+      const leftIn = stereo.left;
+      const rightIn = stereo.right;
+
+      const nChunks = Math.max(1, Math.ceil((totalSamples - this.overlap) / this.stride));
+      const window = this._makeWindow(this.chunkSize, this.overlap);
+
+      // Accumulator arrays for 4 stems: 0: drums, 1: bass, 2: other, 3: vocals
+      const stemAccL = [new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples)];
+      const stemAccR = [new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples), new Float32Array(totalSamples)];
+      const weightAcc = new Float32Array(totalSamples);
+
+      for (let c = 0; c < nChunks; c++) {
+        const start = c * this.stride;
+        const end = Math.min(start + this.chunkSize, totalSamples);
+        const clen = end - start;
+
+        if (onProgress) {
+          const frac = 0.08 + (c / nChunks) * 0.80;
+          onProgress(frac, `Neural stem separation: chunk ${c + 1} of ${nChunks} (~${Math.round(end / 44100)}s)...`);
+        }
+
+        // Prepare chunk data shape [1, 2, 343980]
+        const chunkData = new Float32Array(2 * this.chunkSize);
+        for (let i = 0; i < clen; i++) {
+          chunkData[i] = leftIn[start + i];
+          chunkData[this.chunkSize + i] = rightIn[start + i];
+        }
+
+        const inputTensor = new window.ort.Tensor('float32', chunkData, [1, 2, this.chunkSize]);
+        const results = await this.session.run({ [this.inputName]: inputTensor });
+
+        // Output shape [1, S, 2, 343980]
+        const outData = results[this.outputName].data;
+        const numStems = Math.round(outData.length / (2 * this.chunkSize));
+
+        for (let s = 0; s < Math.min(4, numStems); s++) {
+          const stemOffset = s * 2 * this.chunkSize;
+          const leftOffset = stemOffset;
+          const rightOffset = stemOffset + this.chunkSize;
+          const accL = stemAccL[s];
+          const accR = stemAccR[s];
+
+          for (let i = 0; i < clen; i++) {
+            const w = window[i];
+            accL[start + i] += outData[leftOffset + i] * w;
+            accR[start + i] += (rightOffset + i < outData.length ? outData[rightOffset + i] : outData[leftOffset + i]) * w;
+          }
+        }
+
+        for (let i = 0; i < clen; i++) {
+          weightAcc[start + i] += window[i];
+        }
+      }
+
+      if (onProgress) onProgress(0.92, 'Normalizing overlap windows and rendering 6-stem buffers...');
+
+      // Normalize by weights
+      for (let i = 0; i < totalSamples; i++) {
+        const w = weightAcc[i] > 1e-6 ? weightAcc[i] : 1.0;
+        const invW = 1.0 / w;
+        for (let s = 0; s < 4; s++) {
+          stemAccL[s][i] *= invW;
+          stemAccR[s][i] *= invW;
+        }
+      }
+
+      // Create WebAudio Buffers for the 6 mixer faders
+      const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : new (window.AudioContext || window.webkitAudioContext)();
+      const createBuf = () => ctx.createBuffer(2, totalSamples, 44100);
+
+      const drumsBuf = createBuf();
+      drumsBuf.getChannelData(0).set(stemAccL[0]);
+      drumsBuf.getChannelData(1).set(stemAccR[0]);
+
+      const bassBuf = createBuf();
+      bassBuf.getChannelData(0).set(stemAccL[1]);
+      bassBuf.getChannelData(1).set(stemAccR[1]);
+
+      const vocalsBuf = createBuf();
+      vocalsBuf.getChannelData(0).set(stemAccL[3]);
+      vocalsBuf.getChannelData(1).set(stemAccR[3]);
+
+      const otherBuf = createBuf();
+      otherBuf.getChannelData(0).set(stemAccL[2]);
+      otherBuf.getChannelData(1).set(stemAccR[2]);
+
+      // Split isolated other stem into Guitar & Piano
+      const guitarBuf = createBuf();
+      const pianoBuf = createBuf();
+      const oL = stemAccL[2], oR = stemAccR[2];
+      const gL = guitarBuf.getChannelData(0), gR = guitarBuf.getChannelData(1);
+      const pL = pianoBuf.getChannelData(0), pR = pianoBuf.getChannelData(1);
+
+      for (let i = 0; i < totalSamples; i++) {
+        const midOther = (oL[i] + oR[i]) * 0.5;
+        const sideOther = (oL[i] - oR[i]) * 0.5;
+        gL[i] = sideOther * 1.25 + midOther * 0.45;
+        gR[i] = -sideOther * 1.25 + midOther * 0.45;
+        pL[i] = midOther * 0.65;
+        pR[i] = midOther * 0.65;
+      }
+
+      if (onProgress) onProgress(1.0, 'Neural 6-stem separation complete!');
+
+      return {
+        drums: drumsBuf,
+        bass: bassBuf,
+        vocals: vocalsBuf,
+        other: otherBuf,
+        guitar: guitarBuf,
+        piano: pianoBuf
+      };
+    }
+  }
+
+  // -------------------------------------------------------------
   // 3. Audio Transcriber & 6-Stem Engine
   // -------------------------------------------------------------
   class AudioTranscriberEngine {
@@ -619,6 +851,7 @@
       this.fretboardSolver = new BiomechanicalFretboardSolver();
       this.storage = new NeuralModelStorage();
       this.neuralPitchRunner = new SpotifyBasicPitchRunner(this.storage);
+      this.demucsRunner = new DemucsStemRunner(this.storage);
       this.activeTier = 1; // 1 = Fast Filterbank, 2 = Neural AI
       this.cachedStems = null;
       this.sourceAudioBuffer = null;
@@ -777,10 +1010,10 @@
     }
 
     /**
-     * 3. Tier 1: Instant 6-Stem Separation (Spectral M/S Filterbank + HPSS)
+     * Tier 1: Instant 6-Stem Separation (Spectral M/S Filterbank + HPSS)
      * Splits into: Drums, Bass, Guitar, Piano, Vocals, Other in < 2 seconds.
      */
-    separateStems6(audioBuffer, onProgress) {
+    separateStemsFilterbank(audioBuffer, onProgress) {
       const ctx = this.getAudioContext();
       const sampleRate = audioBuffer.sampleRate;
       const length = audioBuffer.length;
@@ -901,6 +1134,43 @@
       };
 
       return this.cachedStems;
+    }
+
+    /**
+     * Tier 2: Neural AI 6-Stem Separation (Demucs ONNX Overlap-Add Engine)
+     */
+    async separateStemsNeural(audioBuffer, onProgress) {
+      return await this.demucsRunner.separate(audioBuffer, onProgress);
+    }
+
+    /**
+     * 3. Unified 6-Stem Source Separation Dispatcher (Tier 1 vs Tier 2)
+     */
+    async separateStems(audioBuffer, onProgress) {
+      if (this.activeTier === 2 && this.demucsRunner) {
+        const isReady = await this.demucsRunner.isReady();
+        if (isReady) {
+          try {
+            if (onProgress) onProgress(0.05, 'Starting HTDemucs deep-learning stem separation...');
+            this.cachedStems = await this.separateStemsNeural(audioBuffer, onProgress);
+            return this.cachedStems;
+          } catch (neuralErr) {
+            console.warn('Neural stem separation failed, falling back to Fast Filterbank:', neuralErr);
+            if (onProgress) onProgress(0.15, 'Neural separation error, falling back to Fast Filterbank...');
+          }
+        } else {
+          if (onProgress) onProgress(0.1, 'Demucs model not installed, using Fast Filterbank...');
+        }
+      }
+      this.cachedStems = this.separateStemsFilterbank(audioBuffer, onProgress);
+      return this.cachedStems;
+    }
+
+    /**
+     * Backward-compatibility alias
+     */
+    separateStems6(audioBuffer, onProgress) {
+      return this.separateStems(audioBuffer, onProgress);
     }
 
     /**
