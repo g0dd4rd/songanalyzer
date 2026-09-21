@@ -6032,7 +6032,10 @@
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SongAnalyzer PWA registered, scope:', reg.scope))
+            .then(reg => {
+              console.log('SongAnalyzer PWA registered, scope:', reg.scope);
+              reg.update().catch(() => {});
+            })
             .catch(err => console.warn('PWA registration skipped:', err));
         });
       }

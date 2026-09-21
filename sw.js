@@ -1,7 +1,7 @@
 // Song Analyzer - Offline-First Service Worker
 // Enables 100% offline execution and PWA standalone installation
 
-const CACHE_NAME = 'songanalyzer-v5';
+const CACHE_NAME = 'songanalyzer-v6';
 
 const PRECACHE_ASSETS = [
   './',
@@ -56,15 +56,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Cache-first strategy for rapid offline launching
+// Fetch: Network-first for navigation/HTML (ensures newest UI), cache-first for static assets
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
+  const isNavigation = event.request.mode === 'navigate' || event.request.destination === 'document';
+
+  if (isNavigation) {
+    // Network-first for HTML pages so user always sees the latest updates immediately
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Cache-first strategy for rapid offline launching of static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached asset immediately
         return cachedResponse;
       }
 
@@ -80,11 +98,6 @@ self.addEventListener('fetch', (event) => {
         });
 
         return networkResponse;
-      }).catch(() => {
-        // If offline and requesting navigation, return cached index.html
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
       });
     })
   );
