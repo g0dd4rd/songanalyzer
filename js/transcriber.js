@@ -1103,15 +1103,82 @@
       return this.session;
     }
 
-    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null) {
+    enhanceMask(scale, k, f, nBins, stemKey, isTransient) {
+      let s = scale;
+      if (s <= 0.0) return 0.0;
+
+      // 1. Contrast expansion (Photoshop Curves / Levels Black Point)
+      // Exponential soft curve suppresses low-level bleed/flutter while preserving active signal
+      if (s <= 1.0) {
+        s = Math.pow(s, 1.32);
+      } else {
+        s = Math.min(1.15, s);
+      }
+
+      // Soft noise floor gate below 5%
+      if (s < 0.05) {
+        s *= Math.max(0.0, (s - 0.01) / 0.04);
+      }
+
+      // 2. Instrument-Specific Frequency Band-Limiting
+      // f_hz = k * (44100 / 4096) = k * 10.7666 Hz
+      if (stemKey === 'bass') {
+        // Sub-rumble cutoff below 28 Hz (k < 3)
+        if (k < 3) {
+          s *= (k / 3);
+        }
+        // Bass guitar content above 4.0 kHz (k = 372) is almost entirely bleed from cymbals / vocals
+        // Apply smooth Hann roll-off down to 6.2 kHz (k = 576)
+        if (k > 372) {
+          if (k >= 576) {
+            s *= 0.015;
+          } else {
+            const t = (k - 372) / (576 - 372);
+            const atten = 0.5 * (1.0 + Math.cos(Math.PI * t));
+            s *= (0.015 + 0.985 * atten);
+          }
+        }
+      } else if (stemKey === 'vocals') {
+        // Singing voice fundamental cutoff below 85 Hz (k < 8)
+        // Eliminates kick drum thud and sub-bass bleed
+        if (k < 8) {
+          const t = Math.max(0, k / 8);
+          s *= (t * t);
+        }
+      } else if (stemKey === 'drums') {
+        // Sub-bass high-pass below 25 Hz (k < 3) to eliminate sub rumble
+        if (k < 3) {
+          s *= (k / 3);
+        }
+      } else if (stemKey === 'other') {
+        // Guitar / keys high-pass below 60 Hz (k < 6)
+        if (k < 6) {
+          s *= (k / 6);
+        }
+      }
+
+      // 3. Transient Punch Sharpening (Unsharp Masking for attacks)
+      if (isTransient) {
+        if (stemKey === 'drums' && k >= 20 && k <= 800) {
+          s = Math.min(1.15, s * 1.15);
+        } else if (stemKey === 'vocals' && k >= 100 && k <= 600) {
+          s = Math.min(1.10, s * 1.08);
+        }
+      }
+
+      return s;
+    }
+
+    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null, options = {}) {
       let stemKey = targetStem.toLowerCase();
       if (stemKey === 'guitar') stemKey = 'other';
       if (!['drums', 'bass', 'other', 'vocals'].includes(stemKey)) {
         stemKey = 'other';
       }
 
+      const enhance = options && options.enhance !== false;
       const displayName = targetStem.charAt(0).toUpperCase() + targetStem.slice(1);
-      if (onProgress) onProgress(0.02, `Preparing OpenUnmix engine for ${displayName}...`);
+      if (onProgress) onProgress(0.02, `Preparing OpenUnmix engine for ${displayName}${enhance ? ' (with Spectral De-Bleed)' : ''}...`);
 
       try {
         await this.loadStemModel(stemKey, onProgress);
@@ -1139,7 +1206,7 @@
 
           if (onProgress) {
             const frac = 0.20 + (c / nChunks) * 0.75;
-            onProgress(frac, `Isolating ${displayName} (Chunk ${c + 1} of ${nChunks})...`);
+            onProgress(frac, `Isolating ${displayName} (Chunk ${c + 1} of ${nChunks})${enhance ? ' [Enhanced]' : ''}...`);
             await new Promise(r => setTimeout(r, 0)); // Yield to event loop for GC & UI
           }
 
@@ -1173,7 +1240,39 @@
           const results = await this.session.run({ [inputName]: inputTensor });
           const estData = results[outputName].data;
 
-          // 3. Phase coupling and reconstruction
+          // 3. Spectral Flux calculation for attack transient sharpening (if enhance is true)
+          let fluxL = null;
+          let fluxR = null;
+          let fluxThreshL = 0;
+          let fluxThreshR = 0;
+
+          if (enhance) {
+            fluxL = new Float32Array(nFrames);
+            fluxR = new Float32Array(nFrames);
+            let sumL = 0;
+            let sumR = 0;
+            const maxK = Math.min(nBins, 750); // up to ~8 kHz
+            for (let f = 1; f < nFrames; f++) {
+              const fOff = f * nBins;
+              const fPrev = (f - 1) * nBins;
+              let dL = 0;
+              let dR = 0;
+              for (let k = 10; k < maxK; k++) {
+                const diffL = stftL.mag[fOff + k] - stftL.mag[fPrev + k];
+                if (diffL > 0) dL += diffL;
+                const diffR = stftR.mag[fOff + k] - stftR.mag[fPrev + k];
+                if (diffR > 0) dR += diffR;
+              }
+              fluxL[f] = dL;
+              fluxR[f] = dR;
+              sumL += dL;
+              sumR += dR;
+            }
+            fluxThreshL = (sumL / Math.max(1, nFrames - 1)) * 1.4;
+            fluxThreshR = (sumR / Math.max(1, nFrames - 1)) * 1.4;
+          }
+
+          // 4. Phase coupling, spectral de-bleed enhancement, and reconstruction
           const specRealL = new Float32Array(nFrames * nBins);
           const specImagL = new Float32Array(nFrames * nBins);
           const specRealR = new Float32Array(nFrames * nBins);
@@ -1181,6 +1280,9 @@
 
           for (let f = 0; f < nFrames; f++) {
             const fOffset = f * nBins;
+            const isTransL = Boolean(enhance && fluxL && fluxL[f] > fluxThreshL);
+            const isTransR = Boolean(enhance && fluxR && fluxR[f] > fluxThreshR);
+
             for (let k = 0; k < nBins; k++) {
               const tensorIdx = k * nFrames + f;
               const estML = estData[tensorIdx];
@@ -1189,8 +1291,13 @@
               const mixML = stftL.mag[fOffset + k];
               const mixMR = stftR.mag[fOffset + k];
 
-              const scaleL = estML / (mixML + 1e-7);
-              const scaleR = estMR / (mixMR + 1e-7);
+              let scaleL = estML / (mixML + 1e-7);
+              let scaleR = estMR / (mixMR + 1e-7);
+
+              if (enhance) {
+                scaleL = this.enhanceMask(scaleL, k, f, nBins, stemKey, isTransL);
+                scaleR = this.enhanceMask(scaleR, k, f, nBins, stemKey, isTransR);
+              }
 
               specRealL[fOffset + k] = stftL.real[fOffset + k] * scaleL;
               specImagL[fOffset + k] = stftL.imag[fOffset + k] * scaleL;
@@ -1461,7 +1568,7 @@
     /**
      * Single-Target Neural Stem Separation (Device-aware: HTDemucs on Desktop, UMX on Mobile)
      */
-    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null) {
+    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null, options = {}) {
       this.isProcessing = true;
       try {
         if (!this.cachedStems) this.cachedStems = {};
@@ -1469,12 +1576,12 @@
         let result;
         if (caps && caps.engineMode === 'mobile_optimized') {
           if (!this.umxRunner) this.umxRunner = new UMXStemRunner(this.storage);
-          result = await this.umxRunner.separateSingleStem(audioBuffer, targetStem, onProgress);
+          result = await this.umxRunner.separateSingleStem(audioBuffer, targetStem, onProgress, options);
         } else {
           if (!this.demucsRunner) {
             throw new Error('HTDemucs stem runner is not initialized.');
           }
-          result = await this.demucsRunner.separateSingleStem(audioBuffer, targetStem, onProgress);
+          result = await this.demucsRunner.separateSingleStem(audioBuffer, targetStem, onProgress, options);
         }
         this.cachedStems[result.stemName] = result.buffer;
         return result;
@@ -1489,7 +1596,7 @@
     /**
      * Sequential Multi-Stem Separation (Processes one stem at a time with memory cooldowns)
      */
-    async separateStemsSequentially(audioBuffer, stemList = ['drums', 'bass', 'other', 'vocals'], onProgress = null) {
+    async separateStemsSequentially(audioBuffer, stemList = ['drums', 'bass', 'other', 'vocals'], onProgress = null, options = {}) {
       if (!this.cachedStems) this.cachedStems = {};
       for (let i = 0; i < stemList.length; i++) {
         const stemName = stemList[i];
@@ -1499,7 +1606,7 @@
             onProgress(overall, `[Stem ${i + 1}/${stemList.length}: ${stemName}] ${msg}`);
           }
         };
-        const res = await this.separateSingleStem(audioBuffer, stemName, subProgress);
+        const res = await this.separateSingleStem(audioBuffer, stemName, subProgress, options);
         this.cachedStems[stemName] = res.buffer;
         // Memory cooldown pause between stems to allow V8 / SpiderMonkey GC
         await new Promise(r => setTimeout(r, 100));

@@ -148,7 +148,9 @@
         },
 
         // Neural Stem Separator
-        transcriber: {}
+        transcriber: {
+          enhanceStems: this.getCheckboxValue('chkEnhanceStemsDeck', true)
+        }
       };
 
       return state;
@@ -462,6 +464,14 @@
           if (state.navigation.mobileTab && app.setMobileTab) {
             app.setMobileTab(state.navigation.mobileTab);
           }
+        }
+
+        // 13. Transcriber & Stem Studio
+        if (state.transcriber && typeof state.transcriber.enhanceStems === 'boolean') {
+          this.setCheckboxValue('chkEnhanceStemsDeck', state.transcriber.enhanceStems);
+          this.setCheckboxValue('chkEnhanceStemsTrackBar', state.transcriber.enhanceStems);
+          const chk = document.getElementById('chkEnhanceStemsDeck');
+          if (chk) chk.dispatchEvent(new Event('change'));
         }
 
         this.lastSavedTimestamp = state.timestamp || Date.now();
@@ -866,7 +876,8 @@
         'tunerPresetSelect', 'tunerA4Input', 'tunerGainInput',
         'accuracySubdivSelect', 'accuracySensitivityInput', 'accuracyLatencyInput', 'accuracyAutoMetronome',
         'ribbonPathwaySelect', 'ribbonLeadVoiceSelect', 'ribbonLoopToggle', 'ribbonMelodyVol', 'ribbonChordsVol',
-        'scaleCategoryFilter', 'scaleFamilySelect'
+        'scaleCategoryFilter', 'scaleFamilySelect',
+        'chkEnhanceStemsDeck', 'chkEnhanceStemsTrackBar'
       ];
 
       inputIds.forEach(id => {

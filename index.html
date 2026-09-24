@@ -647,7 +647,11 @@
             <div class="track-info-pill"><span class="track-info-label">File:</span> <span id="transcriberFilename" class="track-info-val">demo.mp3</span></div>
             <div class="track-info-pill"><span class="track-info-label">Duration:</span> <span id="transcriberDuration" class="track-info-val">0:00</span></div>
             <div class="track-info-pill"><span class="track-info-label">Tempo:</span> <span id="transcriberBpmBadge" class="track-info-val">113 BPM</span></div>
-            <div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap;">
+            <div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <label class="enhance-stems-toggle" title="Applies adaptive spectral gating, transient punch sharpening, and out-of-band bleed reduction to neural stems">
+                <input type="checkbox" id="chkEnhanceStemsTrackBar" checked>
+                <span>✨ Spectral De-Bleed</span>
+              </label>
               <button type="button" id="btnQuickSeparateDrums" class="btn btn-sm btn-primary">🥁 Separate Drums (Step 1)</button>
               <button type="button" id="btnRunAllSequential" class="btn btn-sm btn-outline-cyan">⚡ Run All Sequentially</button>
             </div>
@@ -674,6 +678,10 @@
               <div style="font-size: 0.8rem; color: var(--text-muted);">Meta AI HTDemucs • Low-RAM Sequential Engine • 44.1 kHz 16-bit PCM WAV</div>
             </div>
             <div class="stems-deck-actions">
+              <label class="enhance-stems-toggle" title="Applies adaptive spectral gating, transient punch sharpening, and out-of-band bleed reduction to neural stems">
+                <input type="checkbox" id="chkEnhanceStemsDeck" checked>
+                <span>✨ Spectral De-Bleed</span>
+              </label>
               <button type="button" id="btnDownloadAllStemsMaster" class="btn btn-sm btn-primary">
                 ⬇ Download Ready Stems (WAV)
               </button>

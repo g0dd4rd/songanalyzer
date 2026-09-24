@@ -2846,6 +2846,34 @@
       };
       const stemDownloadBtns = document.querySelectorAll('.btn-download-stem');
 
+      // Enhancement Toggle Checkboxes
+      const chkEnhanceStemsDeck = document.getElementById('chkEnhanceStemsDeck');
+      const chkEnhanceStemsTrackBar = document.getElementById('chkEnhanceStemsTrackBar');
+
+      let isEnhanceEnabled = true;
+      try {
+        const storedEnhance = localStorage.getItem('songanalyzer_enhance_stems');
+        if (storedEnhance === 'false') isEnhanceEnabled = false;
+      } catch (e) {}
+
+      const syncEnhanceCheckboxes = (val) => {
+        isEnhanceEnabled = Boolean(val);
+        if (chkEnhanceStemsDeck) chkEnhanceStemsDeck.checked = isEnhanceEnabled;
+        if (chkEnhanceStemsTrackBar) chkEnhanceStemsTrackBar.checked = isEnhanceEnabled;
+        try {
+          localStorage.setItem('songanalyzer_enhance_stems', isEnhanceEnabled ? 'true' : 'false');
+        } catch (e) {}
+      };
+
+      syncEnhanceCheckboxes(isEnhanceEnabled);
+
+      if (chkEnhanceStemsDeck) {
+        chkEnhanceStemsDeck.addEventListener('change', () => syncEnhanceCheckboxes(chkEnhanceStemsDeck.checked));
+      }
+      if (chkEnhanceStemsTrackBar) {
+        chkEnhanceStemsTrackBar.addEventListener('change', () => syncEnhanceCheckboxes(chkEnhanceStemsTrackBar.checked));
+      }
+
       // Neural AI Model Manager DOM Elements
       const btnOpenModelManager = document.getElementById('btnOpenModelManager');
       const modalNeuralModels = document.getElementById('modalNeuralModels');
@@ -3135,7 +3163,7 @@
             if (stemBtn) {
               stemBtn.textContent = `⏳ Isolating ${stemName} (${Math.round(p * 100)}%)...`;
             }
-          });
+          }, { enhance: isEnhanceEnabled });
 
           currentStems[stemName] = res.buffer;
 
@@ -3161,8 +3189,9 @@
           if (downloadBtn) downloadBtn.style.display = 'inline-block';
 
           if (statusPill) {
-            statusPill.textContent = '✅ Ready';
+            statusPill.textContent = isEnhanceEnabled ? '✅ Ready (Enhanced)' : '✅ Ready';
             statusPill.className = 'stem-status-pill pill-success';
+            statusPill.title = isEnhanceEnabled ? 'Enhanced with Adaptive Spectral De-Bleed & Transient Punch' : 'Standard Raw Neural Separation';
           }
           if (stemBtn) {
             stemBtn.textContent = `🔄 Re-separate ${stemName}`;
@@ -3175,7 +3204,7 @@
             liveBadge.className = 'badge badge-gold';
           }
 
-          setProgress(1.0, `✅ ${res.displayName || stemName} isolated successfully!`);
+          setProgress(1.0, `✅ ${res.displayName || stemName} isolated successfully${isEnhanceEnabled ? ' (Enhanced)' : ''}!`);
           return res;
         } catch (err) {
           console.error(`Neural isolation failed for ${stemName}:`, err);
