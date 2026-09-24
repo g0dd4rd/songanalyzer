@@ -1,7 +1,7 @@
 {
   "name": "Song Analyzer - Musical Progression & Harmony Studio",
   "short_name": "SongAnalyzer",
-  "description": "Offline mobile music theory companion, chord progression analyzer, virtual practice studio, and rhythm machine.",
+  "description": "Offline mobile music theory companion, chord progression analyzer, AI neural stem separator, virtual practice studio, and rhythm machine.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

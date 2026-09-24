@@ -2803,6 +2803,17 @@
       const btnToggleTop = document.getElementById('btnToggleTranscriberTop');
       const btnClose = document.getElementById('btnCloseTranscriber');
       const liveBadge = document.getElementById('transcriberLiveBadge');
+      const engineBadge = document.getElementById('transcriberEngineBadge');
+
+      if (engineBadge && engine.getCapabilities) {
+        engine.getCapabilities().then(caps => {
+          engineBadge.textContent = caps.badgeText;
+          engineBadge.className = `engine-mode-badge ${caps.badgeClass}`;
+          engineBadge.title = caps.badgeTooltip;
+        }).catch(err => {
+          console.warn('Device capability check failed:', err);
+        });
+      }
 
       const dropZone = document.getElementById('transcriberDropZone');
       const btnBrowse = document.getElementById('btnBrowseAudioFile');
@@ -2815,6 +2826,8 @@
       const durationEl = document.getElementById('transcriberDuration');
       const bpmBadgeEl = document.getElementById('transcriberBpmBadge');
       const btnReanalyze = document.getElementById('btnReanalyzeStems');
+      const btnQuickSeparateDrums = document.getElementById('btnQuickSeparateDrums');
+      const btnRunAllSequential = document.getElementById('btnRunAllSequential');
 
 
       const progressCard = document.getElementById('transcriberProgressCard');
@@ -2842,7 +2855,17 @@
       const btnInstallBasicPitch = document.getElementById('btnInstallBasicPitch');
 
       const badgeDemucsStatus = document.getElementById('badgeDemucsStatus');
+      const badgeDemucsTier = document.getElementById('badgeDemucsTier');
+      const descDemucs = document.getElementById('descDemucs');
       const btnInstallDemucs = document.getElementById('btnInstallDemucs');
+
+      const badgeUmxStatus = document.getElementById('badgeUmxStatus');
+      const badgeUmxTier = document.getElementById('badgeUmxTier');
+      const descUmx = document.getElementById('descUmx');
+      const btnInstallUmxDrums = document.getElementById('btnInstallUmxDrums');
+      const btnInstallUmxBass = document.getElementById('btnInstallUmxBass');
+      const btnInstallUmxOther = document.getElementById('btnInstallUmxOther');
+      const btnInstallUmxVocals = document.getElementById('btnInstallUmxVocals');
 
       const btnBrowseLocalModel = document.getElementById('btnBrowseLocalModel');
       const inputLocalModelFile = document.getElementById('inputLocalModelFile');
@@ -2896,6 +2919,19 @@
           }
         }
 
+        const caps = engine.getCapabilities ? await engine.getCapabilities() : null;
+        const isMobile = Boolean(caps && caps.engineMode === 'mobile_optimized');
+
+        if (badgeDemucsTier) {
+          if (isMobile) {
+            badgeDemucsTier.textContent = '💻 Desktop Only';
+            badgeDemucsTier.className = 'model-status-pill pill-secondary';
+          } else {
+            badgeDemucsTier.textContent = '💻 Desktop Tier';
+            badgeDemucsTier.className = 'model-status-pill pill-tier-desktop';
+          }
+        }
+
         if (badgeDemucsStatus && btnInstallDemucs) {
           if (summary.demucs) {
             badgeDemucsStatus.textContent = 'Cached (158 MB)';
@@ -2903,14 +2939,72 @@
             btnInstallDemucs.textContent = '✓ Installed';
             btnInstallDemucs.disabled = true;
             btnInstallDemucs.className = 'btn btn-sm btn-outline-secondary';
+          } else if (isMobile) {
+            badgeDemucsStatus.textContent = 'Desktop Only';
+            badgeDemucsStatus.className = 'model-status-pill pill-secondary';
+            btnInstallDemucs.textContent = '💻 Desktop Only (158 MB)';
+            btnInstallDemucs.disabled = true;
+            btnInstallDemucs.className = 'btn btn-sm btn-outline-secondary';
+            btnInstallDemucs.title = 'The 158 MB Demucs model requires desktop RAM and is disabled on mobile to prevent browser tab crashes.';
+            if (descDemucs) {
+              descDemucs.innerHTML = '<strong>Desktop Studio Engine:</strong> Requires desktop RAM. On mobile devices, use the lightweight <strong>OpenUnmix</strong> models below to prevent memory exhaustion.';
+            }
           } else {
             badgeDemucsStatus.textContent = 'Not Cached';
             badgeDemucsStatus.className = 'model-status-pill pill-warning';
             btnInstallDemucs.textContent = '⬇ Download (158 MB)';
             btnInstallDemucs.disabled = false;
             btnInstallDemucs.className = 'btn btn-sm btn-outline-cyan';
+            if (descDemucs) {
+              descDemucs.textContent = 'Meta AI convolutional transformer model for multi-stem audio isolation (Drums, Bass, Other, Vocals). Hosted on songanalyzer.dredwerkz.cz.';
+            }
           }
         }
+
+        if (badgeUmxTier) {
+          if (isMobile) {
+            badgeUmxTier.textContent = '📱 Mobile Recommended';
+            badgeUmxTier.className = 'model-status-pill pill-tier-mobile';
+          } else {
+            badgeUmxTier.textContent = '📱 Mobile Tier';
+            badgeUmxTier.className = 'model-status-pill pill-tier-mobile';
+          }
+        }
+
+        if (badgeUmxStatus) {
+          const cachedCount = [summary.umxDrums, summary.umxBass, summary.umxOther, summary.umxVocals].filter(Boolean).length;
+          if (cachedCount === 4) {
+            badgeUmxStatus.textContent = 'All 4 Stems Cached';
+            badgeUmxStatus.className = 'model-status-pill pill-success';
+          } else if (cachedCount > 0) {
+            badgeUmxStatus.textContent = `Cached (${cachedCount}/4 stems)`;
+            badgeUmxStatus.className = 'model-status-pill pill-success';
+          } else {
+            badgeUmxStatus.textContent = 'Not Cached';
+            badgeUmxStatus.className = 'model-status-pill pill-warning';
+          }
+        }
+
+        const umxStemsConfig = [
+          { key: 'drums', btn: btnInstallUmxDrums, cached: summary.umxDrums, label: '🥁 Drums' },
+          { key: 'bass', btn: btnInstallUmxBass, cached: summary.umxBass, label: '🎸 Bass' },
+          { key: 'other', btn: btnInstallUmxOther, cached: summary.umxOther, label: '🎹 Other' },
+          { key: 'vocals', btn: btnInstallUmxVocals, cached: summary.umxVocals, label: '🎤 Vocals' }
+        ];
+
+        umxStemsConfig.forEach(item => {
+          if (item.btn) {
+            if (item.cached) {
+              item.btn.textContent = `✓ ${item.label.split(' ')[1]} Cached`;
+              item.btn.disabled = true;
+              item.btn.className = 'btn btn-sm btn-outline-secondary';
+            } else {
+              item.btn.textContent = `⬇ ${item.label} (34 MB)`;
+              item.btn.disabled = false;
+              item.btn.className = 'btn btn-sm btn-outline-cyan';
+            }
+          }
+        });
 
         if (neuralCacheSummaryText) {
           neuralCacheSummaryText.textContent = `Storage: ${formatBytes(summary.totalBytes)} cached (${summary.count} model${summary.count === 1 ? '' : 's'})`;
@@ -2992,9 +3086,137 @@
         }, 1000);
       };
 
-      // Process Decoded AudioBuffer
+      // Isolate a Single Target Stem (Ultra Low-RAM Footprint for Mobile)
+      const isolateSingleStem = async (stemName) => {
+        if (!currentAudioBuffer) {
+          alert('Please load an audio file first.');
+          return;
+        }
+
+        const caps = engine.getCapabilities ? await engine.getCapabilities() : null;
+        const isMobile = Boolean(caps && caps.engineMode === 'mobile_optimized');
+
+        if (!isMobile) {
+          setProgress(0.04, 'Checking Studio HTDemucs engine readiness...');
+          const isDemucsReady = await engine.demucsRunner.isReady();
+          if (!isDemucsReady) {
+            setProgress(1.0, 'HTDemucs model required');
+            if (confirm("Neural stem separation on Desktop requires the Meta AI HTDemucs model (158 MB).\n\nWould you like to select your local 'models/htdemucs.onnx' file now to cache it for offline stem separation?")) {
+              if (inputLocalModelFile) {
+                inputLocalModelFile.value = '';
+                inputLocalModelFile.click();
+              }
+            } else if (modalNeuralModels) {
+              modalNeuralModels.style.display = 'flex';
+            }
+            return;
+          }
+        }
+
+        const stemBtn = document.getElementById(`btnIsolate_${stemName}`);
+        const statusPill = document.getElementById(`stemStatus_${stemName}`);
+        const playerWrap = document.getElementById(`playerWrap_${stemName}`);
+        const downloadBtn = document.getElementById(`btnDownload_${stemName}`);
+        const audioEl = audioPreviewElements[stemName];
+
+        const allActionBtns = document.querySelectorAll('.btn-isolate-stem, #btnQuickSeparateDrums, #btnRunAllSequential, #btnReanalyzeStems');
+        allActionBtns.forEach(b => { if (b) b.disabled = true; });
+
+        if (statusPill) {
+          statusPill.textContent = 'Isolating...';
+          statusPill.className = 'stem-status-pill pill-processing';
+        }
+
+        try {
+          if (!currentStems) currentStems = {};
+
+          const res = await engine.separateSingleStem(currentAudioBuffer, stemName, (p, msg) => {
+            setProgress(p, msg);
+            if (stemBtn) {
+              stemBtn.textContent = `⏳ Isolating ${stemName} (${Math.round(p * 100)}%)...`;
+            }
+          });
+
+          currentStems[stemName] = res.buffer;
+
+          // Free previous object URL for this stem if any
+          if (stemObjectUrls[stemName]) {
+            try { URL.revokeObjectURL(stemObjectUrls[stemName]); } catch (e) {}
+            delete stemObjectUrls[stemName];
+          }
+
+          // Generate WAV blob ONLY for this isolated stem
+          setProgress(0.97, `Encoding ${stemName} audio player preview...`);
+          await new Promise(r => setTimeout(r, 20));
+          const wavData = audioBufferToWav(res.buffer);
+          const blob = new Blob([wavData], { type: 'audio/wav' });
+          const url = URL.createObjectURL(blob);
+          stemObjectUrls[stemName] = url;
+
+          if (audioEl) {
+            audioEl.src = url;
+            audioEl.load();
+          }
+          if (playerWrap) playerWrap.style.display = 'block';
+          if (downloadBtn) downloadBtn.style.display = 'inline-block';
+
+          if (statusPill) {
+            statusPill.textContent = '✅ Ready';
+            statusPill.className = 'stem-status-pill pill-success';
+          }
+          if (stemBtn) {
+            stemBtn.textContent = `🔄 Re-separate ${stemName}`;
+            stemBtn.className = 'btn btn-sm btn-outline-secondary btn-isolate-stem';
+          }
+
+          const readyCount = Object.keys(currentStems).length;
+          if (liveBadge) {
+            liveBadge.textContent = `🧠 ${readyCount}/4 Stems Ready`;
+            liveBadge.className = 'badge badge-gold';
+          }
+
+          setProgress(1.0, `✅ ${res.displayName || stemName} isolated successfully!`);
+          return res;
+        } catch (err) {
+          console.error(`Neural isolation failed for ${stemName}:`, err);
+          const errDetail = (err && (err.message || err.toString())) || 'Unknown error';
+          if (statusPill) {
+            statusPill.textContent = 'Failed';
+            statusPill.className = 'stem-status-pill pill-error';
+          }
+          if (stemBtn) {
+            stemBtn.textContent = `⚡ Retry ${stemName}`;
+            stemBtn.className = 'btn btn-sm btn-outline-danger btn-isolate-stem';
+          }
+          setProgress(1.0, `Separation failed: ${errDetail}`);
+          alert(`Neural stem isolation failed for ${stemName}: ${errDetail}`);
+        } finally {
+          allActionBtns.forEach(b => { if (b) b.disabled = false; });
+        }
+      };
+
+      // Run all stems sequentially with memory cooldowns
+      const runAllSequentially = async () => {
+        if (!currentAudioBuffer) {
+          alert('Please load an audio file first.');
+          return;
+        }
+        const stems = ['drums', 'bass', 'other', 'vocals'];
+        for (let i = 0; i < stems.length; i++) {
+          const s = stems[i];
+          await isolateSingleStem(s);
+          // 150ms cooldown pause for browser GC
+          await new Promise(r => setTimeout(r, 150));
+        }
+      };
+
+      // Process Decoded AudioBuffer (Prepares track for single-target separation)
       const processBuffer = async (audioBuffer, filename = 'audio_track.mp3') => {
+        if (!audioBuffer) return;
         currentAudioBuffer = audioBuffer;
+        currentStems = {};
+        revokeStemUrls();
+
         if (filenameEl) filenameEl.textContent = filename;
 
         const durSec = Math.round(audioBuffer.duration);
@@ -3009,65 +3231,53 @@
         currentBpm = tempoResult.bpm || 113;
         if (bpmBadgeEl) bpmBadgeEl.textContent = `${currentBpm} BPM`;
 
-        setProgress(0.08, 'Checking HTDemucs neural engine readiness...');
-        const isDemucsReady = await engine.demucsRunner.isReady();
-        if (!isDemucsReady) {
-          setProgress(1.0, 'HTDemucs model required');
-          if (confirm("Neural stem separation requires the Meta AI HTDemucs model (158 MB).\n\nWould you like to select your local 'models/htdemucs.onnx' file now to cache it for offline stem separation?")) {
-            if (inputLocalModelFile) {
-              inputLocalModelFile.value = '';
-              inputLocalModelFile.click();
+        // Reset stem cards UI state
+        ['drums', 'bass', 'other', 'vocals'].forEach(stemName => {
+          const statusPill = document.getElementById(`stemStatus_${stemName}`);
+          const stemBtn = document.getElementById(`btnIsolate_${stemName}`);
+          const playerWrap = document.getElementById(`playerWrap_${stemName}`);
+          const downloadBtn = document.getElementById(`btnDownload_${stemName}`);
+          const audioEl = audioPreviewElements[stemName];
+
+          if (statusPill) {
+            if (stemName === 'drums') {
+              statusPill.textContent = 'Ready (Step 1)';
+              statusPill.className = 'stem-status-pill pill-warning';
+            } else {
+              statusPill.textContent = 'Pending';
+              statusPill.className = 'stem-status-pill';
             }
-          } else if (modalNeuralModels) {
-            modalNeuralModels.style.display = 'flex';
           }
-          return;
+          if (stemBtn) {
+            stemBtn.disabled = false;
+            if (stemName === 'drums') {
+              stemBtn.textContent = '🥁 Separate Drums Stem';
+              stemBtn.className = 'btn btn-sm btn-primary btn-isolate-stem';
+            } else if (stemName === 'bass') {
+              stemBtn.textContent = '🎸 Separate Bass Stem';
+              stemBtn.className = 'btn btn-sm btn-outline-cyan btn-isolate-stem';
+            } else if (stemName === 'other') {
+              stemBtn.textContent = '🎹 Separate Other / Guitar Stem';
+              stemBtn.className = 'btn btn-sm btn-outline-cyan btn-isolate-stem';
+            } else if (stemName === 'vocals') {
+              stemBtn.textContent = '🎤 Separate Vocals Stem';
+              stemBtn.className = 'btn btn-sm btn-outline-cyan btn-isolate-stem';
+            }
+          }
+          if (playerWrap) playerWrap.style.display = 'none';
+          if (downloadBtn) downloadBtn.style.display = 'none';
+          if (audioEl) audioEl.src = '';
+        });
+
+        if (trackInfoBar) trackInfoBar.style.display = 'flex';
+        if (stemsDeck) stemsDeck.style.display = 'block';
+
+        if (liveBadge) {
+          liveBadge.textContent = '🎵 Audio Loaded';
+          liveBadge.className = 'badge badge-primary';
         }
 
-        setProgress(0.1, 'Separating 4 isolated stems using Meta AI HTDemucs...');
-        await new Promise(r => setTimeout(r, 20));
-
-        try {
-          currentStems = await engine.separateStems(audioBuffer, (p, msg) => {
-            setProgress(0.1 + p * 0.85, msg);
-          });
-
-          // Clean up old object URLs
-          revokeStemUrls();
-
-          // Assign each stem audio buffer to its preview player
-          ['drums', 'bass', 'other', 'vocals'].forEach(stemName => {
-            const buf = currentStems[stemName];
-            const audioEl = audioPreviewElements[stemName];
-            if (buf && audioEl) {
-              const wavData = audioBufferToWav(buf);
-              const blob = new Blob([wavData], { type: 'audio/wav' });
-              const url = URL.createObjectURL(blob);
-              stemObjectUrls[stemName] = url;
-              audioEl.src = url;
-              audioEl.load();
-            }
-          });
-
-          if (trackInfoBar) trackInfoBar.style.display = 'flex';
-          if (stemsDeck) stemsDeck.style.display = 'block';
-
-          if (liveBadge) {
-            liveBadge.textContent = '🧠 4 Stems Ready';
-            liveBadge.classList.add('badge-gold');
-          }
-
-          setProgress(1.0, 'Neural separation complete!');
-        } catch (sepErr) {
-          console.error('Stem separation failed:', sepErr);
-          const errDetail = (sepErr && (sepErr.message || sepErr.toString())) || 'Unknown error';
-          setProgress(1.0, 'Separation failed');
-          if (modalNeuralModels) {
-            modalNeuralModels.style.display = 'flex';
-            if (updateModelManagerUI) updateModelManagerUI();
-          }
-          alert(`Neural stem separation: ${errDetail}`);
-        }
+        setProgress(1.0, `Audio ready (${mins}:${secs} • ${currentBpm} BPM). Click "🥁 Separate Drums" to isolate Drums first.`);
       };
 
       // Load & Decode Audio File
@@ -3123,13 +3333,33 @@
         });
       }
 
-      if (btnReanalyze) {
-        btnReanalyze.addEventListener('click', () => {
-          if (currentAudioBuffer) {
-            processBuffer(currentAudioBuffer, filenameEl ? filenameEl.textContent : 'audio_track.mp3');
-          }
+      if (btnQuickSeparateDrums) {
+        btnQuickSeparateDrums.addEventListener('click', () => {
+          isolateSingleStem('drums');
         });
       }
+
+      if (btnRunAllSequential) {
+        btnRunAllSequential.addEventListener('click', () => {
+          runAllSequentially();
+        });
+      }
+
+      if (btnReanalyze) {
+        btnReanalyze.addEventListener('click', () => {
+          isolateSingleStem('drums');
+        });
+      }
+
+      // Individual stem isolate buttons
+      const isolateBtns = document.querySelectorAll('.btn-isolate-stem');
+      isolateBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const stem = btn.dataset.stem;
+          if (stem) isolateSingleStem(stem);
+        });
+      });
 
       // Download Individual Stem
       stemDownloadBtns.forEach(btn => {
@@ -3137,7 +3367,7 @@
           e.stopPropagation();
           const stem = btn.dataset.stem;
           if (!currentStems || !currentStems[stem]) {
-            alert(`No audio data available for ${stem} stem. Please load and separate an audio track first.`);
+            alert(`No audio data available for ${stem} stem. Please separate the ${stem} stem first.`);
             return;
           }
           const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
@@ -3146,21 +3376,26 @@
         });
       });
 
-      // Download All 4 Stems
+      // Download All Ready Stems
       if (btnDownloadAllStemsMaster) {
         btnDownloadAllStemsMaster.addEventListener('click', async () => {
-          if (!currentStems) {
-            alert('Please load and separate an audio file first to generate stems.');
+          if (!currentStems || Object.keys(currentStems).length === 0) {
+            alert('No separated stems available yet. Please isolate drums or another stem first.');
             return;
           }
           const rawName = (filenameEl && filenameEl.textContent ? filenameEl.textContent : 'audio_track');
           const baseName = rawName.replace(/\.[^/.]+$/, '');
           const stemNames = ['drums', 'bass', 'other', 'vocals'];
+          let count = 0;
           for (const s of stemNames) {
             if (currentStems[s]) {
               downloadAudioBufferAsWav(currentStems[s], `${baseName}_${s}.wav`);
+              count++;
               await new Promise(r => setTimeout(r, 250));
             }
+          }
+          if (count === 0) {
+            alert('No stems ready for download yet.');
           }
         });
       }
@@ -3527,8 +3762,7 @@
           if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
 
           const demucsUrls = [
-            'models/htdemucs.onnx',
-            'https://huggingface.co/timcsy/demucs-web-onnx/resolve/main/htdemucs_embedded.onnx'
+            'models/htdemucs.onnx'
           ];
 
           let success = false;
@@ -3593,6 +3827,66 @@
         });
       }
 
+      // Cache OpenUnmix Drums & Bass models locally from server
+      const cacheLocalUmx = async (stemKey, displayName, btnEl) => {
+        if (btnEl) btnEl.disabled = true;
+        if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'flex';
+        if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `Loading ${displayName} from server (models/umx_${stemKey}.onnx)...`;
+        if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '0%';
+        if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '0%';
+
+        try {
+          await engine.storage.downloadModel(`umx_${stemKey}`, `models/umx_${stemKey}.onnx`, (frac, loaded, total) => {
+            const pct = Math.round(frac * 100);
+            if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = `${pct}%`;
+            if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = `${pct}%`;
+            if (neuralDownloadStatusText) {
+              neuralDownloadStatusText.textContent = `Caching ${displayName}: ${formatBytes(loaded)} ${total ? '/ ' + formatBytes(total) : ''}`;
+            }
+          });
+
+          if (neuralDownloadStatusText) neuralDownloadStatusText.textContent = `${displayName} cached into local browser storage!`;
+          if (neuralDownloadProgressFill) neuralDownloadProgressFill.style.width = '100%';
+          if (neuralDownloadPercentText) neuralDownloadPercentText.textContent = '100%';
+
+          setTimeout(() => {
+            if (neuralDownloadProgressBox) neuralDownloadProgressBox.style.display = 'none';
+          }, 1500);
+
+          await updateModelManagerUI();
+        } catch (err) {
+          console.error(`Failed to cache ${displayName}:`, err);
+          if (neuralDownloadStatusText) {
+            neuralDownloadStatusText.textContent = `Caching failed: ${err.message}. Ensure models/umx_${stemKey}.onnx is on server.`;
+          }
+          if (btnEl) btnEl.disabled = false;
+        }
+      };
+
+      if (btnInstallUmxDrums) {
+        btnInstallUmxDrums.addEventListener('click', () => {
+          cacheLocalUmx('drums', 'OpenUnmix Drums', btnInstallUmxDrums);
+        });
+      }
+
+      if (btnInstallUmxBass) {
+        btnInstallUmxBass.addEventListener('click', () => {
+          cacheLocalUmx('bass', 'OpenUnmix Bass', btnInstallUmxBass);
+        });
+      }
+
+      if (btnInstallUmxOther) {
+        btnInstallUmxOther.addEventListener('click', () => {
+          cacheLocalUmx('other', 'OpenUnmix Other / Guitar', btnInstallUmxOther);
+        });
+      }
+
+      if (btnInstallUmxVocals) {
+        btnInstallUmxVocals.addEventListener('click', () => {
+          cacheLocalUmx('vocals', 'OpenUnmix Vocals', btnInstallUmxVocals);
+        });
+      }
+
       // Local Model File Selector (Supports .onnx and .wasm)
       if (btnBrowseLocalModel && inputLocalModelFile) {
         btnBrowseLocalModel.addEventListener('click', () => {
@@ -3621,6 +3915,18 @@
               if (lower.includes('basic_pitch') || lower.includes('nmp')) {
                 modelKey = 'basic_pitch';
                 modelLabel = 'Spotify Basic Pitch';
+              } else if (lower.includes('umx_drums') || lower === 'drums.onnx') {
+                modelKey = 'umx_drums';
+                modelLabel = 'OpenUnmix Drums';
+              } else if (lower.includes('umx_bass') || lower === 'bass.onnx') {
+                modelKey = 'umx_bass';
+                modelLabel = 'OpenUnmix Bass';
+              } else if (lower.includes('umx_other') || lower === 'other.onnx') {
+                modelKey = 'umx_other';
+                modelLabel = 'OpenUnmix Other';
+              } else if (lower.includes('umx_vocals') || lower === 'vocals.onnx') {
+                modelKey = 'umx_vocals';
+                modelLabel = 'OpenUnmix Vocals';
               } else if (lower.endsWith('.wasm')) {
                 modelKey = 'ort_wasm_simd';
                 modelLabel = 'ONNX WASM SIMD Runtime';
@@ -3676,14 +3982,28 @@
 
       // Silently sync local model into IndexedDB if available and not yet cached (skip on file:// to prevent browser CORS block)
       engine.storage.getSummary().then(async (summary) => {
-        if (!summary.demucs && typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:') {
-          try {
-            const resp = await fetch('models/htdemucs.onnx');
-            if (resp.ok) {
-              const ab = await resp.arrayBuffer();
-              await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
-            }
-          } catch (e) {}
+        const isLive = typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:';
+        if (isLive) {
+          const caps = engine.getCapabilities ? await engine.getCapabilities() : null;
+          const isMobile = Boolean(caps && caps.engineMode === 'mobile_optimized');
+
+          if (!isMobile && !summary.demucs) {
+            try {
+              const resp = await fetch('models/htdemucs.onnx');
+              if (resp.ok) {
+                const ab = await resp.arrayBuffer();
+                await engine.storage.saveModel('demucs', ab, { name: 'HTDemucs' });
+              }
+            } catch (e) {}
+          } else if (isMobile && !summary.umxDrums) {
+            try {
+              const resp = await fetch('models/umx_drums.onnx');
+              if (resp.ok) {
+                const ab = await resp.arrayBuffer();
+                await engine.storage.saveModel('umx_drums', ab, { name: 'OpenUnmix Drums' });
+              }
+            } catch (e) {}
+          }
         }
         updateModelManagerUI();
       }).catch(() => {});

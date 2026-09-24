@@ -3943,6 +3943,39 @@ tr:hover td {
   border-top: 3px solid #8b5cf6;
 }
 
+/* Neural Engine Mode Badge (Subtle Prosumer UX) */
+.engine-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+  user-select: none;
+  cursor: help;
+}
+
+.engine-mode-badge.desktop {
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  color: #c084fc;
+}
+
+.engine-mode-badge.mobile {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+
+.engine-mode-badge.detecting {
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
 .transcriber-rack-grid {
   display: flex;
   flex-direction: column;
@@ -4180,6 +4213,51 @@ tr:hover td {
   transition: all 0.15s ease;
 }
 
+.stem-status-pill {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  white-space: nowrap;
+}
+
+.stem-status-pill.pill-processing {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.stem-status-pill.pill-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.stem-status-pill.pill-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.stem-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-isolate-stem {
+  width: 100%;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 10px;
+  text-align: center;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
 @media (max-width: 960px) {
   .stems-cards-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -4301,6 +4379,39 @@ tr:hover td {
   background: rgba(16, 185, 129, 0.15);
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pill-tier-desktop {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.pill-tier-mobile {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.pill-secondary {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.model-item-grid-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  min-width: 250px;
+}
+
+@media (max-width: 640px) {
+  .model-item-grid-actions {
+    grid-template-columns: 1fr;
+    min-width: unset;
+    width: 100%;
+  }
 }
 
 .model-local-loader-box {

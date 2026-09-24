@@ -36,6 +36,141 @@
   }
 
   // -------------------------------------------------------------
+  // 1B. Fast STFT / ISTFT Audio Engine (Cooley-Tukey Radix-2 FFT)
+  // -------------------------------------------------------------
+  class FastSTFT {
+    constructor(nFft = 4096, hopLength = 1024) {
+      this.nFft = nFft;
+      this.hopLength = hopLength;
+      this.nBins = (nFft / 2) + 1; // 2049 for nFft=4096
+
+      // Periodic Hann window
+      this.window = new Float32Array(nFft);
+      for (let i = 0; i < nFft; i++) {
+        this.window[i] = 0.5 * (1.0 - Math.cos((2.0 * Math.PI * i) / nFft));
+      }
+
+      // Precompute bit reversal permutation
+      const levels = Math.log2(nFft);
+      this.bitRev = new Uint32Array(nFft);
+      for (let i = 0; i < nFft; i++) {
+        let rev = 0;
+        let temp = i;
+        for (let j = 0; j < levels; j++) {
+          rev = (rev << 1) | (temp & 1);
+          temp >>= 1;
+        }
+        this.bitRev[i] = rev;
+      }
+
+      // Precompute twiddle factors for FFT
+      this.cosTable = new Float32Array(nFft / 2);
+      this.sinTable = new Float32Array(nFft / 2);
+      for (let i = 0; i < nFft / 2; i++) {
+        const angle = (-2.0 * Math.PI * i) / nFft;
+        this.cosTable[i] = Math.cos(angle);
+        this.sinTable[i] = Math.sin(angle);
+      }
+    }
+
+    fft(real, imag, inverse = false) {
+      const n = this.nFft;
+      for (let i = 0; i < n; i++) {
+        const j = this.bitRev[i];
+        if (i < j) {
+          const tr = real[i]; real[i] = real[j]; real[j] = tr;
+          const ti = imag[i]; imag[i] = imag[j]; imag[j] = ti;
+        }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const halfLen = len >> 1;
+        const step = n / len;
+        for (let i = 0; i < n; i += len) {
+          for (let j = 0; j < halfLen; j++) {
+            const tableIdx = j * step;
+            const cos = this.cosTable[tableIdx];
+            const sin = inverse ? -this.sinTable[tableIdx] : this.sinTable[tableIdx];
+            const uR = real[i + j];
+            const uI = imag[i + j];
+            const vR = real[i + j + halfLen] * cos - imag[i + j + halfLen] * sin;
+            const vI = real[i + j + halfLen] * sin + imag[i + j + halfLen] * cos;
+            real[i + j] = uR + vR;
+            imag[i + j] = uI + vI;
+            real[i + j + halfLen] = uR - vR;
+            imag[i + j + halfLen] = uI - vI;
+          }
+        }
+      }
+      if (inverse) {
+        for (let i = 0; i < n; i++) {
+          real[i] /= n;
+          imag[i] /= n;
+        }
+      }
+    }
+
+    stft(signal) {
+      const L = signal.length;
+      const nFrames = Math.max(1, Math.floor((L - this.nFft) / this.hopLength) + 1);
+      const mag = new Float32Array(nFrames * this.nBins);
+      const real = new Float32Array(nFrames * this.nBins);
+      const imag = new Float32Array(nFrames * this.nBins);
+      const frameR = new Float32Array(this.nFft);
+      const frameI = new Float32Array(this.nFft);
+
+      for (let f = 0; f < nFrames; f++) {
+        const start = f * this.hopLength;
+        for (let i = 0; i < this.nFft; i++) {
+          frameR[i] = (start + i < L ? signal[start + i] : 0) * this.window[i];
+          frameI[i] = 0;
+        }
+        this.fft(frameR, frameI, false);
+        const frameOffset = f * this.nBins;
+        for (let k = 0; k < this.nBins; k++) {
+          const r = frameR[k];
+          const im = frameI[k];
+          real[frameOffset + k] = r;
+          imag[frameOffset + k] = im;
+          mag[frameOffset + k] = Math.sqrt(r * r + im * im);
+        }
+      }
+      return { mag, real, imag, nFrames };
+    }
+
+    istft(specReal, specImag, nFrames, totalSamples) {
+      const out = new Float32Array(totalSamples);
+      const weight = new Float32Array(totalSamples);
+      const frameR = new Float32Array(this.nFft);
+      const frameI = new Float32Array(this.nFft);
+
+      for (let f = 0; f < nFrames; f++) {
+        const frameOffset = f * this.nBins;
+        for (let k = 0; k < this.nBins; k++) {
+          frameR[k] = specReal[frameOffset + k];
+          frameI[k] = specImag[frameOffset + k];
+        }
+        for (let k = this.nBins; k < this.nFft; k++) {
+          const sym = this.nFft - k;
+          frameR[k] = frameR[sym];
+          frameI[k] = -frameI[sym];
+        }
+        this.fft(frameR, frameI, true);
+        const start = f * this.hopLength;
+        for (let i = 0; i < this.nFft; i++) {
+          if (start + i < totalSamples) {
+            out[start + i] += frameR[i] * this.window[i];
+            weight[start + i] += this.window[i] * this.window[i];
+          }
+        }
+      }
+      for (let i = 0; i < totalSamples; i++) {
+        if (weight[i] > 1e-4) out[i] /= weight[i];
+      }
+      return out;
+    }
+  }
+
+  // -------------------------------------------------------------
   // 2. Biomechanical Fretboard Solver (Stub - Tablature Removed)
   // -------------------------------------------------------------
   class BiomechanicalFretboardSolver {
@@ -115,6 +250,13 @@
               resolve(null);
               return;
             }
+            // Purge corrupt/truncated UMX model (< 10 MB)
+            if (id.startsWith('umx_') && buf.byteLength < 10 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated UMX model (${buf.byteLength} bytes)`);
+              store.delete(id);
+              resolve(null);
+              return;
+            }
             resolve(buf);
           } else {
             resolve(null);
@@ -180,12 +322,30 @@
               store.delete('ort_wasm_simd');
               return;
             }
+            if (r.id.startsWith('umx_') && sz < 10 * 1024 * 1024) {
+              console.warn(`[NeuralModelStorage] Purging corrupt/truncated UMX model (${sz} bytes)`);
+              store.delete(r.id);
+              return;
+            }
             totalBytes += sz;
             validCount++;
             if (r.id === 'basic_pitch') basicPitch = true;
             if (r.id === 'demucs') demucs = true;
+            if (r.id === 'umx_drums') umxDrums = true;
+            if (r.id === 'umx_bass') umxBass = true;
+            if (r.id === 'umx_other') umxOther = true;
+            if (r.id === 'umx_vocals') umxVocals = true;
           });
-          resolve({ basicPitch, demucs, totalBytes, count: validCount });
+          resolve({
+            basicPitch,
+            demucs,
+            umxDrums: Boolean(umxDrums),
+            umxBass: Boolean(umxBass),
+            umxOther: Boolean(umxOther),
+            umxVocals: Boolean(umxVocals),
+            totalBytes,
+            count: validCount
+          });
         };
         req.onerror = () => resolve({ basicPitch: false, demucs: false, totalBytes: 0, count: 0 });
       });
@@ -200,6 +360,9 @@
         const ab = await resp.arrayBuffer();
         if (id === 'demucs' && ab.byteLength < 120 * 1024 * 1024) {
           throw new Error(`Incomplete Demucs download: received only ${(ab.byteLength / (1024 * 1024)).toFixed(1)} MB (expected ~158 MB).`);
+        }
+        if (id.startsWith('umx_') && ab.byteLength < 10 * 1024 * 1024) {
+          throw new Error(`Incomplete OpenUnmix download: received only ${(ab.byteLength / (1024 * 1024)).toFixed(1)} MB (expected ~34 MB).`);
         }
         await this.saveModel(id, ab, { url });
         if (onProgress) onProgress(1.0, ab.byteLength, ab.byteLength);
@@ -227,6 +390,9 @@
       if (id === 'demucs' && receivedBytes < 120 * 1024 * 1024) {
         throw new Error(`Incomplete Demucs download: received only ${(receivedBytes / (1024 * 1024)).toFixed(1)} MB (expected ~158 MB).`);
       }
+      if (id.startsWith('umx_') && receivedBytes < 10 * 1024 * 1024) {
+        throw new Error(`Incomplete OpenUnmix download: received only ${(receivedBytes / (1024 * 1024)).toFixed(1)} MB (expected ~34 MB).`);
+      }
       if (id === 'ort_wasm_simd' && receivedBytes < 10 * 1024 * 1024) {
         throw new Error(`Incomplete WASM runtime download: received only ${(receivedBytes / (1024 * 1024)).toFixed(1)} MB (expected ~10.5 MB).`);
       }
@@ -240,6 +406,71 @@
 
       await this.saveModel(id, combined.buffer, { url });
       return combined.buffer;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2C. Device & Capability Detector (Desktop vs Mobile, WebGPU vs WASM)
+  // -------------------------------------------------------------
+  class DeviceCapabilityDetector {
+    constructor() {
+      this.capabilities = null;
+    }
+
+    async detect() {
+      if (this.capabilities) return this.capabilities;
+
+      const userAgent = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      const isMobileClientHint = Boolean(typeof navigator !== 'undefined' && navigator.userAgentData && navigator.userAgentData.mobile);
+      const hasTouch = Boolean(typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window));
+      const isSmallScreen = Boolean(typeof window !== 'undefined' && (
+        window.innerWidth <= 768 ||
+        (typeof window.screen !== 'undefined' && (window.screen.width <= 768 || window.screen.height <= 768))
+      ));
+
+      const hasForceMobile = typeof window !== 'undefined' && (
+        (window.location && window.location.search && window.location.search.includes('mode=mobile')) ||
+        (window.localStorage && window.localStorage.getItem('force_engine_mode') === 'mobile')
+      );
+      const hasForceStudio = typeof window !== 'undefined' && (
+        (window.location && window.location.search && window.location.search.includes('mode=desktop')) ||
+        (window.localStorage && window.localStorage.getItem('force_engine_mode') === 'desktop')
+      );
+
+      const isMobile = hasForceStudio ? false : (hasForceMobile || Boolean(isMobileClientHint || isMobileUA || (hasTouch && isSmallScreen)));
+
+      let hasWebGPU = false;
+      if (typeof navigator !== 'undefined' && navigator.gpu) {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) {
+            hasWebGPU = true;
+          }
+        } catch (e) {
+          hasWebGPU = false;
+        }
+      }
+
+      const engineMode = isMobile ? 'mobile_optimized' : 'studio';
+      const badgeText = isMobile ? '⚡ Mobile Optimized' : '🎧 Studio Engine';
+      const badgeClass = isMobile ? 'mobile' : 'desktop';
+      const accelText = hasWebGPU ? 'WebGPU' : 'WASM';
+      const badgeTooltip = isMobile
+        ? `Mobile Mode: Low-memory sequential stem separation (${accelText})`
+        : `Studio Mode: High-precision neural stem separation (${accelText})`;
+
+      this.capabilities = {
+        isMobile,
+        hasWebGPU,
+        engineMode,
+        executionProvider: hasWebGPU ? 'webgpu' : 'wasm',
+        badgeText,
+        badgeClass,
+        badgeTooltip
+      };
+
+      return this.capabilities;
     }
   }
 
@@ -692,6 +923,336 @@
         vocals: vocalsBuf
       };
     }
+
+    /**
+     * Single-Target Neural Stem Separation (Ultra Low-RAM Footprint for Mobile)
+     * Isolates ONLY the requested target stem ('drums', 'bass', 'other', 'vocals').
+     * Allocates ONLY 2 Float32Array channel accumulators instead of 8, saving ~75% accumulator RAM.
+     * Yields control after every chunk to prevent mobile ANR browser freezes.
+     */
+    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null) {
+      await this.initSession();
+      if (!this.session) throw new Error('Demucs ONNX session could not be initialized.');
+
+      const stemMap = {
+        drums: 0, drum: 0, '0': 0,
+        bass: 1, '1': 1,
+        other: 2, guitar: 2, instruments: 2, '2': 2,
+        vocals: 3, vocal: 3, voice: 3, '3': 3
+      };
+      const canonicalNames = ['drums', 'bass', 'other', 'vocals'];
+      const targetIndex = stemMap[String(targetStem).toLowerCase()] ?? 0;
+      const targetName = canonicalNames[targetIndex] || 'drums';
+
+      const stemDisplayNames = {
+        drums: 'Drums (Kick, Snare & Cymbals)',
+        bass: 'Bassline (Electric & Sub-Bass)',
+        other: 'Other Instruments (Guitar & Keys)',
+        vocals: 'Vocals (Lead & Backing)'
+      };
+      const displayName = stemDisplayNames[targetName] || targetName;
+
+      if (onProgress) onProgress(0.04, `Preparing audio for single-target ${displayName} separation...`);
+      const stereo = await this.resampleTo44kStereo(audioBuffer);
+      const totalSamples = stereo.length;
+      const leftIn = stereo.left;
+      const rightIn = stereo.right;
+
+      const nChunks = Math.max(1, Math.ceil((totalSamples - this.overlap) / this.stride));
+      const fadeWin = this._makeWindow(this.chunkSize, this.overlap);
+
+      // Memory optimization: Allocate ONLY 2 channels for the requested target stem
+      const accL = new Float32Array(totalSamples);
+      const accR = new Float32Array(totalSamples);
+      const weightAcc = new Float32Array(totalSamples);
+
+      const ortObj = (typeof window !== 'undefined' && window.ort) ? window.ort : (typeof ort !== 'undefined' ? ort : globalThis.ort);
+
+      for (let c = 0; c < nChunks; c++) {
+        const start = c * this.stride;
+        const end = Math.min(start + this.chunkSize, totalSamples);
+        const clen = end - start;
+
+        if (onProgress) {
+          const frac = 0.05 + (c / nChunks) * 0.90;
+          onProgress(frac, `Isolating ${displayName}: chunk ${c + 1} of ${nChunks} (~${Math.round(end / 44100)}s)...`);
+          // Yield to browser event loop to keep UI smooth and allow GC
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        // Prepare chunk shape [1, 2, 343980]
+        const chunkData = new Float32Array(2 * this.chunkSize);
+        for (let i = 0; i < clen; i++) {
+          chunkData[i] = leftIn[start + i];
+          chunkData[this.chunkSize + i] = rightIn[start + i];
+        }
+
+        const inputTensor = new ortObj.Tensor('float32', chunkData, [1, 2, this.chunkSize]);
+        const results = await this.session.run({ [this.inputName]: inputTensor });
+
+        // Output shape [1, 4, 2, 343980]
+        const outData = results[this.outputName].data;
+        const stemOffset = targetIndex * 2 * this.chunkSize;
+        const leftOffset = stemOffset;
+        const rightOffset = stemOffset + this.chunkSize;
+
+        for (let i = 0; i < clen; i++) {
+          const w = fadeWin[i];
+          accL[start + i] += outData[leftOffset + i] * w;
+          accR[start + i] += (rightOffset + i < outData.length ? outData[rightOffset + i] : outData[leftOffset + i]) * w;
+        }
+
+        for (let i = 0; i < clen; i++) {
+          weightAcc[start + i] += fadeWin[i];
+        }
+
+        // Delete output tensor reference to help GC
+        delete results[this.outputName];
+      }
+
+      if (onProgress) onProgress(0.96, `Normalizing overlap windows for ${displayName}...`);
+
+      // Normalize by overlap window weights
+      for (let i = 0; i < totalSamples; i++) {
+        const w = weightAcc[i] > 1e-6 ? weightAcc[i] : 1.0;
+        accL[i] /= w;
+        accR[i] /= w;
+      }
+
+      // Create WebAudio Buffer for the single isolated stem
+      const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : new (window.AudioContext || window.webkitAudioContext)();
+      const stemBuf = ctx.createBuffer(2, totalSamples, 44100);
+      stemBuf.getChannelData(0).set(accL);
+      stemBuf.getChannelData(1).set(accR);
+
+      if (onProgress) onProgress(1.0, `${displayName} isolation complete!`);
+
+      return {
+        stemName: targetName,
+        stemIndex: targetIndex,
+        displayName: displayName,
+        buffer: stemBuf
+      };
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2E. OpenUnmix (UMX) Sequential Single-Stem Runner (Mobile Tier)
+  // Low-RAM, Single-Stem Loading, Frequency-Domain STFT/ISTFT Pipeline
+  // -------------------------------------------------------------
+  class UMXStemRunner {
+    constructor(storage) {
+      this.storage = storage;
+      this.session = null;
+      this.activeStem = null;
+      this.stftEngine = new FastSTFT(4096, 1024);
+      this.sampleRate = 44100;
+      this.chunkSec = 12.0;       // 12-second chunking for low mobile RAM
+      this.overlapSec = 1.0;     // 1.0s overlap for smooth cross-fading
+    }
+
+    async isReady(stemName) {
+      if (!this.storage) return false;
+      const key = stemName === 'guitar' ? 'umx_other' : `umx_${stemName}`;
+      return await this.storage.hasModel(key);
+    }
+
+    async loadStemModel(stemName, onProgress = null) {
+      // Strict Sequential Lifecycle: release any lingering session first
+      if (this.session) {
+        try { await this.session.release(); } catch (e) {}
+        this.session = null;
+        this.activeStem = null;
+      }
+
+      await setupWasmEnv(this.storage);
+
+      const modelKey = `umx_${stemName}`;
+      let buffer = await this.storage.getModel(modelKey);
+
+      if (!buffer && typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:') {
+        try {
+          if (onProgress) onProgress(0.05, `Loading local models/${modelKey}.onnx from server...`);
+          const resp = await fetch(`models/${modelKey}.onnx`);
+          if (resp.ok) {
+            buffer = await resp.arrayBuffer();
+            await this.storage.saveModel(modelKey, buffer, { name: `OpenUnmix ${stemName}` });
+          }
+        } catch (e) {
+          console.warn(`Local fetch of models/${modelKey}.onnx failed:`, e);
+        }
+      }
+
+      if (!buffer) {
+        throw new Error(`OpenUnmix model for "${stemName}" is not cached. Please open "🧠 Model Cache" and select "models/${modelKey}.onnx".`);
+      }
+
+      const modelBytes = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
+      const ortObj = (typeof window !== 'undefined' && window.ort) ? window.ort : (typeof ort !== 'undefined' ? ort : globalThis.ort);
+
+      const hasGpu = Boolean(typeof navigator !== 'undefined' && navigator.gpu);
+      const eps = hasGpu ? ['webgpu', 'wasm'] : ['wasm'];
+
+      this.session = await ortObj.InferenceSession.create(modelBytes, {
+        executionProviders: eps,
+        graphOptimizationLevel: 'disabled',
+        enableCpuMemArena: false,
+        enableMemPattern: false
+      });
+      this.activeStem = stemName;
+      return this.session;
+    }
+
+    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null) {
+      let stemKey = targetStem.toLowerCase();
+      if (stemKey === 'guitar') stemKey = 'other';
+      if (!['drums', 'bass', 'other', 'vocals'].includes(stemKey)) {
+        stemKey = 'other';
+      }
+
+      const displayName = targetStem.charAt(0).toUpperCase() + targetStem.slice(1);
+      if (onProgress) onProgress(0.02, `Preparing OpenUnmix engine for ${displayName}...`);
+
+      try {
+        await this.loadStemModel(stemKey, onProgress);
+
+        const totalSamples = audioBuffer.length;
+        const leftIn = audioBuffer.getChannelData(0);
+        const rightIn = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : leftIn;
+
+        const chunkLen = Math.floor(this.chunkSec * this.sampleRate);
+        const overlapLen = Math.floor(this.overlapSec * this.sampleRate);
+        const stride = chunkLen - overlapLen;
+
+        const nChunks = Math.max(1, Math.ceil((totalSamples - overlapLen) / stride));
+
+        const accL = new Float32Array(totalSamples);
+        const accR = new Float32Array(totalSamples);
+        const weightAcc = new Float32Array(totalSamples);
+
+        const ortObj = (typeof window !== 'undefined' && window.ort) ? window.ort : (typeof ort !== 'undefined' ? ort : globalThis.ort);
+
+        for (let c = 0; c < nChunks; c++) {
+          const start = c * stride;
+          const end = Math.min(start + chunkLen, totalSamples);
+          const clen = end - start;
+
+          if (onProgress) {
+            const frac = 0.20 + (c / nChunks) * 0.75;
+            onProgress(frac, `Isolating ${displayName} (Chunk ${c + 1} of ${nChunks})...`);
+            await new Promise(r => setTimeout(r, 0)); // Yield to event loop for GC & UI
+          }
+
+          const chunkL = leftIn.subarray(start, end);
+          const chunkR = rightIn.subarray(start, end);
+
+          // 1. Forward STFT
+          const stftL = this.stftEngine.stft(chunkL);
+          const stftR = this.stftEngine.stft(chunkR);
+          const nFrames = stftL.nFrames;
+          const nBins = this.stftEngine.nBins; // 2049
+
+          // 2. Prepare ONNX Input Tensor: shape [1, 2, 2049, nFrames]
+          const tensorLen = 2 * nBins * nFrames;
+          const magData = new Float32Array(tensorLen);
+          const chOffset = nBins * nFrames;
+
+          for (let f = 0; f < nFrames; f++) {
+            const fOffset = f * nBins;
+            for (let k = 0; k < nBins; k++) {
+              const tensorIdx = k * nFrames + f;
+              magData[tensorIdx] = stftL.mag[fOffset + k];
+              magData[chOffset + tensorIdx] = stftR.mag[fOffset + k];
+            }
+          }
+
+          const inputTensor = new ortObj.Tensor('float32', magData, [1, 2, nBins, nFrames]);
+          const inputName = this.session.inputNames[0] || 'mag';
+          const outputName = this.session.outputNames[0] || 'est';
+
+          const results = await this.session.run({ [inputName]: inputTensor });
+          const estData = results[outputName].data;
+
+          // 3. Phase coupling and reconstruction
+          const specRealL = new Float32Array(nFrames * nBins);
+          const specImagL = new Float32Array(nFrames * nBins);
+          const specRealR = new Float32Array(nFrames * nBins);
+          const specImagR = new Float32Array(nFrames * nBins);
+
+          for (let f = 0; f < nFrames; f++) {
+            const fOffset = f * nBins;
+            for (let k = 0; k < nBins; k++) {
+              const tensorIdx = k * nFrames + f;
+              const estML = estData[tensorIdx];
+              const estMR = estData[chOffset + tensorIdx];
+
+              const mixML = stftL.mag[fOffset + k];
+              const mixMR = stftR.mag[fOffset + k];
+
+              const scaleL = estML / (mixML + 1e-7);
+              const scaleR = estMR / (mixMR + 1e-7);
+
+              specRealL[fOffset + k] = stftL.real[fOffset + k] * scaleL;
+              specImagL[fOffset + k] = stftL.imag[fOffset + k] * scaleL;
+
+              specRealR[fOffset + k] = stftR.real[fOffset + k] * scaleR;
+              specImagR[fOffset + k] = stftR.imag[fOffset + k] * scaleR;
+            }
+          }
+
+          // 4. Inverse STFT to get chunk audio
+          const chunkStemL = this.stftEngine.istft(specRealL, specImagL, nFrames, clen);
+          const chunkStemR = this.stftEngine.istft(specRealR, specImagR, nFrames, clen);
+
+          // 5. Overlap-add with smooth crossfade
+          for (let i = 0; i < clen; i++) {
+            let w = 1.0;
+            if (c > 0 && i < overlapLen) {
+              w = 0.5 * (1.0 - Math.cos((Math.PI * i) / overlapLen));
+            }
+            if (c < nChunks - 1 && i >= clen - overlapLen) {
+              const tail = clen - i;
+              w = 0.5 * (1.0 - Math.cos((Math.PI * tail) / overlapLen));
+            }
+
+            accL[start + i] += chunkStemL[i] * w;
+            accR[start + i] += chunkStemR[i] * w;
+            weightAcc[start + i] += w;
+          }
+
+          delete results[outputName];
+        }
+
+        for (let i = 0; i < totalSamples; i++) {
+          const w = weightAcc[i] > 1e-5 ? weightAcc[i] : 1.0;
+          accL[i] /= w;
+          accR[i] /= w;
+        }
+
+        const ctx = (window.audio && window.audio.ctx) ? window.audio.ctx : new (window.AudioContext || window.webkitAudioContext)();
+        const stemBuf = ctx.createBuffer(2, totalSamples, 44100);
+        stemBuf.getChannelData(0).set(accL);
+        stemBuf.getChannelData(1).set(accR);
+
+        if (onProgress) onProgress(1.0, `${displayName} isolation complete!`);
+
+        return {
+          stemName: targetStem,
+          stemIndex: targetStem === 'drums' ? 0 : (targetStem === 'bass' ? 1 : (targetStem === 'guitar' || targetStem === 'other' ? 2 : 3)),
+          displayName: displayName,
+          buffer: stemBuf
+        };
+      } finally {
+        // Strict Sequential Disposal: Always release session and free RAM!
+        if (this.session) {
+          try {
+            await this.session.release();
+          } catch (e) {}
+          this.session = null;
+          this.activeStem = null;
+        }
+      }
+    }
   }
 
   // -------------------------------------------------------------
@@ -702,11 +1263,21 @@
       this.audioCtx = null;
       this.fretboardSolver = new BiomechanicalFretboardSolver();
       this.storage = new NeuralModelStorage();
+      this.detector = new DeviceCapabilityDetector();
+      this.capabilities = null;
       this.demucsRunner = new DemucsStemRunner(this.storage);
+      this.umxRunner = new UMXStemRunner(this.storage);
       this.cachedStems = null;
       this.sourceAudioBuffer = null;
       this.detectedBpm = 113;
       this.isProcessing = false;
+    }
+
+    async getCapabilities() {
+      if (!this.capabilities) {
+        this.capabilities = await this.detector.detect();
+      }
+      return this.capabilities;
     }
 
     setTier(tier) {
@@ -863,6 +1434,10 @@
      * Returns: { drums, bass, other, vocals }
      */
     async separateStems(audioBuffer, onProgress) {
+      const caps = await this.getCapabilities();
+      if (caps && caps.engineMode === 'mobile_optimized') {
+        return this.separateStemsSequentially(audioBuffer, ['drums', 'bass', 'other', 'vocals'], onProgress);
+      }
       if (!this.demucsRunner) {
         throw new Error('HTDemucs stem runner is not initialized.');
       }
@@ -881,6 +1456,55 @@
 
     separateStems6(audioBuffer, onProgress) {
       return this.separateStems(audioBuffer, onProgress);
+    }
+
+    /**
+     * Single-Target Neural Stem Separation (Device-aware: HTDemucs on Desktop, UMX on Mobile)
+     */
+    async separateSingleStem(audioBuffer, targetStem = 'drums', onProgress = null) {
+      this.isProcessing = true;
+      try {
+        if (!this.cachedStems) this.cachedStems = {};
+        const caps = await this.getCapabilities();
+        let result;
+        if (caps && caps.engineMode === 'mobile_optimized') {
+          if (!this.umxRunner) this.umxRunner = new UMXStemRunner(this.storage);
+          result = await this.umxRunner.separateSingleStem(audioBuffer, targetStem, onProgress);
+        } else {
+          if (!this.demucsRunner) {
+            throw new Error('HTDemucs stem runner is not initialized.');
+          }
+          result = await this.demucsRunner.separateSingleStem(audioBuffer, targetStem, onProgress);
+        }
+        this.cachedStems[result.stemName] = result.buffer;
+        return result;
+      } catch (err) {
+        console.error(`Single-stem isolation failed for ${targetStem}:`, err);
+        throw err;
+      } finally {
+        this.isProcessing = false;
+      }
+    }
+
+    /**
+     * Sequential Multi-Stem Separation (Processes one stem at a time with memory cooldowns)
+     */
+    async separateStemsSequentially(audioBuffer, stemList = ['drums', 'bass', 'other', 'vocals'], onProgress = null) {
+      if (!this.cachedStems) this.cachedStems = {};
+      for (let i = 0; i < stemList.length; i++) {
+        const stemName = stemList[i];
+        const subProgress = (frac, msg) => {
+          if (onProgress) {
+            const overall = (i + frac) / stemList.length;
+            onProgress(overall, `[Stem ${i + 1}/${stemList.length}: ${stemName}] ${msg}`);
+          }
+        };
+        const res = await this.separateSingleStem(audioBuffer, stemName, subProgress);
+        this.cachedStems[stemName] = res.buffer;
+        // Memory cooldown pause between stems to allow V8 / SpiderMonkey GC
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return this.cachedStems;
     }
 
     // Defensive stubs for backwards compatibility
@@ -911,8 +1535,11 @@
   window.SongTranscriber = {
     AudioTranscriberEngine,
     engine: new AudioTranscriberEngine(),
+    DeviceCapabilityDetector,
     NeuralModelStorage,
     DemucsStemRunner,
+    UMXStemRunner,
+    FastSTFT,
     SpotifyBasicPitchRunner,
     setupWasmEnv,
     BiomechanicalFretboardSolver,

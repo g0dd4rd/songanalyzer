@@ -591,8 +591,9 @@
       <div class="card-title">
         <div class="card-title-left">
           <button type="button" class="panel-help-btn" data-panel-guide="guideTranscriber" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Audio Stem Separator">ℹ</button>
-          <span><span class="card-title-icon">🎧</span> AI Neural Stem Separator (HTDemucs)</span>
+          <span><span class="card-title-icon">🎧</span> AI Neural Stem Separator</span>
           <span id="transcriberLiveBadge" class="tempo-marking-badge" style="margin-left: 8px; font-size: 0.76rem; padding: 2px 8px;">No Audio Loaded</span>
+          <span id="transcriberEngineBadge" class="engine-mode-badge detecting" title="Detecting device capability..." style="margin-left: 8px;">⏳ Detecting Engine</span>
         </div>
         <div class="card-title-actions" style="display: flex; gap: 8px; align-items: center;">
           <button id="btnCloseTranscriber" class="btn btn-sm" title="Close Stem Separator Panel" style="padding: 2px 8px;">✕</button>
@@ -646,7 +647,10 @@
             <div class="track-info-pill"><span class="track-info-label">File:</span> <span id="transcriberFilename" class="track-info-val">demo.mp3</span></div>
             <div class="track-info-pill"><span class="track-info-label">Duration:</span> <span id="transcriberDuration" class="track-info-val">0:00</span></div>
             <div class="track-info-pill"><span class="track-info-label">Tempo:</span> <span id="transcriberBpmBadge" class="track-info-val">113 BPM</span></div>
-            <button type="button" id="btnReanalyzeStems" class="btn btn-sm btn-primary" style="margin-left: auto;">🧠 Separate Stems (Demucs)</button>
+            <div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" id="btnQuickSeparateDrums" class="btn btn-sm btn-primary">🥁 Separate Drums (Step 1)</button>
+              <button type="button" id="btnRunAllSequential" class="btn btn-sm btn-outline-cyan">⚡ Run All Sequentially</button>
+            </div>
           </div>
         </div>
 
@@ -666,81 +670,113 @@
         <div id="transcriberStemsDeck" class="transcriber-stems-deck" style="display: none;">
           <div class="stems-deck-header">
             <div>
-              <div style="font-weight: 700; font-size: 1.1rem; color: #38bdf8;">✨ Isolated Neural Audio Stems</div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">Separated using Meta AI HTDemucs (44.1 kHz 16-bit PCM WAV)</div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: #38bdf8;">✨ Sequential Single-Target Stem Separation</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Meta AI HTDemucs • Low-RAM Sequential Engine • 44.1 kHz 16-bit PCM WAV</div>
             </div>
             <div class="stems-deck-actions">
               <button type="button" id="btnDownloadAllStemsMaster" class="btn btn-sm btn-primary">
-                ⬇ Download All 4 Stems (WAV)
+                ⬇ Download Ready Stems (WAV)
               </button>
             </div>
           </div>
 
           <div class="stems-cards-grid">
             <!-- Stem 1: Drums -->
-            <div class="stem-card">
+            <div class="stem-card" id="stemCard_drums">
               <div class="stem-card-header">
                 <span class="stem-card-icon">🥁</span>
-                <div>
-                  <div class="stem-card-title">Drums</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <div class="stem-card-title">Drums</div>
+                    <span class="stem-status-pill" id="stemStatus_drums">Ready (Step 1)</span>
+                  </div>
                   <div class="stem-card-desc">Kick, snare, hi-hats, cymbals &amp; percussion</div>
                 </div>
               </div>
-              <div class="stem-card-player">
+              <div class="stem-card-actions">
+                <button type="button" class="btn btn-sm btn-primary btn-isolate-stem" data-stem="drums" id="btnIsolate_drums">
+                  🥁 Separate Drums Stem
+                </button>
+              </div>
+              <div class="stem-card-player" id="playerWrap_drums" style="display: none;">
                 <audio id="audioPreview_drums" controls preload="none" style="width: 100%; height: 36px;"></audio>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="drums">
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="drums" id="btnDownload_drums" style="display: none;">
                 ⬇ Download Drums (.wav)
               </button>
             </div>
 
             <!-- Stem 2: Bass -->
-            <div class="stem-card">
+            <div class="stem-card" id="stemCard_bass">
               <div class="stem-card-header">
                 <span class="stem-card-icon">🎸</span>
-                <div>
-                  <div class="stem-card-title">Bass</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <div class="stem-card-title">Bass</div>
+                    <span class="stem-status-pill" id="stemStatus_bass">Pending</span>
+                  </div>
                   <div class="stem-card-desc">Electric bass, bass synth &amp; sub-bass</div>
                 </div>
               </div>
-              <div class="stem-card-player">
+              <div class="stem-card-actions">
+                <button type="button" class="btn btn-sm btn-outline-cyan btn-isolate-stem" data-stem="bass" id="btnIsolate_bass">
+                  🎸 Separate Bass Stem
+                </button>
+              </div>
+              <div class="stem-card-player" id="playerWrap_bass" style="display: none;">
                 <audio id="audioPreview_bass" controls preload="none" style="width: 100%; height: 36px;"></audio>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="bass">
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="bass" id="btnDownload_bass" style="display: none;">
                 ⬇ Download Bass (.wav)
               </button>
             </div>
 
             <!-- Stem 3: Other / Instruments -->
-            <div class="stem-card">
+            <div class="stem-card" id="stemCard_other">
               <div class="stem-card-header">
                 <span class="stem-card-icon">🎹</span>
-                <div>
-                  <div class="stem-card-title">Other Instruments</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <div class="stem-card-title">Other Instruments</div>
+                    <span class="stem-status-pill" id="stemStatus_other">Pending</span>
+                  </div>
                   <div class="stem-card-desc">Electric &amp; acoustic guitars, keyboards, piano, synths</div>
                 </div>
               </div>
-              <div class="stem-card-player">
+              <div class="stem-card-actions">
+                <button type="button" class="btn btn-sm btn-outline-cyan btn-isolate-stem" data-stem="other" id="btnIsolate_other">
+                  🎹 Separate Other / Guitar Stem
+                </button>
+              </div>
+              <div class="stem-card-player" id="playerWrap_other" style="display: none;">
                 <audio id="audioPreview_other" controls preload="none" style="width: 100%; height: 36px;"></audio>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="other">
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="other" id="btnDownload_other" style="display: none;">
                 ⬇ Download Other (.wav)
               </button>
             </div>
 
             <!-- Stem 4: Vocals -->
-            <div class="stem-card">
+            <div class="stem-card" id="stemCard_vocals">
               <div class="stem-card-header">
                 <span class="stem-card-icon">🎤</span>
-                <div>
-                  <div class="stem-card-title">Vocals</div>
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <div class="stem-card-title">Vocals</div>
+                    <span class="stem-status-pill" id="stemStatus_vocals">Pending</span>
+                  </div>
                   <div class="stem-card-desc">Lead vocals, harmony &amp; vocal formants</div>
                 </div>
               </div>
-              <div class="stem-card-player">
+              <div class="stem-card-actions">
+                <button type="button" class="btn btn-sm btn-outline-cyan btn-isolate-stem" data-stem="vocals" id="btnIsolate_vocals">
+                  🎤 Separate Vocals Stem
+                </button>
+              </div>
+              <div class="stem-card-player" id="playerWrap_vocals" style="display: none;">
                 <audio id="audioPreview_vocals" controls preload="none" style="width: 100%; height: 36px;"></audio>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="vocals">
+              <button type="button" class="btn btn-sm btn-outline-cyan btn-download-stem" data-stem="vocals" id="btnDownload_vocals" style="display: none;">
                 ⬇ Download Vocals (.wav)
               </button>
             </div>
@@ -779,14 +815,15 @@
               </div>
             </div>
 
-            <!-- Model 2: HTDemucs Stem Separator -->
+            <!-- Model 2: HTDemucs Stem Separator (Desktop Tier) -->
             <div class="model-item-row" id="rowDemucs">
               <div class="model-item-info">
                 <div class="model-item-name">
                   <strong>HTDemucs Stem Separator (ONNX)</strong>
                   <span id="badgeDemucsStatus" class="model-status-pill pill-warning">Not Cached</span>
+                  <span id="badgeDemucsTier" class="model-status-pill pill-tier-desktop">💻 Desktop Tier</span>
                 </div>
-                <div class="model-item-desc">
+                <div class="model-item-desc" id="descDemucs">
                   Meta AI convolutional transformer model for multi-stem audio isolation (Drums, Bass, Other, Vocals). Hosted on <code>songanalyzer.dredwerkz.cz</code>.
                 </div>
                 <div class="model-item-size">Size: ~158 MB (FP16 Weights) • High Precision</div>
@@ -794,6 +831,35 @@
               <div class="model-item-actions">
                 <button type="button" id="btnInstallDemucs" class="btn btn-sm btn-outline-cyan">
                   ⬇ Download (158 MB)
+                </button>
+              </div>
+            </div>
+
+            <!-- Model 3: OpenUnmix Sequential Stem Models (Mobile Tier) -->
+            <div class="model-item-row" id="rowOpenUnmix">
+              <div class="model-item-info">
+                <div class="model-item-name">
+                  <strong>OpenUnmix Stem Models (ONNX)</strong>
+                  <span id="badgeUmxStatus" class="model-status-pill pill-warning">Not Cached</span>
+                  <span id="badgeUmxTier" class="model-status-pill pill-tier-mobile">📱 Mobile Tier</span>
+                </div>
+                <div class="model-item-desc" id="descUmx">
+                  Lightweight specialist neural models for mobile and low-memory devices (Drums, Bass, Other, Vocals). Loaded one-at-a-time to prevent tab crashes. Hosted locally on <code>songanalyzer.dredwerkz.cz</code>.
+                </div>
+                <div class="model-item-size">Size: ~34 MB per stem (4 models total) • 100% Offline &amp; Private</div>
+              </div>
+              <div class="model-item-actions model-item-grid-actions">
+                <button type="button" id="btnInstallUmxDrums" class="btn btn-sm btn-outline-cyan" style="font-size: 0.74rem;">
+                  🥁 Drums (34 MB)
+                </button>
+                <button type="button" id="btnInstallUmxBass" class="btn btn-sm btn-outline-cyan" style="font-size: 0.74rem;">
+                  🎸 Bass (34 MB)
+                </button>
+                <button type="button" id="btnInstallUmxOther" class="btn btn-sm btn-outline-cyan" style="font-size: 0.74rem;">
+                  🎹 Other (34 MB)
+                </button>
+                <button type="button" id="btnInstallUmxVocals" class="btn btn-sm btn-outline-cyan" style="font-size: 0.74rem;">
+                  🎤 Vocals (34 MB)
                 </button>
               </div>
             </div>
