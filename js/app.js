@@ -925,7 +925,8 @@
         let miniGripText = '';
         if (Chords && Chords.Engine) {
           const rootPC = chord.rootPitchClass !== undefined ? chord.rootPitchClass : Theory.noteToPitchClass(chord.root);
-          const qId = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(chord.qualityId || chord.quality) : 'maj';
+          const mapper = (Chords && Chords.mapTheoryQualityToShapeQuality) || (Chords && Chords.Engine && Chords.Engine.mapTheoryQualityToShapeQuality);
+          const qId = mapper ? mapper(chord.qualityId || chord.quality) : 'maj';
           const shapes = Chords.Engine.findShapes('guitar_6str_std', qId, 'all', '4');
           if (shapes && shapes.length > 0) {
             const v = Chords.Engine.computeVoicing(shapes[0], rootPC, 'guitar_6str_std');
@@ -2645,7 +2646,16 @@
               const pill = document.createElement('button');
               pill.type = 'button';
               pill.className = `shape-pill ${idx === selectedShapeIndex ? 'active' : ''}`;
-              const shapeSpan = engine.getShapeSpan(shape);
+              const shapeSpan = (engine && typeof engine.getShapeSpan === 'function')
+                ? engine.getShapeSpan(shape)
+                : ((Chords && typeof Chords.getShapeSpan === 'function')
+                    ? Chords.getShapeSpan(shape)
+                    : (shape && Array.isArray(shape.strings)
+                        ? (() => {
+                            const nonNull = shape.strings.filter(s => s !== null);
+                            return nonNull.length > 0 ? (Math.max(...nonNull) - Math.min(...nonNull) + 1) : 4;
+                          })()
+                        : 4));
               pill.textContent = `${shape.name} (${shapeSpan}f)`;
               pill.title = `${shape.name} • Hand Reach: ${shapeSpan} frets`;
               pill.addEventListener('click', () => {
@@ -2685,7 +2695,8 @@
           manualFrets = null;
           currentChordName = parsed.displayName || trimmed;
           currentRootPC = parsed.rootPitchClass !== undefined ? parsed.rootPitchClass : Theory.noteToPitchClass(parsed.root);
-          currentQuality = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(parsed.qualityId || parsed.quality) : 'maj';
+          const mapper = (Chords && Chords.mapTheoryQualityToShapeQuality) || (Chords && Chords.Engine && Chords.Engine.mapTheoryQualityToShapeQuality);
+          currentQuality = mapper ? mapper(parsed.qualityId || parsed.quality) : 'maj';
           selectedShapeIndex = 0;
           targetFretOverride = null;
           if (chordQuickInput && chordQuickInput.value !== currentChordName) {
@@ -2774,7 +2785,8 @@
             manualFrets = null;
             currentChordName = parsed.displayName || val;
             currentRootPC = parsed.rootPitchClass !== undefined ? parsed.rootPitchClass : Theory.noteToPitchClass(parsed.root);
-            currentQuality = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(parsed.qualityId || parsed.quality) : 'maj';
+            const mapper = (Chords && Chords.mapTheoryQualityToShapeQuality) || (Chords && Chords.Engine && Chords.Engine.mapTheoryQualityToShapeQuality);
+            currentQuality = mapper ? mapper(parsed.qualityId || parsed.quality) : 'maj';
             selectedShapeIndex = 0;
             targetFretOverride = null;
             renderCurrentChord();

@@ -1949,11 +1949,15 @@
   // -------------------------------------------------------------
   // 8. Global Exports
   // -------------------------------------------------------------
+  const defaultEngine = new MovableChordEngine();
+
   window.SongChords = {
     TUNINGS: CHORD_TUNINGS,
     MOVABLE_SHAPES: MOVABLE_SHAPES_DB,
     INTERVAL_COLORS: INTERVAL_COLORS,
-    Engine: new MovableChordEngine(),
+    Engine: defaultEngine,
+    getShapeSpan: (shape) => defaultEngine.getShapeSpan(shape),
+    mapTheoryQualityToShapeQuality: (q) => defaultEngine.mapTheoryQualityToShapeQuality(q),
     SvgRenderer: SvgChordRenderer,
     TabRenderer: TabNotationRenderer,
     StaffRenderer: StaffNotationRenderer
