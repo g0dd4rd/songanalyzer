@@ -1080,11 +1080,22 @@
     }
 
     /**
-     * Find matching shapes for the selected instrument family & chord quality
+     * Calculates the intrinsic fret span of a shape across active strings
      */
-    findShapes(instrumentKey, quality, styleFilter = 'all') {
+    getShapeSpan(shape) {
+      if (!shape || !shape.strings) return 0;
+      const nonNull = shape.strings.filter(s => s !== null);
+      if (nonNull.length === 0) return 0;
+      return Math.max(...nonNull) - Math.min(...nonNull) + 1;
+    }
+
+    /**
+     * Find matching shapes for the selected instrument family, chord quality, style, and max hand span
+     */
+    findShapes(instrumentKey, quality, styleFilter = 'all', maxSpan = 'all') {
       const tuning = this.getTuning(instrumentKey);
       const instFamily = tuning ? tuning.instrument : 'guitar_6str';
+      const maxAllowed = (maxSpan !== 'all' && maxSpan !== undefined && maxSpan !== null) ? parseInt(maxSpan, 10) : Infinity;
 
       return MOVABLE_SHAPES_DB.filter(shape => {
         if (shape.instFamily !== instFamily) return false;
@@ -1098,15 +1109,18 @@
           }
         }
         if (styleFilter !== 'all' && shape.style !== styleFilter) return false;
+        if (Number.isFinite(maxAllowed) && this.getShapeSpan(shape) > maxAllowed) return false;
         return true;
       });
     }
 
     /**
      * Calculates the exact fret positions, note names, MIDI pitches, and intervals
-     * for a given movable shape Transposed to a target root note and tuning.
+     * for a given movable shape transposed to a target root note and tuning.
+     * Enforces rigid whole-chord transposition so individual strings never wrap an octave,
+     * and calculates biomechanical human hand span ergonomics.
      */
-    computeVoicing(shape, rootPC, tuningKey = this.currentTuningKey, targetFretOverride = null) {
+    computeVoicing(shape, rootPC, tuningKey = this.currentTuningKey, targetFretOverride = null, options = {}) {
       const tuning = this.getTuning(tuningKey);
       if (!shape || !tuning) return null;
 
@@ -1116,38 +1130,59 @@
 
       if (!openRootString) return null;
 
-      // 1. Calculate the base fret for the root note on rootString
-      // openRootString.pc is the pitch class of the open string.
-      // (rootPC - openRootString.pc) % 12 gives the fret offset (0 to 11).
-      let rootFret = (rootPC - openRootString.pc + 12) % 12;
+      // 1. Drop Tuning dynamic compensation: when string 0 is dropped by 2 semitones
+      const isDropTuning = tuning.isDrop === true;
 
-      // If shape has negative offsets, ensure we don't start below fret 1
-      const minOffset = Math.min(...shape.strings.filter(s => s !== null));
-      if (rootFret + minOffset < 1) {
-        rootFret += 12; // Transpose up one octave so frets stay positive
+      const getStringOffset = (s) => {
+        const shapeOffset = (s < shape.strings.length) ? shape.strings[s] : null;
+        if (shapeOffset === null) return null;
+        if (isDropTuning && shape.rootString === 0 && s > 0) {
+          if (shape.style === 'Power' && shapeOffset === 2) {
+            return 0; // Flattens 0-2-2 power chord into 0-0-0 1-finger barre
+          }
+          return shapeOffset - 2; // Drops remaining strings by 2 semitones
+        }
+        return shapeOffset;
+      };
+
+      // 2. Find minimum and maximum offsets across all active strings
+      const activeOffsets = [];
+      for (let s = 0; s < numStrings; s++) {
+        const off = getStringOffset(s);
+        if (off !== null) activeOffsets.push(off);
       }
+      const minOffset = activeOffsets.length > 0 ? Math.min(...activeOffsets) : 0;
+      const maxOffset = activeOffsets.length > 0 ? Math.max(...activeOffsets) : 0;
+      const minPlayableRootFret = Math.max(0, -minOffset);
 
-      // Allow manual fret override (e.g. user sliding transposition slider)
+      // 3. Calculate base root fret on rootString
+      // openRootString.pc is the pitch class of the open string.
+      let rootFret;
       if (targetFretOverride !== null && Number.isInteger(targetFretOverride)) {
         rootFret = targetFretOverride;
+        // If targetFretOverride pushes any string below fret 0 (off the nut),
+        // transpose the entire chord up by full octaves (12 frets) to preserve physical shape and harmony
+        while (rootFret + minOffset < 0) {
+          rootFret += 12;
+        }
+      } else {
+        rootFret = (rootPC - openRootString.pc + 12) % 12;
+        while (rootFret + minOffset < 0) {
+          rootFret += 12;
+        }
       }
-
-      // 2. Drop Tuning Dynamic Fret Compensation
-      // If tuning is a Drop tuning (e.g. Drop D, Drop A, Drop E) and rootString is 0 (the dropped string):
-      // In Drop tuning, the lowest string is dropped by 2 semitones relative to standard 4ths.
-      const isDropTuning = tuning.isDrop === true;
 
       const computedStrings = [];
       let minFret = Infinity;
       let maxFret = -Infinity;
 
       for (let s = 0; s < numStrings; s++) {
-        const shapeOffset = (s < shape.strings.length) ? shape.strings[s] : null;
+        const stringOffset = getStringOffset(s);
         const intervalName = (s < shape.intervals.length) ? shape.intervals[s] : null;
         const finger = (s < shape.fingers.length) ? shape.fingers[s] : null;
         const stringDef = tuning.strings[s];
 
-        if (shapeOffset === null) {
+        if (stringOffset === null) {
           computedStrings.push({
             stringIndex: s,
             stringLabel: stringDef.label,
@@ -1163,26 +1198,13 @@
             isRoot: false
           });
         } else {
-          let calculatedFret = rootFret + shapeOffset;
-
-          // Drop tuning dynamic compensation: when string 0 is dropped by 2 semitones
-          if (isDropTuning && shape.rootString === 0 && s > 0) {
-            if (shape.style === 'Power' && shapeOffset === 2) {
-              // Flattens 0-2-2 power chord into 0-0-0 1-finger barre
-              calculatedFret = rootFret;
-            } else {
-              // Offsets remaining strings so intervals align with the dropped low root
-              calculatedFret = rootFret + shapeOffset - 2;
-            }
-          }
-
-          // Bound checking
-          if (calculatedFret < 0) calculatedFret += 12;
+          // Whole-chord fret position (rigid translation, no individual string wrapping)
+          const calculatedFret = Math.max(0, rootFret + stringOffset);
 
           const openMidi = stringDef.midi;
           const noteMidi = openMidi + calculatedFret;
           const notePC = (stringDef.pc + calculatedFret) % 12;
-          const isRoot = (s === rootStringIdx && (shapeOffset === 0 || shapeOffset === 2));
+          const isRoot = (s === rootStringIdx && (shape.strings[s] === 0 || shape.strings[s] === 2));
 
           const Theory = window.SongTheory;
           const noteName = Theory ? Theory.pitchClassToNote(notePC) : 'C';
@@ -1209,8 +1231,51 @@
         }
       }
 
-      if (minFret === Infinity) minFret = 1;
+      if (minFret === Infinity) minFret = 0;
       if (maxFret === -Infinity) maxFret = 4;
+
+      // 4. Biomechanical Hand Span calculation across fretted notes (excluding open strings & mutes)
+      const frettedNotes = computedStrings.filter(str => !str.isMuted && str.fret !== null && str.fret > 0);
+      const fretSpan = frettedNotes.length > 0 ? (maxFret - minFret + 1) : 0;
+
+      const maxSpanOption = (options && options.maxSpan) ? options.maxSpan : '4';
+      const maxSpanAllowed = (maxSpanOption !== 'all') ? parseInt(maxSpanOption, 10) : Infinity;
+      const isPlayable = fretSpan <= maxSpanAllowed;
+
+      let rating = 'Standard';
+      let difficulty = 'Intermediate';
+      let badgeClass = 'span-standard';
+
+      if (fretSpan <= 3) {
+        rating = 'Compact Reach';
+        difficulty = 'Easy';
+        badgeClass = 'span-easy';
+      } else if (fretSpan === 4) {
+        rating = 'Standard Box';
+        difficulty = 'Intermediate';
+        badgeClass = 'span-standard';
+      } else if (fretSpan === 5) {
+        if (minFret <= 4) {
+          rating = 'Wide Low-Neck Stretch';
+          difficulty = 'Advanced';
+          badgeClass = 'span-stretch';
+        } else {
+          rating = 'Extended High Reach';
+          difficulty = 'Intermediate-Advanced';
+          badgeClass = 'span-stretch';
+        }
+      } else if (fretSpan > 5) {
+        rating = 'Mutant / Unplayable';
+        difficulty = 'Impossible';
+        badgeClass = 'span-impossible';
+      }
+
+      const neckZone = minFret <= 4 ? 'Nut / Low Register' : (minFret <= 9 ? 'Mid-Neck Register' : 'High Register');
+
+      // 5. Sounding Root Pitch Class and Note Name
+      const soundingRootPC = (openRootString.pc + rootFret) % 12;
+      const Theory = window.SongTheory;
+      const soundingRootName = Theory ? Theory.pitchClassToNote(soundingRootPC) : 'C';
 
       return {
         shapeId: shape.id,
@@ -1219,10 +1284,26 @@
         instrument: tuning.instrument,
         tuningName: tuning.name,
         clef: tuning.clef,
-        rootPC: rootPC,
+        rootPC: soundingRootPC,
+        rootNoteName: soundingRootName,
+        originalRootPC: rootPC,
         rootFret: rootFret,
+        minPlayableRootFret: minPlayableRootFret,
         minFret: minFret,
         maxFret: maxFret,
+        fretSpan: fretSpan,
+        isPlayable: isPlayable,
+        biomechanics: {
+          fretSpan,
+          minFret,
+          maxFret,
+          isPlayable,
+          rating,
+          difficulty,
+          neckZone,
+          badgeClass,
+          label: `${fretSpan} frets (${difficulty})`
+        },
         strings: computedStrings,
         barre: shape.barre ? {
           ...shape.barre,
@@ -1264,6 +1345,11 @@
       // Background card
       svg += `<rect width="${totalWidth}" height="${totalHeight}" rx="10" fill="#0f172a" />`;
 
+      // Biomechanical reach warning if chord span exceeds limit
+      if (voicing.biomechanics && !voicing.biomechanics.isPlayable) {
+        svg += `<text x="${totalWidth - marginX}" y="${marginTop - 22}" fill="#f87171" font-size="10.5" font-weight="bold" text-anchor="end" font-family="system-ui, sans-serif">⚠️ Wide Stretch (${voicing.biomechanics.fretSpan} frets)</text>`;
+      }
+
       // Starting fret label (e.g. "fr. 5")
       if (!isNut) {
         svg += `<text x="${marginX - 14}" y="${marginTop + fretSpacing * 0.65}" fill="#38bdf8" font-size="13" font-weight="bold" text-anchor="end" font-family="system-ui, sans-serif">fr.${baseFret}</text>`;
@@ -1277,7 +1363,7 @@
       // Horizontal Fret Wires
       for (let f = 1; f <= numFretsToShow; f++) {
         const y = marginTop + f * fretSpacing;
-        svg += `<line x1="${marginX}" y1="${y}" x2="${marginX + gridWidth}" y2="${y}" stroke="#475569}" stroke-width="1.5" />`;
+        svg += `<line x1="${marginX}" y1="${y}" x2="${marginX + gridWidth}" y2="${y}" stroke="#475569" stroke-width="1.5" />`;
       }
 
       // Vertical String Lines

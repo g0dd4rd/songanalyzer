@@ -506,6 +506,16 @@
             <option value="Extended">Extended / Ambient</option>
           </select>
         </div>
+
+        <div class="chord-filter-group">
+          <label for="chordMaxSpanSelect">Max Stretch:</label>
+          <select id="chordMaxSpanSelect" class="form-select select-sm">
+            <option value="4" selected>Max 4 Frets (Normal)</option>
+            <option value="3">Max 3 Frets (Compact)</option>
+            <option value="5">Max 5 Frets (Wide)</option>
+            <option value="all">Any Reach</option>
+          </select>
+        </div>
       </div>
 
       <!-- Available Movable Shapes Strip -->
@@ -567,7 +577,10 @@
         <div class="fret-slider-wrapper">
           <div class="slider-header">
             <label for="chordFretSlider">Transposition / Neck Position:</label>
-            <span id="chordFretValueBadge" class="fret-badge">Fret 5 (D)</span>
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span id="chordFretValueBadge" class="fret-badge">Fret 5 (D)</span>
+              <span id="chordSpanBadge" class="fret-badge span-badge span-easy" title="Hand stretch span across frets">Span: 3 frets (Compact)</span>
+            </div>
           </div>
           <input type="range" id="chordFretSlider" min="0" max="17" value="5" step="1" class="form-range">
         </div>

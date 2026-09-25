@@ -2410,6 +2410,7 @@
       const rootSelect = document.getElementById('chordRootSelect');
       const qualitySelect = document.getElementById('chordQualitySelect');
       const styleSelect = document.getElementById('chordStyleSelect');
+      const maxSpanSelect = document.getElementById('chordMaxSpanSelect');
 
       const shapesList = document.getElementById('chordShapesList');
       const svgContainer = document.getElementById('chordSvgContainer');
@@ -2422,6 +2423,7 @@
 
       const fretSlider = document.getElementById('chordFretSlider');
       const fretBadge = document.getElementById('chordFretValueBadge');
+      const spanBadge = document.getElementById('chordSpanBadge');
 
       const btnStrumDown = document.getElementById('btnStrumDown');
       const btnStrumUp = document.getElementById('btnStrumUp');
@@ -2434,6 +2436,7 @@
       let currentRootPC = 2; // D
       let currentQuality = 'min9';
       let currentStyle = 'all';
+      let currentMaxSpan = '4';
       let badgeMode = 'interval'; // 'interval' (default) or 'finger'
       let matchingShapes = [];
       let selectedShapeIndex = 0;
@@ -2457,10 +2460,13 @@
 
       // Recompute and Render
       const renderCurrentChord = () => {
-        matchingShapes = engine.findShapes(currentTuningKey, currentQuality, currentStyle);
+        matchingShapes = engine.findShapes(currentTuningKey, currentQuality, currentStyle, currentMaxSpan);
         if (matchingShapes.length === 0) {
           // Fallback: try finding any shape for this quality in this instrument
-          matchingShapes = engine.findShapes(currentTuningKey, 'all', 'all');
+          matchingShapes = engine.findShapes(currentTuningKey, currentQuality, 'all', 'all');
+        }
+        if (matchingShapes.length === 0) {
+          matchingShapes = engine.findShapes(currentTuningKey, 'all', 'all', 'all');
         }
 
         // Render Shape Pills
@@ -2473,7 +2479,9 @@
               const pill = document.createElement('button');
               pill.type = 'button';
               pill.className = `shape-pill ${idx === selectedShapeIndex ? 'active' : ''}`;
-              pill.textContent = shape.name;
+              const shapeSpan = engine.getShapeSpan(shape);
+              pill.textContent = `${shape.name} (${shapeSpan}f)`;
+              pill.title = `${shape.name} • Hand Reach: ${shapeSpan} frets`;
               pill.addEventListener('click', () => {
                 selectedShapeIndex = idx;
                 targetFretOverride = null;
@@ -2488,7 +2496,7 @@
         const activeShape = matchingShapes[selectedShapeIndex] || matchingShapes[0];
         if (!activeShape) return;
 
-        currentVoicing = engine.computeVoicing(activeShape, currentRootPC, currentTuningKey, targetFretOverride);
+        currentVoicing = engine.computeVoicing(activeShape, currentRootPC, currentTuningKey, targetFretOverride, { maxSpan: currentMaxSpan });
         if (!currentVoicing) return;
 
         // 1. Render Vector SVG
@@ -2511,19 +2519,39 @@
           staffClefLabel.textContent = currentVoicing.clef === 'bass' ? 'Bass F8' : 'Treble G8';
         }
 
-        const Theory = window.SongTheory;
-        const rootNoteName = Theory ? Theory.pitchClassToNote(currentRootPC) : 'D';
+        const soundingRootPC = currentVoicing.rootPC;
+        const rootNoteName = currentVoicing.rootNoteName || 'D';
+
         if (fretBadge) {
           fretBadge.textContent = `Root: Fret ${currentVoicing.rootFret} (${rootNoteName})`;
         }
 
-        if (fretSlider && targetFretOverride === null) {
-          fretSlider.value = currentVoicing.rootFret;
+        // Biomechanical Hand Span Badge
+        if (spanBadge && currentVoicing.biomechanics) {
+          const bio = currentVoicing.biomechanics;
+          spanBadge.textContent = `Span: ${bio.fretSpan} frets • ${bio.rating}`;
+          spanBadge.className = `fret-badge span-badge ${bio.badgeClass}`;
+          spanBadge.title = `${bio.neckZone} • Stretch difficulty: ${bio.difficulty}`;
+        }
+
+        // Synchronize Slider bounds and position
+        if (fretSlider) {
+          const minPlayable = currentVoicing.minPlayableRootFret ?? 0;
+          fretSlider.min = String(minPlayable);
+          if (targetFretOverride === null || currentVoicing.rootFret !== targetFretOverride) {
+            fretSlider.value = String(currentVoicing.rootFret);
+          }
         }
 
         if (liveBadge) {
           const tuning = Chords.TUNINGS[currentTuningKey];
           liveBadge.textContent = `${tuning ? tuning.name.split(' (')[0] : 'Guitar'} • ${rootNoteName} ${currentQuality}`;
+        }
+
+        // Synchronize root select dropdown when transposed via slider
+        if (rootSelect && targetFretOverride !== null && rootSelect.value !== String(soundingRootPC)) {
+          rootSelect.value = String(soundingRootPC);
+          currentRootPC = soundingRootPC;
         }
       };
 
@@ -2536,6 +2564,7 @@
           rootPC: currentRootPC,
           quality: currentQuality,
           style: currentStyle,
+          maxSpan: currentMaxSpan,
           badgeMode: badgeMode,
           selectedShapeIndex: selectedShapeIndex,
           fretOverride: targetFretOverride
@@ -2562,6 +2591,10 @@
           if (st.style && styleSelect) {
             styleSelect.value = st.style;
             currentStyle = st.style;
+          }
+          if (st.maxSpan && maxSpanSelect) {
+            maxSpanSelect.value = st.maxSpan;
+            currentMaxSpan = st.maxSpan;
           }
           if (st.badgeMode) {
             badgeMode = st.badgeMode;
@@ -2626,6 +2659,16 @@
       if (styleSelect) {
         styleSelect.addEventListener('change', () => {
           currentStyle = styleSelect.value;
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      if (maxSpanSelect) {
+        maxSpanSelect.addEventListener('change', () => {
+          currentMaxSpan = maxSpanSelect.value;
           selectedShapeIndex = 0;
           targetFretOverride = null;
           renderCurrentChord();
