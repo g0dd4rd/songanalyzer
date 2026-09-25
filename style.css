@@ -3601,6 +3601,129 @@ tr:hover td {
   flex-wrap: wrap;
 }
 
+/* Interactive Chord Finder & Search Input */
+.chord-search-group {
+  position: relative;
+}
+
+.chord-input-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chord-search-input {
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #38bdf8;
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  border-radius: 6px;
+  padding: 4px 28px 4px 10px;
+  width: 140px;
+  transition: all 0.2s ease;
+}
+
+.chord-search-input:focus {
+  outline: none;
+  border-color: #7dd3fc;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.btn-clear-chord {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.btn-clear-chord:hover {
+  color: #f87171;
+}
+
+/* Interactive SVG Fretboard Hitboxes */
+.svg-fret-target {
+  transition: fill 0.1s ease;
+}
+
+.svg-fret-target:hover {
+  fill: rgba(56, 189, 248, 0.28);
+  cursor: pointer;
+}
+
+.svg-nut-target:hover {
+  fill: rgba(239, 68, 68, 0.3);
+  cursor: pointer;
+}
+
+/* Analyzer Harmonic Table Mini-Grips & Studio Action */
+.chord-cell-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-mini-grip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 4px;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-mini-grip:hover {
+  background: rgba(56, 189, 248, 0.28);
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-studio-chord {
+  padding: 2px 7px;
+  font-size: 0.74rem;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid #0284c7;
+  color: #38bdf8;
+}
+
+.btn-studio-chord:hover {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+/* Jam Deck Card Studio Button */
+.btn-card-studio {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-card-studio:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
 /* =============================================================
    Session State, Auto-Save & Backup Management Styling
    ============================================================= */

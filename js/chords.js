@@ -746,6 +746,141 @@
       fingers: [null, '1', '3', '4', null, null]
     },
 
+    // --- Extended & Altered Analyzer Chords (6th, 13th, 7b9, m6, Add9, Sus2, 7alt, m11) ---
+    {
+      id: 'g6_7b9_r5',
+      instFamily: 'guitar_6str',
+      quality: '7b9',
+      name: 'Dominant 7b9 Jazz Grip (Root 5)',
+      style: 'Jazz',
+      rootString: 1,
+      strings: [null, 0, -1, 0, -1, null],
+      intervals: [null, 'R', '3', 'b7', 'b9', null],
+      fingers: [null, '2', '1', '3', '1', null]
+    },
+    {
+      id: 'g6_7b9_r6',
+      instFamily: 'guitar_6str',
+      quality: '7b9',
+      name: 'Dominant 7b9 Bossa Grip (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, -1, 0, -2, null, null],
+      intervals: ['R', '3', 'b7', 'b9', null, null],
+      fingers: ['2', '1', '3', '1', null, null]
+    },
+    {
+      id: 'g6_13_r6',
+      instFamily: 'guitar_6str',
+      quality: '13',
+      name: 'Dominant 13th Freddie Green (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, null, 0, 1, 2, null],
+      intervals: ['R', null, 'b7', '3', '13', null],
+      fingers: ['2', null, '3', '1', '4', null]
+    },
+    {
+      id: 'g6_13_r5',
+      instFamily: 'guitar_6str',
+      quality: '13',
+      name: 'Dominant 13th (Root 5 Drop 2)',
+      style: 'Jazz',
+      rootString: 1,
+      strings: [null, 0, 2, 0, 2, 2],
+      intervals: [null, 'R', '5', 'b7', '3', '13'],
+      fingers: [null, '1', '3', '1', '4', '4'],
+      barre: { fretOffset: 2, fromString: 3, toString: 5, finger: '4' }
+    },
+    {
+      id: 'g6_6_r6',
+      instFamily: 'guitar_6str',
+      quality: '6',
+      name: 'Major 6th Swing Grip (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, null, -1, 1, 2, null],
+      intervals: ['R', null, '6', '3', '5', null],
+      fingers: ['2', null, '1', '3', '4', null]
+    },
+    {
+      id: 'g6_6_r5',
+      instFamily: 'guitar_6str',
+      quality: '6',
+      name: 'Major 6th Drop 2 (Root 5)',
+      style: 'Drop 2',
+      rootString: 1,
+      strings: [null, 0, 2, -1, 2, null],
+      intervals: [null, 'R', '5', '6', '3', null],
+      fingers: [null, '2', '3', '1', '4', null]
+    },
+    {
+      id: 'g6_m6_r5',
+      instFamily: 'guitar_6str',
+      quality: 'm6',
+      name: 'Minor 6th / m69 (Root 5)',
+      style: 'Jazz',
+      rootString: 1,
+      strings: [null, 0, -2, -1, 0, null],
+      intervals: [null, 'R', 'b3', '6', '9', null],
+      fingers: [null, '3', '1', '2', '4', null]
+    },
+    {
+      id: 'g6_m6_r6',
+      instFamily: 'guitar_6str',
+      quality: 'm6',
+      name: 'Minor 6th Swing Grip (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, null, -2, -1, 0, null],
+      intervals: ['R', null, 'b3', '6', '9', null],
+      fingers: ['2', null, '1', '3', '4', null]
+    },
+    {
+      id: 'g6_add9_r5',
+      instFamily: 'guitar_6str',
+      quality: 'add9',
+      name: 'Major Add 9 Grip (Root 5)',
+      style: 'Extended',
+      rootString: 1,
+      strings: [null, 0, 2, 4, 2, null],
+      intervals: [null, 'R', '5', '9', '3', null],
+      fingers: [null, '1', '2', '4', '3', null]
+    },
+    {
+      id: 'g6_sus2_r5',
+      instFamily: 'guitar_6str',
+      quality: 'sus2',
+      name: 'Sus2 Chord (Root 5)',
+      style: 'Extended',
+      rootString: 1,
+      strings: [null, 0, 2, 2, 0, null],
+      intervals: [null, 'R', '5', 'R', '2', null],
+      fingers: [null, '1', '3', '4', '1', null]
+    },
+    {
+      id: 'g6_alt_r6',
+      instFamily: 'guitar_6str',
+      quality: 'alt',
+      name: 'Altered Dominant 7alt (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, null, 0, 1, 1, null],
+      intervals: ['R', null, 'b7', '3', '#5', null],
+      fingers: ['1', null, '2', '3', '4', null]
+    },
+    {
+      id: 'g6_m11_r6',
+      instFamily: 'guitar_6str',
+      quality: 'm11',
+      name: 'Minor 11th Modern Barre (Root 6)',
+      style: 'Jazz',
+      rootString: 0,
+      strings: [0, null, 0, 0, 0, null],
+      intervals: ['R', null, 'b7', 'b3', '11', null],
+      fingers: ['1', null, '1', '1', '1', null]
+    },
+
     // =========================================================
     // GUITAR: 7-STRING MOVABLE SHAPES (BEADGBE / Drop A)
     // =========================================================
@@ -1090,18 +1225,72 @@
     }
 
     /**
+     * Maps arbitrary music theory chord quality IDs (from parseChord) to movable shape database qualities
+     */
+    mapTheoryQualityToShapeQuality(theoryQualityId) {
+      if (!theoryQualityId) return 'maj';
+      const map = {
+        'maj': 'maj',
+        'min': 'min',
+        'm': 'min',
+        '7': '7',
+        'dom7': '7',
+        'maj7': 'maj7',
+        'M7': 'maj7',
+        'min7': 'min7',
+        'm7': 'min7',
+        'm7b5': 'm7b5',
+        'dim7': 'dim7',
+        'dim': 'dim7',
+        'aug': 'maj',
+        '9': '9',
+        'dom9': '9',
+        'maj9': 'maj9',
+        'M9': 'maj9',
+        'min9': 'min9',
+        'm9': 'min9',
+        '7#9': '7#9',
+        '7b9': '7b9',
+        '13': '13',
+        'dom13': '13',
+        'maj13': 'maj9',
+        'm13': 'm11',
+        '6': '6',
+        'maj6': '6',
+        'm6': 'm6',
+        'min6': 'm6',
+        'm69': 'm6',
+        'add9': 'add9',
+        'madd9': 'min9',
+        'sus4': 'sus4',
+        'sus2': 'sus2',
+        'alt': 'alt',
+        '7alt': 'alt',
+        'm11': 'm11',
+        'min11': 'm11',
+        '11': '9',
+        'maj11': 'maj9',
+        '5': '5',
+        '10th_maj': '10th_maj',
+        '10th_min': '10th_min'
+      };
+      return map[theoryQualityId] || 'maj';
+    }
+
+    /**
      * Find matching shapes for the selected instrument family, chord quality, style, and max hand span
      */
     findShapes(instrumentKey, quality, styleFilter = 'all', maxSpan = 'all') {
       const tuning = this.getTuning(instrumentKey);
       const instFamily = tuning ? tuning.instrument : 'guitar_6str';
       const maxAllowed = (maxSpan !== 'all' && maxSpan !== undefined && maxSpan !== null) ? parseInt(maxSpan, 10) : Infinity;
+      const mappedQ = this.mapTheoryQualityToShapeQuality(quality);
 
       return MOVABLE_SHAPES_DB.filter(shape => {
         if (shape.instFamily !== instFamily) return false;
         if (quality !== 'all') {
           // Normalize quality matches
-          if (shape.quality !== quality) {
+          if (shape.quality !== quality && shape.quality !== mappedQ) {
             // Also allow matching 10ths when searching for maj/min on bass
             if (quality === 'maj' && shape.quality === '10th_maj') return true;
             if (quality === 'min' && shape.quality === '10th_min') return true;
@@ -1112,6 +1301,134 @@
         if (Number.isFinite(maxAllowed) && this.getShapeSpan(shape) > maxAllowed) return false;
         return true;
       });
+    }
+
+    /**
+     * Reverse Chord Analysis: Computes a complete voicing from manually fretted strings on the neck,
+     * analyzes the sounding notes with SongTheory.identifyChordFromNotes, and returns a full voicing.
+     */
+    computeVoicingFromFrets(frets, tuningKey = this.currentTuningKey) {
+      const tuning = this.getTuning(tuningKey);
+      if (!frets || !tuning) return null;
+
+      const numStrings = tuning.strings.length;
+      const computedStrings = [];
+      const soundingNotes = [];
+      let minFret = Infinity;
+      let maxFret = -Infinity;
+
+      for (let s = 0; s < numStrings; s++) {
+        const stringDef = tuning.strings[s];
+        const fretVal = (s < frets.length) ? frets[s] : null;
+
+        if (fretVal === null || fretVal === undefined || fretVal === 'x' || fretVal < 0) {
+          computedStrings.push({
+            stringIndex: s,
+            stringLabel: stringDef.label,
+            openNote: stringDef.note,
+            fret: null,
+            midi: null,
+            noteName: null,
+            pc: null,
+            interval: null,
+            finger: null,
+            isMuted: true,
+            isOpen: false,
+            isRoot: false
+          });
+        } else {
+          const fret = parseInt(fretVal, 10);
+          const noteMidi = stringDef.midi + fret;
+          const notePC = (stringDef.pc + fret) % 12;
+          const Theory = window.SongTheory;
+          const noteName = Theory ? Theory.pitchClassToNote(notePC) : 'C';
+
+          if (fret > 0) {
+            if (fret < minFret) minFret = fret;
+            if (fret > maxFret) maxFret = fret;
+          }
+
+          const strObj = {
+            stringIndex: s,
+            stringLabel: stringDef.label,
+            openNote: stringDef.note,
+            fret: fret,
+            midi: noteMidi,
+            noteName: noteName,
+            pc: notePC,
+            interval: '',
+            finger: '1',
+            isMuted: false,
+            isOpen: fret === 0,
+            isRoot: false
+          };
+          computedStrings.push(strObj);
+          soundingNotes.push({ ...strObj, stringIndex: s });
+        }
+      }
+
+      if (minFret === Infinity) minFret = 0;
+      if (maxFret === -Infinity) maxFret = 4;
+
+      // Identify the chord from sounding pitch classes and lowest bass note
+      const Theory = window.SongTheory;
+      const soundingPCs = soundingNotes.map(n => n.pc);
+      const bassNoteObj = soundingNotes.length > 0 ? soundingNotes[0] : null;
+      const bassPC = bassNoteObj ? bassNoteObj.pc : null;
+
+      const identified = Theory && Theory.identifyChordFromNotes
+        ? Theory.identifyChordFromNotes(soundingPCs, bassPC)
+        : null;
+
+      const rootPC = identified ? identified.rootPC : (bassPC !== null ? bassPC : 0);
+      const rootNoteName = identified ? identified.root : (Theory ? Theory.pitchClassToNote(rootPC) : 'C');
+      const chordName = identified ? identified.displayName : `${rootNoteName} Chord`;
+
+      // Label intervals relative to the identified root
+      const INTERVAL_SHORT = (Theory && Theory.INTERVAL_SHORT) || ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
+      computedStrings.forEach(s => {
+        if (!s.isMuted && s.pc !== null) {
+          const semitone = (s.pc - rootPC + 12) % 12;
+          s.interval = (semitone === 0) ? 'R' : (INTERVAL_SHORT[semitone] || `${semitone}`);
+          s.isRoot = (semitone === 0);
+        }
+      });
+
+      // Hand span
+      const frettedNotes = computedStrings.filter(str => !str.isMuted && str.fret !== null && str.fret > 0);
+      const fretSpan = frettedNotes.length > 0 ? (maxFret - minFret + 1) : 0;
+      const isPlayable = fretSpan <= 5;
+
+      return {
+        shapeId: 'custom_fret_selection',
+        shapeName: chordName,
+        style: 'Interactive Custom',
+        instrument: tuning.instrument,
+        tuningName: tuning.name,
+        clef: tuning.clef,
+        rootPC: rootPC,
+        rootNoteName: rootNoteName,
+        chordName: chordName,
+        identifiedChord: identified,
+        rootFret: minFret || 1,
+        minFret: minFret,
+        maxFret: maxFret,
+        fretSpan: fretSpan,
+        isPlayable: isPlayable,
+        biomechanics: {
+          fretSpan,
+          minFret,
+          maxFret,
+          isPlayable,
+          rating: fretSpan <= 3 ? 'Compact Reach' : (fretSpan <= 4 ? 'Standard Box' : (fretSpan <= 5 ? 'Wide Stretch' : 'Mutant Stretch')),
+          difficulty: fretSpan <= 3 ? 'Easy' : (fretSpan <= 4 ? 'Intermediate' : (fretSpan <= 5 ? 'Advanced' : 'Impossible')),
+          neckZone: minFret <= 4 ? 'Nut / Low Register' : (minFret <= 9 ? 'Mid-Neck Register' : 'High Register'),
+          badgeClass: fretSpan <= 3 ? 'span-easy' : (fretSpan <= 4 ? 'span-standard' : (fretSpan <= 5 ? 'span-stretch' : 'span-impossible')),
+          label: `${fretSpan} frets`
+        },
+        strings: computedStrings,
+        barre: null
+      };
     }
 
     /**
@@ -1417,6 +1734,16 @@
 
         // Bottom String Label (e.g. E, A, D, G)
         svg += `<text x="${x}" y="${marginTop + gridHeight + 18}" fill="#94a3b8" font-size="11" font-weight="bold" text-anchor="middle" font-family="monospace">${strObj.stringLabel}</text>`;
+
+        // Interactive Nut Hit Target (Mute / Open toggle)
+        svg += `<circle cx="${x}" cy="${marginTop - 16}" r="14" fill="transparent" class="svg-nut-target" data-string="${s}" style="cursor: pointer;" title="Toggle string ${strObj.stringLabel} (Mute / Open)" />`;
+
+        // Interactive Fret Hit Targets for each fret row
+        for (let rf = 0; rf < numFretsToShow; rf++) {
+          const actualF = baseFret + rf;
+          const fy = marginTop + rf * fretSpacing;
+          svg += `<rect x="${x - 13}" y="${fy}" width="26" height="${fretSpacing}" fill="transparent" class="svg-fret-target" data-string="${s}" data-fret="${actualF}" style="cursor: pointer;" title="Fret ${actualF} on ${strObj.stringLabel}" />`;
+        }
       });
 
       svg += `</svg>`;

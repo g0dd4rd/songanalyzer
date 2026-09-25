@@ -239,6 +239,9 @@
             audio.stopProgression();
             btnPlayProg.textContent = '▶ Play Progression';
             btnPlayProg.classList.remove('btn-warning');
+            if (this.clearChordStudioSequenceSync) {
+              this.clearChordStudioSequenceSync();
+            }
             if (this.visualizer && (!this.beatSequencer || !this.beatSequencer.isPlaying)) {
               this.visualizer.stopAnimation();
             }
@@ -263,10 +266,16 @@
               if (chord && this.visualizer) {
                 this.visualizer.setActiveChord(chord);
               }
+              if (this.syncChordStudioWithChord) {
+                this.syncChordStudioWithChord(chord, chord?.displayName, `Prog #${idx + 1}`);
+              }
             }, () => {
               btnPlayProg.textContent = '▶ Play Progression';
               btnPlayProg.classList.remove('btn-warning');
               this.highlightTableRow(-1);
+              if (this.clearChordStudioSequenceSync) {
+                this.clearChordStudioSequenceSync();
+              }
               if (this.visualizer && (!this.beatSequencer || !this.beatSequencer.isPlaying)) {
                 this.visualizer.stopAnimation();
               }
@@ -443,16 +452,42 @@
 
       const btnPlayCards = document.getElementById('btnPlayCards');
       if (btnPlayCards) {
+        let isJamPlaying = false;
         btnPlayCards.addEventListener('click', async () => {
           if (!audio) return;
+          if (isJamPlaying) {
+            audio.stopProgression();
+            isJamPlaying = false;
+            btnPlayCards.textContent = '▶ Play Cards';
+            btnPlayCards.classList.remove('btn-danger');
+            this.highlightCard(-1);
+            if (this.clearChordStudioSequenceSync) {
+              this.clearChordStudioSequenceSync();
+            }
+            return;
+          }
           await audio.init();
           const bpm = this.getBpm();
           const parsedCards = this.jamCards.map(c => Theory.parseChord(c.symbol)).filter(Boolean);
-          audio.playProgression(parsedCards, bpm, false, (idx, chord) => {
+          if (parsedCards.length === 0) return;
+          isJamPlaying = true;
+          btnPlayCards.textContent = '⏹ Stop Jam';
+          btnPlayCards.classList.add('btn-danger');
+          audio.playProgression(parsedCards, bpm, true, (idx, chord) => {
             this.highlightCard(idx);
             if (chord && this.visualizer) this.visualizer.setActiveChord(chord);
+            if (this.syncChordStudioWithChord) {
+              const cardSymbol = this.jamCards[idx]?.symbol || chord?.displayName;
+              this.syncChordStudioWithChord(chord, cardSymbol, `Jam Card #${idx + 1}`);
+            }
           }, () => {
+            isJamPlaying = false;
+            btnPlayCards.textContent = '▶ Play Cards';
+            btnPlayCards.classList.remove('btn-danger');
             this.highlightCard(-1);
+            if (this.clearChordStudioSequenceSync) {
+              this.clearChordStudioSequenceSync();
+            }
           });
         });
       }
@@ -876,6 +911,7 @@
     renderHarmonicTable() {
       const Theory = window.SongTheory;
       const audio = window.audio;
+      const Chords = window.SongChords;
       const tbody = document.querySelector('#harmonicTable tbody');
       if (!tbody || !this.selectedKey || !Theory) return;
       tbody.innerHTML = '';
@@ -885,10 +921,29 @@
         const row = document.createElement('tr');
         row.dataset.index = idx;
 
+        // Calculate mini-grip voicing preview (Standard 6-str guitar)
+        let miniGripText = '';
+        if (Chords && Chords.Engine) {
+          const rootPC = chord.rootPitchClass !== undefined ? chord.rootPitchClass : Theory.noteToPitchClass(chord.root);
+          const qId = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(chord.qualityId || chord.quality) : 'maj';
+          const shapes = Chords.Engine.findShapes('guitar_6str_std', qId, 'all', '4');
+          if (shapes && shapes.length > 0) {
+            const v = Chords.Engine.computeVoicing(shapes[0], rootPC, 'guitar_6str_std');
+            if (v && v.strings) {
+              const fretsStr = v.strings.map(s => s.isMuted ? 'x' : s.fret).join(' ');
+              const baseFret = v.rootFret > 0 ? `fr.${v.rootFret} ` : '';
+              miniGripText = `${baseFret}[${fretsStr}]`;
+            }
+          }
+        }
+
         row.innerHTML = `
           <td><strong>#${idx + 1}</strong></td>
           <td>
-            <span class="chord-pill">${chord.displayName}</span>
+            <div class="chord-cell-wrap">
+              <span class="chord-pill">${chord.displayName}</span>
+              ${miniGripText ? `<button class="btn-mini-grip" title="Fret ${chord.displayName} in Movable Chord Studio: ${miniGripText}">🎸 ${miniGripText}</button>` : ''}
+            </div>
           </td>
           <td class="col-root">${chord.root}</td>
           <td class="col-quality">${chord.qualityName}</td>
@@ -901,9 +956,30 @@
             <button class="btn-sm btn-play-chord" title="Play Chord">▶</button>
             <button class="btn-sm btn-arp-chord" title="Play Arpeggio">〰</button>
             <button class="btn-sm btn-show-chord" title="View on Canvas">👁</button>
+            <button class="btn-sm btn-studio-chord" title="Inspect & Fret in Movable Chord Studio">🎸 Studio</button>
             <button class="btn-sm btn-scale-palette" title="Find Compatible 4-to-12 Tone Scales for this chord" style="padding: 2px 7px; font-size: 0.74rem;">🎼 Scales</button>
           </td>
         `;
+
+        const miniGripBtn = row.querySelector('.btn-mini-grip');
+        if (miniGripBtn) {
+          miniGripBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.loadChordIntoStudio) {
+              this.loadChordIntoStudio(chord, true);
+            }
+          });
+        }
+
+        const studioBtn = row.querySelector('.btn-studio-chord');
+        if (studioBtn) {
+          studioBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.loadChordIntoStudio) {
+              this.loadChordIntoStudio(chord, true);
+            }
+          });
+        }
 
         row.querySelector('.btn-play-chord').addEventListener('click', async () => {
           if (audio) {
@@ -1488,11 +1564,18 @@
           <div class="jam-card-quality">${card.qualityName}</div>
           <div class="jam-card-formula">${card.formula}</div>
           <div class="jam-card-actions">
-            <button class="btn-card-move-left" ${idx === 0 ? 'disabled' : ''}>←</button>
-            <button class="btn-card-play">▶</button>
-            <button class="btn-card-move-right" ${idx === this.jamCards.length - 1 ? 'disabled' : ''}>→</button>
+            <button class="btn-card-move-left" ${idx === 0 ? 'disabled' : ''} title="Shift Card Left">←</button>
+            <button class="btn-card-play" title="Play Chord Audio">▶</button>
+            <button class="btn-card-move-right" ${idx === this.jamCards.length - 1 ? 'disabled' : ''} title="Shift Card Right">→</button>
+            <button class="btn-card-studio" title="Inspect & Fret in Movable Chord Studio">🎸</button>
           </div>
         `;
+
+        cardEl.querySelector('.btn-card-studio').addEventListener('click', () => {
+          if (this.loadChordIntoStudio) {
+            this.loadChordIntoStudio(card.symbol, true);
+          }
+        });
 
         cardEl.querySelector('.btn-lock').addEventListener('click', () => {
           if (this.lockedCards.has(idx)) this.lockedCards.delete(idx);
@@ -2404,11 +2487,13 @@
       const btnToggleTop = document.getElementById('btnToggleChordsTop');
       const btnClose = document.getElementById('btnCloseChords');
       const liveBadge = document.getElementById('chordLiveBadge');
+      const liveSequenceBadge = document.getElementById('chordLiveSequenceBadge');
 
       const instSelect = document.getElementById('chordInstrumentSelect');
       const tuningSelect = document.getElementById('chordTuningSelect');
-      const rootSelect = document.getElementById('chordRootSelect');
-      const qualitySelect = document.getElementById('chordQualitySelect');
+      const chordQuickInput = document.getElementById('chordQuickInput');
+      const btnClearChordQuick = document.getElementById('btnClearChordQuick');
+      const btnClearFretboard = document.getElementById('btnClearFretboard');
       const styleSelect = document.getElementById('chordStyleSelect');
       const maxSpanSelect = document.getElementById('chordMaxSpanSelect');
 
@@ -2435,6 +2520,7 @@
       let currentTuningKey = 'guitar_6str_std';
       let currentRootPC = 2; // D
       let currentQuality = 'min9';
+      let currentChordName = 'Dm9';
       let currentStyle = 'all';
       let currentMaxSpan = '4';
       let badgeMode = 'interval'; // 'interval' (default) or 'finger'
@@ -2442,6 +2528,8 @@
       let selectedShapeIndex = 0;
       let targetFretOverride = null;
       let currentVoicing = null;
+      let isManualMode = false;
+      let manualFrets = null;
 
       // Populate Tuning Dropdown according to selected Instrument
       const populateTunings = (instKey) => {
@@ -2458,11 +2546,89 @@
         currentTuningKey = tuningSelect.value || 'guitar_6str_std';
       };
 
+      // Direct Display Renderer for any voicing object
+      const renderVoicingDisplay = (voicing) => {
+        if (!voicing) return;
+
+        // 1. Render Vector SVG with interactive click targets
+        if (svgContainer) {
+          svgContainer.innerHTML = Chords.SvgRenderer.render(voicing, { badgeMode });
+        }
+
+        // 2. Render Formatted TAB
+        if (tabContainer) {
+          tabContainer.innerHTML = Chords.TabRenderer.generateHtml(voicing);
+        }
+
+        // 3. Render Musical Staff Canvas
+        if (staffCanvas) {
+          Chords.StaffRenderer.renderToCanvas(staffCanvas, voicing);
+        }
+
+        // 4. Update Labels & Slider
+        if (staffClefLabel) {
+          staffClefLabel.textContent = voicing.clef === 'bass' ? 'Bass F8' : 'Treble G8';
+        }
+
+        const soundingRootPC = voicing.rootPC;
+        const rootNoteName = voicing.rootNoteName || 'D';
+
+        if (fretBadge) {
+          const fretLabel = (voicing.rootFret > 0) ? `Fret ${voicing.rootFret}` : 'Open / Pos 0';
+          fretBadge.textContent = `Root: ${fretLabel} (${rootNoteName})`;
+        }
+
+        // Biomechanical Hand Span Badge
+        if (spanBadge && voicing.biomechanics) {
+          const bio = voicing.biomechanics;
+          spanBadge.textContent = `Span: ${bio.fretSpan} frets • ${bio.rating}`;
+          spanBadge.className = `fret-badge span-badge ${bio.badgeClass}`;
+          spanBadge.title = `${bio.neckZone} • Stretch difficulty: ${bio.difficulty}`;
+        }
+
+        // Synchronize Slider bounds and position
+        if (fretSlider) {
+          const minPlayable = voicing.minPlayableRootFret ?? 0;
+          fretSlider.min = String(minPlayable);
+          if (targetFretOverride === null || voicing.rootFret !== targetFretOverride) {
+            fretSlider.value = String(voicing.rootFret);
+          }
+        }
+
+        if (liveBadge) {
+          const tuning = Chords.TUNINGS[currentTuningKey];
+          const displayName = voicing.identifiedChord ? voicing.identifiedChord.displayName : (voicing.chordName || `${rootNoteName} ${currentQuality}`);
+          liveBadge.textContent = `${tuning ? tuning.name.split(' (')[0] : 'Guitar'} • ${displayName}`;
+        }
+      };
+
       // Recompute and Render
       const renderCurrentChord = () => {
+        // Mode B: Interactive note selection on neck
+        if (isManualMode && manualFrets) {
+          currentVoicing = engine.computeVoicingFromFrets(manualFrets, currentTuningKey);
+          if (!currentVoicing) return;
+
+          // Render interactive custom grip pill in shapesList
+          if (shapesList) {
+            shapesList.innerHTML = '';
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'shape-pill active';
+            const chordTitle = currentVoicing.chordName || 'Custom Selection';
+            const span = currentVoicing.fretSpan || 0;
+            pill.textContent = `🎯 ${chordTitle} (${span}f)`;
+            pill.title = 'Interactive custom note selection on neck. Click fret positions to modify.';
+            shapesList.appendChild(pill);
+          }
+
+          renderVoicingDisplay(currentVoicing);
+          return;
+        }
+
+        // Mode A: Standard movable shapes search by chord quality
         matchingShapes = engine.findShapes(currentTuningKey, currentQuality, currentStyle, currentMaxSpan);
         if (matchingShapes.length === 0) {
-          // Fallback: try finding any shape for this quality in this instrument
           matchingShapes = engine.findShapes(currentTuningKey, currentQuality, 'all', 'all');
         }
         if (matchingShapes.length === 0) {
@@ -2483,6 +2649,8 @@
               pill.textContent = `${shape.name} (${shapeSpan}f)`;
               pill.title = `${shape.name} • Hand Reach: ${shapeSpan} frets`;
               pill.addEventListener('click', () => {
+                isManualMode = false;
+                manualFrets = null;
                 selectedShapeIndex = idx;
                 targetFretOverride = null;
                 renderCurrentChord();
@@ -2499,60 +2667,150 @@
         currentVoicing = engine.computeVoicing(activeShape, currentRootPC, currentTuningKey, targetFretOverride, { maxSpan: currentMaxSpan });
         if (!currentVoicing) return;
 
-        // 1. Render Vector SVG
-        if (svgContainer) {
-          svgContainer.innerHTML = Chords.SvgRenderer.render(currentVoicing, { badgeMode });
-        }
+        renderVoicingDisplay(currentVoicing);
+      };
 
-        // 2. Render Formatted TAB
-        if (tabContainer) {
-          tabContainer.innerHTML = Chords.TabRenderer.generateHtml(currentVoicing);
-        }
+      // Set chord by typed name string (e.g. 'Dm9', 'F#m7b5', 'A7b9', 'Dbadd9', 'C13')
+      const setChordByName = (chordNameStr, autoRender = true) => {
+        if (!chordNameStr || typeof chordNameStr !== 'string') return;
+        const trimmed = chordNameStr.trim();
+        if (!trimmed) return;
 
-        // 3. Render Musical Staff Canvas
-        if (staffCanvas) {
-          Chords.StaffRenderer.renderToCanvas(staffCanvas, currentVoicing);
-        }
+        const Theory = window.SongTheory;
+        if (!Theory) return;
 
-        // 4. Update Labels & Slider
-        if (staffClefLabel) {
-          staffClefLabel.textContent = currentVoicing.clef === 'bass' ? 'Bass F8' : 'Treble G8';
-        }
-
-        const soundingRootPC = currentVoicing.rootPC;
-        const rootNoteName = currentVoicing.rootNoteName || 'D';
-
-        if (fretBadge) {
-          fretBadge.textContent = `Root: Fret ${currentVoicing.rootFret} (${rootNoteName})`;
-        }
-
-        // Biomechanical Hand Span Badge
-        if (spanBadge && currentVoicing.biomechanics) {
-          const bio = currentVoicing.biomechanics;
-          spanBadge.textContent = `Span: ${bio.fretSpan} frets • ${bio.rating}`;
-          spanBadge.className = `fret-badge span-badge ${bio.badgeClass}`;
-          spanBadge.title = `${bio.neckZone} • Stretch difficulty: ${bio.difficulty}`;
-        }
-
-        // Synchronize Slider bounds and position
-        if (fretSlider) {
-          const minPlayable = currentVoicing.minPlayableRootFret ?? 0;
-          fretSlider.min = String(minPlayable);
-          if (targetFretOverride === null || currentVoicing.rootFret !== targetFretOverride) {
-            fretSlider.value = String(currentVoicing.rootFret);
+        const parsed = Theory.parseChord(trimmed);
+        if (parsed) {
+          isManualMode = false;
+          manualFrets = null;
+          currentChordName = parsed.displayName || trimmed;
+          currentRootPC = parsed.rootPitchClass !== undefined ? parsed.rootPitchClass : Theory.noteToPitchClass(parsed.root);
+          currentQuality = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(parsed.qualityId || parsed.quality) : 'maj';
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          if (chordQuickInput && chordQuickInput.value !== currentChordName) {
+            chordQuickInput.value = currentChordName;
+          }
+          if (autoRender) {
+            renderCurrentChord();
           }
         }
+      };
 
-        if (liveBadge) {
-          const tuning = Chords.TUNINGS[currentTuningKey];
-          liveBadge.textContent = `${tuning ? tuning.name.split(' (')[0] : 'Guitar'} • ${rootNoteName} ${currentQuality}`;
-        }
+      // Interactive Click Hitbox Handler on SVG Fretboard
+      if (svgContainer) {
+        svgContainer.addEventListener('click', (e) => {
+          const nutTarget = e.target.closest('.svg-nut-target');
+          const fretTarget = e.target.closest('.svg-fret-target');
+          if (!nutTarget && !fretTarget) return;
 
-        // Synchronize root select dropdown when transposed via slider
-        if (rootSelect && targetFretOverride !== null && rootSelect.value !== String(soundingRootPC)) {
-          rootSelect.value = String(soundingRootPC);
-          currentRootPC = soundingRootPC;
-        }
+          const tuning = engine.getTuning(currentTuningKey);
+          const numStrings = tuning ? tuning.strings.length : 6;
+
+          let frets = [];
+          if (isManualMode && manualFrets && Array.isArray(manualFrets)) {
+            frets = [...manualFrets];
+          } else if (currentVoicing && currentVoicing.strings) {
+            frets = currentVoicing.strings.map(s => (s.isMuted || s.fret === null) ? null : s.fret);
+          } else {
+            frets = new Array(numStrings).fill(null);
+          }
+          while (frets.length < numStrings) frets.push(null);
+
+          if (nutTarget) {
+            const sIdx = parseInt(nutTarget.dataset.string, 10);
+            if (!isNaN(sIdx) && sIdx >= 0 && sIdx < numStrings) {
+              // Toggle: if muted (null), make open (0). If already 0 or fretted, mute it (null).
+              if (frets[sIdx] === null) {
+                frets[sIdx] = 0;
+              } else {
+                frets[sIdx] = null;
+              }
+            }
+          } else if (fretTarget) {
+            const sIdx = parseInt(fretTarget.dataset.string, 10);
+            const targetF = parseInt(fretTarget.dataset.fret, 10);
+            if (!isNaN(sIdx) && !isNaN(targetF) && sIdx >= 0 && sIdx < numStrings) {
+              // Toggle: if already fretted at this exact fret, mute it (null)
+              if (frets[sIdx] === targetF) {
+                frets[sIdx] = null;
+              } else {
+                frets[sIdx] = targetF;
+              }
+            }
+          }
+
+          isManualMode = true;
+          manualFrets = frets;
+          const tempVoicing = engine.computeVoicingFromFrets(frets, currentTuningKey);
+          currentVoicing = tempVoicing;
+
+          if (tempVoicing && tempVoicing.identifiedChord) {
+            const detectedName = tempVoicing.identifiedChord.displayName || tempVoicing.identifiedChord.symbol;
+            currentChordName = detectedName;
+            if (chordQuickInput) chordQuickInput.value = detectedName;
+            currentRootPC = tempVoicing.rootPC;
+            currentQuality = tempVoicing.identifiedChord.qualityId || 'maj';
+          } else if (chordQuickInput) {
+            const frettedCount = frets.filter(f => f !== null).length;
+            chordQuickInput.value = frettedCount === 0 ? '' : 'Custom';
+          }
+
+          renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
+        });
+      }
+
+      // Chord Quick Input (Mode A: Type Chord Name)
+      if (chordQuickInput) {
+        chordQuickInput.addEventListener('input', () => {
+          const val = chordQuickInput.value.trim();
+          if (!val) return;
+          const Theory = window.SongTheory;
+          if (!Theory) return;
+          const parsed = Theory.parseChord(val);
+          if (parsed) {
+            isManualMode = false;
+            manualFrets = null;
+            currentChordName = parsed.displayName || val;
+            currentRootPC = parsed.rootPitchClass !== undefined ? parsed.rootPitchClass : Theory.noteToPitchClass(parsed.root);
+            currentQuality = Chords.mapTheoryQualityToShapeQuality ? Chords.mapTheoryQualityToShapeQuality(parsed.qualityId || parsed.quality) : 'maj';
+            selectedShapeIndex = 0;
+            targetFretOverride = null;
+            renderCurrentChord();
+            if (window.SongState) window.SongState.requestSave();
+          }
+        });
+
+        chordQuickInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            chordQuickInput.blur();
+          }
+        });
+      }
+
+      if (btnClearChordQuick) {
+        btnClearChordQuick.addEventListener('click', () => {
+          if (chordQuickInput) {
+            chordQuickInput.value = '';
+            chordQuickInput.focus();
+          }
+        });
+      }
+
+      // Clear Neck Button (Blank Canvas for Custom Fretting)
+      if (btnClearFretboard) {
+        btnClearFretboard.addEventListener('click', () => {
+          const tuning = engine.getTuning(currentTuningKey);
+          const numStrings = tuning ? tuning.strings.length : 6;
+          manualFrets = new Array(numStrings).fill(null);
+          isManualMode = true;
+          selectedShapeIndex = 0;
+          targetFretOverride = null;
+          if (chordQuickInput) chordQuickInput.value = '';
+          renderCurrentChord();
+          if (window.SongState) window.SongState.requestSave();
+        });
       };
 
       this.chordStudioRenderer = renderCurrentChord;
@@ -2563,6 +2821,9 @@
           tuning: currentTuningKey,
           rootPC: currentRootPC,
           quality: currentQuality,
+          chordName: currentChordName,
+          isManualMode: isManualMode,
+          manualFrets: manualFrets,
           style: currentStyle,
           maxSpan: currentMaxSpan,
           badgeMode: badgeMode,
@@ -2580,13 +2841,19 @@
             tuningSelect.value = st.tuning;
             currentTuningKey = st.tuning;
           }
-          if (st.rootPC !== undefined && rootSelect) {
-            rootSelect.value = String(st.rootPC);
+          if (st.chordName) {
+            currentChordName = st.chordName;
+            if (chordQuickInput) chordQuickInput.value = st.chordName;
+          }
+          if (st.rootPC !== undefined) {
             currentRootPC = parseInt(st.rootPC, 10);
           }
-          if (st.quality && qualitySelect) {
-            qualitySelect.value = st.quality;
+          if (st.quality) {
             currentQuality = st.quality;
+          }
+          if (st.isManualMode !== undefined) {
+            isManualMode = Boolean(st.isManualMode);
+            manualFrets = st.manualFrets || null;
           }
           if (st.style && styleSelect) {
             styleSelect.value = st.style;
@@ -2637,24 +2904,55 @@
         });
       }
 
-      if (rootSelect) {
-        rootSelect.addEventListener('change', () => {
-          currentRootPC = parseInt(rootSelect.value, 10);
-          targetFretOverride = null;
-          renderCurrentChord();
-          if (window.SongState) window.SongState.requestSave();
-        });
-      }
+      // Load chord from external module (Jam Deck cards, Analyzer table) into studio
+      this.loadChordIntoStudio = (chordOrSymbol, scrollIntoView = true) => {
+        if (!chordOrSymbol) return;
+        let sym = '';
+        if (typeof chordOrSymbol === 'string') {
+          sym = chordOrSymbol;
+        } else if (chordOrSymbol.displayName) {
+          sym = chordOrSymbol.displayName;
+        } else if (chordOrSymbol.symbol) {
+          sym = chordOrSymbol.symbol;
+        }
 
-      if (qualitySelect) {
-        qualitySelect.addEventListener('change', () => {
-          currentQuality = qualitySelect.value;
-          selectedShapeIndex = 0;
-          targetFretOverride = null;
-          renderCurrentChord();
-          if (window.SongState) window.SongState.requestSave();
-        });
-      }
+        if (section) {
+          const isHidden = (section.style.display === 'none' || getComputedStyle(section).display === 'none');
+          if (isHidden) {
+            section.style.display = 'block';
+            if (btnToggleTop) {
+              btnToggleTop.textContent = '🎸 Chords: On';
+              btnToggleTop.classList.add('btn-success');
+              btnToggleTop.classList.remove('btn-outline-cyan');
+            }
+          }
+          if (scrollIntoView) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+
+        setChordByName(sym, true);
+      };
+
+      // Synchronize studio in real time with sequence playback without aggressive scrolling
+      this.syncChordStudioWithChord = (chord, optSymbol, sequenceLabel) => {
+        if (!chord && !optSymbol) return;
+        const sym = optSymbol || (chord && (chord.displayName || chord.symbol));
+        if (!sym) return;
+
+        if (liveSequenceBadge) {
+          liveSequenceBadge.style.display = 'inline-block';
+          liveSequenceBadge.textContent = sequenceLabel ? `▶ ${sequenceLabel}: ${sym}` : `▶ Live: ${sym}`;
+        }
+
+        setChordByName(sym, true);
+      };
+
+      this.clearChordStudioSequenceSync = () => {
+        if (liveSequenceBadge) {
+          liveSequenceBadge.style.display = 'none';
+        }
+      };
 
       if (styleSelect) {
         styleSelect.addEventListener('change', () => {
@@ -5820,10 +6118,12 @@
           (idx, chord) => {
             this.highlightTableRow(idx);
             if (chord && this.visualizer) this.visualizer.setActiveChord(chord);
+            if (this.syncChordStudioWithChord) this.syncChordStudioWithChord(chord, chord?.displayName, `Prog #${idx + 1}`);
           },
           () => {
             if (btnPlayProg) btnPlayProg.textContent = '▶ Play Progression';
             this.highlightTableRow(-1);
+            if (this.clearChordStudioSequenceSync) this.clearChordStudioSequenceSync();
           },
           startTime
         );
@@ -5951,10 +6251,14 @@
         window.audio.playProgression(this.parsedChords, bpm, true, (idx, c) => {
           this.highlightTableRow(idx);
           if (c && this.visualizer) this.visualizer.setActiveChord(c);
-        }, null, syncTime);
+          if (this.syncChordStudioWithChord) this.syncChordStudioWithChord(c, c?.displayName, `Prog #${idx + 1}`);
+        }, () => {
+          if (this.clearChordStudioSequenceSync) this.clearChordStudioSequenceSync();
+        }, syncTime);
       } else if (trackChords && !trackChords.checked && window.audio.isPlayingProgression) {
         window.audio.stopProgression();
         this.highlightTableRow(-1);
+        if (this.clearChordStudioSequenceSync) this.clearChordStudioSequenceSync();
       }
 
       // Drums

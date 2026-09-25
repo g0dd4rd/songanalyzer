@@ -403,6 +403,7 @@
           <button type="button" class="panel-help-btn" data-panel-guide="guideChords" title="Click for tool explanation & student guide" aria-expanded="false" aria-label="Tool Guide: Movable Chord Studio">ℹ</button>
           <span><span class="card-title-icon">🎸</span> Multi-Notation Movable Chord Studio</span>
           <span id="chordLiveBadge" class="tempo-marking-badge" style="margin-left: 8px; font-size: 0.76rem; padding: 2px 8px;">6-Str Guitar • Standard</span>
+          <span id="chordLiveSequenceBadge" class="tempo-marking-badge" style="display: none; margin-left: 8px; font-size: 0.76rem; padding: 2px 8px; background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);">▶ Live Sequence</span>
         </div>
         <div class="card-title-right" style="display: flex; gap: 8px; align-items: center;">
           <button id="btnCloseChords" class="btn btn-sm" title="Close Chord Studio Panel" style="padding: 2px 8px;">✕</button>
@@ -434,6 +435,15 @@
 
       <!-- Main Chord Studio Control Bar -->
       <div class="chord-controls-bar">
+        <!-- Direct Chord Search / Name Input (Mode A: Name -> Voicings) -->
+        <div class="chord-filter-group chord-search-group">
+          <label for="chordQuickInput">Chord Name:</label>
+          <div class="chord-input-wrapper">
+            <input type="text" id="chordQuickInput" class="form-input select-sm chord-search-input" value="Dm9" placeholder="Type chord (e.g. Dm9, G7b9, F#m7, Cmaj7, A13)..." autocomplete="off" spellcheck="false" title="Enter any chord name (e.g. Dm9, Cmaj7, F#m7b5, A13, Dbadd9) to instantly find its fingerings">
+            <button type="button" id="btnClearChordQuick" class="btn-clear-chord" title="Clear chord input">&times;</button>
+          </div>
+        </div>
+
         <div class="chord-filter-group">
           <label for="chordInstrumentSelect">Instrument:</label>
           <select id="chordInstrumentSelect" class="form-select select-sm">
@@ -454,48 +464,9 @@
         </div>
 
         <div class="chord-filter-group">
-          <label for="chordRootSelect">Root:</label>
-          <select id="chordRootSelect" class="form-select select-sm">
-            <option value="0">C</option>
-            <option value="1">C# / Db</option>
-            <option value="2" selected>D</option>
-            <option value="3">Eb / D#</option>
-            <option value="4">E</option>
-            <option value="5">F</option>
-            <option value="6">F# / Gb</option>
-            <option value="7">G</option>
-            <option value="8">Ab / G#</option>
-            <option value="9">A</option>
-            <option value="10">Bb / A#</option>
-            <option value="11">B</option>
-          </select>
-        </div>
-
-        <div class="chord-filter-group">
-          <label for="chordQualitySelect">Quality:</label>
-          <select id="chordQualitySelect" class="form-select select-sm">
-            <option value="maj">Major (Triad)</option>
-            <option value="min">Minor (Triad)</option>
-            <option value="7">Dominant 7th (7)</option>
-            <option value="maj7">Major 7th (Maj7)</option>
-            <option value="min7">Minor 7th (m7)</option>
-            <option value="m7b5">Half-Diminished (m7b5)</option>
-            <option value="dim7">Diminished 7th (dim7)</option>
-            <option value="9">Dominant 9th (9)</option>
-            <option value="maj9">Major 9th (Maj9)</option>
-            <option value="min9" selected>Minor 9th (m9)</option>
-            <option value="7#9">Hendrix Chord (7#9)</option>
-            <option value="sus4">Suspended 4th (sus4)</option>
-            <option value="5">Power Chord (5th)</option>
-            <option value="10th_maj">Tenth Major (Bass 10th)</option>
-            <option value="10th_min">Tenth Minor (Bass 10th)</option>
-          </select>
-        </div>
-
-        <div class="chord-filter-group">
           <label for="chordStyleSelect">Style:</label>
           <select id="chordStyleSelect" class="form-select select-sm">
-            <option value="all" selected>All Styles</option>
+            <option value="all" selected>All Grips</option>
             <option value="CAGED">CAGED Grips</option>
             <option value="Drop 2">Drop 2</option>
             <option value="Drop 3">Drop 3</option>
@@ -515,6 +486,10 @@
             <option value="5">Max 5 Frets (Wide)</option>
             <option value="all">Any Reach</option>
           </select>
+        </div>
+
+        <div class="chord-filter-actions">
+          <button type="button" id="btnClearFretboard" class="btn btn-xs btn-outline-cyan" title="Clear all fretted notes to build a custom chord from scratch">🧹 Clear Neck</button>
         </div>
       </div>
 

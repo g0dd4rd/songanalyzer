@@ -329,6 +329,208 @@
     };
   }
 
+  /**
+   * Reverse Chord Identification Engine
+   * Identifies chord name, root, quality, formula, and inversions from a collection
+   * of sounding pitch classes (0-11) and an optional lowest bass pitch class.
+   */
+  function identifyChordFromNotes(pitchClasses, bassPC = null) {
+    if (!pitchClasses || pitchClasses.length === 0) return null;
+
+    // Unique normalized pitch classes (0-11)
+    const uniquePCs = [...new Set(pitchClasses.map(pc => (pc % 12 + 12) % 12))];
+    if (uniquePCs.length === 0) return null;
+
+    const lowestBassPC = (bassPC !== null && bassPC !== undefined) ? (bassPC % 12 + 12) % 12 : uniquePCs[0];
+    const bassNoteName = pitchClassToNote(lowestBassPC);
+
+    // Single note case
+    if (uniquePCs.length === 1) {
+      const rootName = pitchClassToNote(uniquePCs[0]);
+      return {
+        root: rootName,
+        rootPC: uniquePCs[0],
+        qualityId: 'note',
+        qualityName: 'Single Note',
+        displayName: rootName,
+        symbol: rootName,
+        formula: '1',
+        intervals: [0],
+        pitchClasses: uniquePCs,
+        bassNote: rootName,
+        bassPC: uniquePCs[0],
+        isInversion: false
+      };
+    }
+
+    // Two notes (Dyad) case
+    if (uniquePCs.length === 2) {
+      const [p1, p2] = uniquePCs;
+      const semitones = (p2 - p1 + 12) % 12;
+      // 5th (Power chord): 7 semitones
+      if (semitones === 7 || semitones === 5) {
+        const rootPC = semitones === 7 ? p1 : p2;
+        const rootName = pitchClassToNote(rootPC);
+        return {
+          root: rootName,
+          rootPC,
+          qualityId: '5',
+          qualityName: 'Power Chord (5th)',
+          displayName: `${rootName}5`,
+          symbol: `${rootName}5`,
+          formula: '1 - 5',
+          intervals: [0, 7],
+          pitchClasses: [rootPC, (rootPC + 7) % 12],
+          bassNote: bassNoteName,
+          bassPC: lowestBassPC,
+          isInversion: lowestBassPC !== rootPC
+        };
+      }
+      // 3rds (Major or minor dyad)
+      if (semitones === 4 || semitones === 8) {
+        const rootPC = semitones === 4 ? p1 : p2;
+        const rootName = pitchClassToNote(rootPC);
+        return {
+          root: rootName,
+          rootPC,
+          qualityId: 'maj',
+          qualityName: 'Major 3rd Dyad (No 5)',
+          displayName: `${rootName}(no5)`,
+          symbol: `${rootName}(no5)`,
+          formula: '1 - 3',
+          intervals: [0, 4],
+          pitchClasses: [rootPC, (rootPC + 4) % 12],
+          bassNote: bassNoteName,
+          bassPC: lowestBassPC,
+          isInversion: lowestBassPC !== rootPC
+        };
+      }
+      if (semitones === 3 || semitones === 9) {
+        const rootPC = semitones === 3 ? p1 : p2;
+        const rootName = pitchClassToNote(rootPC);
+        return {
+          root: rootName,
+          rootPC,
+          qualityId: 'min',
+          qualityName: 'Minor 3rd Dyad (No 5)',
+          displayName: `${rootName}m(no5)`,
+          symbol: `${rootName}m(no5)`,
+          formula: '1 - b3',
+          intervals: [0, 3],
+          pitchClasses: [rootPC, (rootPC + 3) % 12],
+          bassNote: bassNoteName,
+          bassPC: lowestBassPC,
+          isInversion: lowestBassPC !== rootPC
+        };
+      }
+    }
+
+    // 3+ notes: Match across candidate roots
+    const candidateRoots = [lowestBassPC, ...uniquePCs.filter(pc => pc !== lowestBassPC)];
+    const scoredMatches = [];
+
+    const RECOG_CHORDS = [
+      { id: 'maj', name: 'Major', symbolSuffix: '', formula: '1 - 3 - 5', intervals: [0, 4, 7], priority: 100 },
+      { id: 'min', name: 'Minor', symbolSuffix: 'm', formula: '1 - b3 - 5', intervals: [0, 3, 7], priority: 100 },
+      { id: 'dim', name: 'Diminished', symbolSuffix: 'dim', formula: '1 - b3 - b5', intervals: [0, 3, 6], priority: 85 },
+      { id: 'aug', name: 'Augmented', symbolSuffix: 'aug', formula: '1 - 3 - #5', intervals: [0, 4, 8], priority: 85 },
+      { id: 'sus4', name: 'Suspended 4th', symbolSuffix: 'sus4', formula: '1 - 4 - 5', intervals: [0, 5, 7], priority: 90 },
+      { id: 'sus2', name: 'Suspended 2nd', symbolSuffix: 'sus2', formula: '1 - 2 - 5', intervals: [0, 2, 7], priority: 90 },
+
+      { id: '7', name: 'Dominant 7th', symbolSuffix: '7', formula: '1 - 3 - 5 - b7', intervals: [0, 4, 7, 10], essential: [0, 4, 10], priority: 95 },
+      { id: 'maj7', name: 'Major 7th', symbolSuffix: 'maj7', formula: '1 - 3 - 5 - 7', intervals: [0, 4, 7, 11], essential: [0, 4, 11], priority: 95 },
+      { id: 'min7', name: 'Minor 7th', symbolSuffix: 'm7', formula: '1 - b3 - 5 - b7', intervals: [0, 3, 7, 10], essential: [0, 3, 10], priority: 95 },
+      { id: 'm7b5', name: 'Half-Diminished', symbolSuffix: 'm7b5', formula: '1 - b3 - b5 - b7', intervals: [0, 3, 6, 10], essential: [0, 3, 6, 10], priority: 90 },
+      { id: 'dim7', name: 'Diminished 7th', symbolSuffix: 'dim7', formula: '1 - b3 - b5 - bb7', intervals: [0, 3, 6, 9], essential: [0, 3, 6, 9], priority: 90 },
+      { id: 'mMaj7', name: 'Minor Major 7th', symbolSuffix: 'mMaj7', formula: '1 - b3 - 5 - 7', intervals: [0, 3, 7, 11], essential: [0, 3, 11], priority: 80 },
+      { id: '6', name: 'Major 6th', symbolSuffix: '6', formula: '1 - 3 - 5 - 6', intervals: [0, 4, 7, 9], essential: [0, 4, 9], priority: 88 },
+      { id: 'm6', name: 'Minor 6th', symbolSuffix: 'm6', formula: '1 - b3 - 5 - 6', intervals: [0, 3, 7, 9], essential: [0, 3, 9], priority: 88 },
+
+      { id: '9', name: 'Dominant 9th', symbolSuffix: '9', formula: '1 - 3 - 5 - b7 - 9', intervals: [0, 4, 7, 10, 2], essential: [0, 4, 10, 2], priority: 92 },
+      { id: 'maj9', name: 'Major 9th', symbolSuffix: 'maj9', formula: '1 - 3 - 5 - 7 - 9', intervals: [0, 4, 7, 11, 2], essential: [0, 4, 11, 2], priority: 92 },
+      { id: 'min9', name: 'Minor 9th', symbolSuffix: 'm9', formula: '1 - b3 - 5 - b7 - 9', intervals: [0, 3, 7, 10, 2], essential: [0, 3, 10, 2], priority: 92 },
+      { id: '7b9', name: 'Dominant 7b9', symbolSuffix: '7b9', formula: '1 - 3 - 5 - b7 - b9', intervals: [0, 4, 7, 10, 1], essential: [0, 4, 10, 1], priority: 87 },
+      { id: '7#9', name: 'Hendrix 7#9', symbolSuffix: '7#9', formula: '1 - 3 - 5 - b7 - #9', intervals: [0, 4, 7, 10, 3], essential: [0, 4, 10, 3], priority: 87 },
+      { id: 'add9', name: 'Major Add 9', symbolSuffix: 'add9', formula: '1 - 3 - 5 - 9', intervals: [0, 4, 7, 2], essential: [0, 4, 2], priority: 89 },
+      { id: 'madd9', name: 'Minor Add 9', symbolSuffix: 'madd9', formula: '1 - b3 - 5 - 9', intervals: [0, 3, 7, 2], essential: [0, 3, 2], priority: 89 },
+
+      { id: 'm11', name: 'Minor 11th', symbolSuffix: 'm11', formula: '1 - b3 - 5 - b7 - 11', intervals: [0, 3, 7, 10, 5], essential: [0, 3, 10, 5], priority: 84 },
+      { id: '13', name: 'Dominant 13th', symbolSuffix: '13', formula: '1 - 3 - 5 - b7 - 13', intervals: [0, 4, 7, 10, 9], essential: [0, 4, 10, 9], priority: 85 },
+      { id: 'alt', name: 'Altered Dominant', symbolSuffix: '7alt', formula: '1 - 3 - b5 - b7 - b9', intervals: [0, 4, 6, 10, 1], essential: [0, 4, 10], priority: 82 }
+    ];
+
+    candidateRoots.forEach(cRoot => {
+      const relIntervals = uniquePCs.map(pc => (pc - cRoot + 12) % 12);
+      const relSet = new Set(relIntervals);
+
+      RECOG_CHORDS.forEach(q => {
+        const qSet = new Set(q.intervals.map(i => i % 12));
+        const essentialSet = q.essential ? new Set(q.essential.map(i => i % 12)) : qSet;
+
+        let matchedTones = 0;
+        qSet.forEach(iv => { if (relSet.has(iv)) matchedTones++; });
+
+        let foreignTones = 0;
+        relSet.forEach(iv => { if (!qSet.has(iv)) foreignTones++; });
+
+        let essentialMatched = 0;
+        essentialSet.forEach(iv => { if (relSet.has(iv)) essentialMatched++; });
+        const allEssentialPresent = (essentialMatched === essentialSet.size);
+
+        if (allEssentialPresent && foreignTones === 0) {
+          let score = q.priority + (matchedTones * 15);
+          if (cRoot === lowestBassPC) score += 30;
+          if (matchedTones === qSet.size && uniquePCs.length === qSet.size) score += 40;
+
+          const rootName = pitchClassToNote(cRoot);
+          const baseSymbol = `${rootName}${q.symbolSuffix}`;
+          const isSlash = (lowestBassPC !== cRoot);
+          const finalDisplayName = isSlash ? `${baseSymbol}/${bassNoteName}` : baseSymbol;
+
+          scoredMatches.push({
+            score,
+            root: rootName,
+            rootPC: cRoot,
+            qualityId: q.id,
+            qualityName: q.name,
+            symbol: baseSymbol,
+            displayName: finalDisplayName,
+            formula: q.formula,
+            intervals: q.intervals,
+            pitchClasses: uniquePCs,
+            bassNote: bassNoteName,
+            bassPC: lowestBassPC,
+            isInversion: isSlash,
+            isSlash: isSlash,
+            inversionName: isSlash ? `${bassNoteName} in Bass` : 'Root Position'
+          });
+        }
+      });
+    });
+
+    if (scoredMatches.length === 0) {
+      const rootName = pitchClassToNote(lowestBassPC);
+      const noteNames = uniquePCs.map(pc => pitchClassToNote(pc)).join('-');
+      return {
+        root: rootName,
+        rootPC: lowestBassPC,
+        qualityId: 'custom',
+        qualityName: 'Custom Chord Grip',
+        displayName: `${rootName} (${noteNames})`,
+        symbol: `${rootName} (${noteNames})`,
+        formula: uniquePCs.map(pc => (pc - lowestBassPC + 12) % 12).join('-'),
+        intervals: uniquePCs.map(pc => (pc - lowestBassPC + 12) % 12),
+        pitchClasses: uniquePCs,
+        bassNote: bassNoteName,
+        bassPC: lowestBassPC,
+        isInversion: false
+      };
+    }
+
+    scoredMatches.sort((a, b) => b.score - a.score);
+    return scoredMatches[0];
+  }
+
   // Diatonic Modes & Scales Definitions
   const SCALE_DEFINITIONS = {
     'ionian': { name: 'Ionian (Major)', intervals: [0, 2, 4, 5, 7, 9, 11], mood: 'Calm Stability / Bright' },
@@ -783,6 +985,7 @@
     pitchClassToNote,
     spellIntervalNote,
     parseChord,
+    identifyChordFromNotes,
     detectKeys,
     analyzeChordInKey,
     transformProgressionModal
